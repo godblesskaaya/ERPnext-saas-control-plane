@@ -1,0 +1,124 @@
+name: erp-saas
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: erp_saas
+      POSTGRES_USER: erp_saas
+      POSTGRES_PASSWORD: erp_saas
+    volumes:
+      - saas-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp_saas -d erp_saas"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - saas-redis-data:/data
+
+  api:
+    build:
+      context: ./provisioning-api
+    environment:
+      DATABASE_URL: postgresql+psycopg://erp_saas:erp_saas@postgres:5432/erp_saas
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: change-this-in-prod
+      BENCH_EXEC_MODE: ${BENCH_EXEC_MODE:-docker-compose}
+      BENCH_WORKDIR: ${BENCH_WORKDIR:-/workspace}
+      BENCH_COMPOSE_FILE: ${BENCH_COMPOSE_FILE:-/workspace/docker-compose.yml}
+      BENCH_COMPOSE_COMMAND: ${BENCH_COMPOSE_COMMAND:-docker-compose}
+      BENCH_SERVICE_NAME: ${BENCH_SERVICE_NAME:-backend}
+      BENCH_DB_ROOT_USERNAME: ${BENCH_DB_ROOT_USERNAME:-root}
+      BENCH_DB_ROOT_PASSWORD: ${BENCH_DB_ROOT_PASSWORD:-Ctorch19}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      default: null
+      proxy: {}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.saas-api.rule=Host(`erp.blenkotechnologies.co.tz`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.saas-api.entrypoints=websecure"
+      - "traefik.http.routers.saas-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.saas-api.priority=11000"
+      - "traefik.http.routers.saas-api.middlewares=saas-api-strip"
+      - "traefik.http.routers.saas-api.service=saas-api-svc"
+      - "traefik.http.middlewares.saas-api-strip.stripprefix.prefixes=/api"
+      - "traefik.http.services.saas-api-svc.loadbalancer.server.port=8000"
+    volumes:
+      - ../:/workspace:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  worker:
+    build:
+      context: ./provisioning-api
+    command: ["python", "-m", "app.worker"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://erp_saas:erp_saas@postgres:5432/erp_saas
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET_KEY: change-this-in-prod
+      BENCH_EXEC_MODE: ${BENCH_EXEC_MODE:-docker-compose}
+      BENCH_WORKDIR: ${BENCH_WORKDIR:-/workspace}
+      BENCH_COMPOSE_FILE: ${BENCH_COMPOSE_FILE:-/workspace/docker-compose.yml}
+      BENCH_COMPOSE_COMMAND: ${BENCH_COMPOSE_COMMAND:-docker-compose}
+      BENCH_SERVICE_NAME: ${BENCH_SERVICE_NAME:-backend}
+      BENCH_DB_ROOT_USERNAME: ${BENCH_DB_ROOT_USERNAME:-root}
+      BENCH_DB_ROOT_PASSWORD: ${BENCH_DB_ROOT_PASSWORD:-Ctorch19}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ../:/workspace:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  saas-ui:
+    build:
+      context: ./saas-ui
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${SAAS_PUBLIC_API_BASE_URL:-/api}
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${SAAS_PUBLIC_API_BASE_URL:-/api}
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      default: null
+      proxy: {}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.saas-ui.rule=Host(`erp.blenkotechnologies.co.tz`)"
+      - "traefik.http.routers.saas-ui.entrypoints=websecure"
+      - "traefik.http.routers.saas-ui.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.saas-ui.priority=10000"
+      - "traefik.http.routers.saas-ui.service=saas-ui-svc"
+      - "traefik.http.routers.saas-ui-www.rule=Host(`www.erp.blenkotechnologies.co.tz`)"
+      - "traefik.http.routers.saas-ui-www.entrypoints=websecure"
+      - "traefik.http.routers.saas-ui-www.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.saas-ui-www.priority=12000"
+      - "traefik.http.routers.saas-ui-www.middlewares=saas-ui-www-redirect"
+      - "traefik.http.routers.saas-ui-www.service=saas-ui-svc"
+      - "traefik.http.middlewares.saas-ui-www-redirect.redirectregex.regex=^https?://www\\.erp\\.blenkotechnologies\\.co\\.tz/?(.*)"
+      - "traefik.http.middlewares.saas-ui-www-redirect.redirectregex.replacement=https://erp.blenkotechnologies.co.tz/$${1}"
+      - "traefik.http.middlewares.saas-ui-www-redirect.redirectregex.permanent=true"
+      - "traefik.http.services.saas-ui-svc.loadbalancer.server.port=3000"
+
+volumes:
+  saas-postgres-data:
+  saas-redis-data:
+
+networks:
+  default:
+    name: erp-saas_default
+  proxy:
+    external: true

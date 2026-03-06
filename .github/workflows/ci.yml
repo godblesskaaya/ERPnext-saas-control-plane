@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pre-commit:
+    name: Pre-commit checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pre-commit and secret scanner
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pre-commit detect-secrets
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files --show-diff-on-failure
+
+  backend-quality:
+    name: Backend tests + coverage + migration checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r provisioning-api/requirements.txt -r provisioning-api/requirements-dev.txt
+
+      - name: Alembic upgrade and drift check
+        env:
+          DATABASE_URL: sqlite:////tmp/erp_saas_ci.db
+          ENVIRONMENT: test
+          JWT_SECRET_KEY: ci-secret-key
+          REDIS_URL: redis://localhost:6379/15
+          RATE_LIMIT_STORAGE_URL: memory://
+        run: |
+          cd provisioning-api
+          alembic upgrade head
+          alembic check
+
+      - name: Backend unit/integration tests with coverage gate (>=70%)
+        env:
+          ENVIRONMENT: test
+          DATABASE_URL: sqlite:////tmp/erp_saas_pytest.db
+          BENCH_EXEC_MODE: mock
+          JWT_SECRET_KEY: ci-secret-key
+          REDIS_URL: redis://localhost:6379/15
+          RATE_LIMIT_STORAGE_URL: memory://
+          SAAS_UI_ORIGINS: http://testserver,http://localhost:3000
+          PYTHONPATH: provisioning-api
+        run: |
+          cd provisioning-api
+          pytest tests \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-fail-under=70
+
+      - name: Shell script safety tests
+        run: bash tests/scripts/test_script_safety.sh
+
+  docker-builds:
+    name: Docker build validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build provisioning API image
+        run: docker build -t erp-saas-provisioning-api-ci ./provisioning-api
+
+      - name: Build SaaS UI image
+        run: docker build -t erp-saas-ui-ci ./saas-ui
+
+  deploy-stub:
+    name: Deploy (stub)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - pre-commit
+      - backend-quality
+      - docker-builds
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deployment placeholder
+        run: |
+          echo "Deploy job is intentionally a stub for Sprint S7."
+          echo "TODO: configure cloud credentials/OIDC login."
+          echo "TODO: push versioned images to container registry."
+          echo "TODO: run migrations in target environment."
+          echo "TODO: roll out API, worker, and UI with smoke checks."

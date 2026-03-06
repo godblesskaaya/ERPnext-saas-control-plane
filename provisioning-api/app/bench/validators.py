@@ -8,6 +8,30 @@ from app.config import get_settings
 SUBDOMAIN_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$")
 DOMAIN_PATTERN = re.compile(r"^[a-z0-9][a-z0-9.-]{1,253}[a-z0-9]$")
 APP_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{1,30}$")
+BLOCKLIST = frozenset(
+    {
+        "admin",
+        "api",
+        "platform",
+        "billing",
+        "mail",
+        "smtp",
+        "ns1",
+        "ns2",
+        "www",
+        "ftp",
+        "ssh",
+        "vpn",
+        "cdn",
+        "blenko",
+        "support",
+        "help",
+        "status",
+        "monitor",
+        "metrics",
+        "grafana",
+    }
+)
 
 
 class ValidationError(ValueError):
@@ -19,6 +43,8 @@ settings = get_settings()
 
 def validate_subdomain(subdomain: str) -> str:
     cleaned = subdomain.strip().lower()
+    if cleaned in BLOCKLIST:
+        raise ValidationError("This subdomain is reserved")
     if not SUBDOMAIN_PATTERN.fullmatch(cleaned):
         raise ValidationError("Invalid subdomain")
     return cleaned

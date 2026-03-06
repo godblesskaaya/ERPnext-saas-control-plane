@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.bench.commands import build_set_admin_password_command
@@ -10,7 +11,9 @@ from app.bench.runner import BenchCommandError, run_bench_command
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import Tenant, User
+from app.rate_limits import authenticated_default_rate_limit, tenant_backup_rate_limit, tenant_create_rate_limit
 from app.schemas import (
+    BackupManifestOut,
     JobOut,
     ResetAdminPasswordRequest,
     ResetAdminPasswordResponse,
@@ -18,7 +21,15 @@ from app.schemas import (
     TenantCreateResponse,
     TenantOut,
 )
-from app.services.tenant_service import create_tenant_and_enqueue, enqueue_backup, enqueue_delete
+from app.services.backup_service import list_backup_manifests
+from app.services.audit_service import record_audit_event
+from app.services.tenant_service import (
+    create_tenant_and_start_checkout,
+    enqueue_backup,
+    enqueue_delete,
+    enforce_backup_plan_limit,
+)
+from app.token_store import get_token_store
 
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
@@ -33,18 +44,49 @@ def _get_accessible_tenant(tenant_id: str, db: Session, current_user: User) -> T
     return tenant
 
 
-@router.post("", response_model=TenantCreateResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "",
+    response_model=TenantCreateResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(tenant_create_rate_limit)],
+)
 def create_tenant(
+    request: Request,
     payload: TenantCreateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    token_store=Depends(get_token_store),
 ) -> TenantCreateResponse:
-    tenant, job = create_tenant_and_enqueue(db, current_user, payload.subdomain, payload.company_name, payload.plan)
-    return TenantCreateResponse(tenant=TenantOut.model_validate(tenant), job=JobOut.model_validate(job))
+    idempotency_key = request.headers.get("X-Idempotency-Key")
+    cache_key = f"idempotency:{current_user.id}:{idempotency_key}" if idempotency_key else None
+    if cache_key:
+        cached = token_store.get(cache_key)
+        if cached:
+            if isinstance(cached, bytes):
+                cached = cached.decode("utf-8")
+            return TenantCreateResponse.model_validate_json(str(cached))
+
+    tenant, checkout_session = create_tenant_and_start_checkout(
+        db,
+        current_user,
+        payload.subdomain,
+        payload.company_name,
+        payload.plan,
+        request=request,
+    )
+    response_payload = TenantCreateResponse(
+        tenant=TenantOut.model_validate(tenant),
+        job=None,
+        checkout_url=checkout_session.checkout_url,
+        checkout_session_id=checkout_session.session_id,
+    )
+    if cache_key:
+        token_store.setex(cache_key, 24 * 60 * 60, response_payload.model_dump_json())
+    return response_payload
 
 
-@router.get("", response_model=list[TenantOut])
-def list_tenants(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[TenantOut]:
+@router.get("", response_model=list[TenantOut], dependencies=[Depends(authenticated_default_rate_limit)])
+def list_tenants(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[TenantOut]:
     query = db.query(Tenant)
     if current_user.role != "admin":
         query = query.filter(Tenant.owner_id == current_user.id)
@@ -52,23 +94,65 @@ def list_tenants(db: Session = Depends(get_db), current_user: User = Depends(get
     return [TenantOut.model_validate(item) for item in tenants]
 
 
-@router.get("/{tenant_id}", response_model=TenantOut)
-def get_tenant(tenant_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> TenantOut:
+@router.get("/{tenant_id}", response_model=TenantOut, dependencies=[Depends(authenticated_default_rate_limit)])
+def get_tenant(
+    request: Request,
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TenantOut:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
     return TenantOut.model_validate(tenant)
 
 
-@router.post("/{tenant_id}/backup", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
-def backup_tenant(tenant_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> JobOut:
+@router.post(
+    "/{tenant_id}/backup",
+    response_model=JobOut,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(tenant_backup_rate_limit)],
+)
+def backup_tenant(
+    request: Request,
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> JobOut:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
-    job = enqueue_backup(db, tenant)
+    enforce_backup_plan_limit(db, tenant)
+    job = enqueue_backup(db, tenant, actor=current_user, request=request)
     return JobOut.model_validate(job)
 
 
-@router.delete("/{tenant_id}", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
-def delete_tenant(tenant_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> JobOut:
+@router.get(
+    "/{tenant_id}/backups",
+    response_model=list[BackupManifestOut],
+    dependencies=[Depends(authenticated_default_rate_limit)],
+)
+def list_tenant_backups(
+    request: Request,
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[BackupManifestOut]:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
-    job = enqueue_delete(db, tenant)
+    manifests = list_backup_manifests(db, tenant.id)
+    return [BackupManifestOut.model_validate(item) for item in manifests]
+
+
+@router.delete(
+    "/{tenant_id}",
+    response_model=JobOut,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+)
+def delete_tenant(
+    request: Request,
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> JobOut:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    job = enqueue_delete(db, tenant, actor=current_user, request=request)
     return JobOut.model_validate(job)
 
 
@@ -76,8 +160,10 @@ def delete_tenant(tenant_id: str, db: Session = Depends(get_db), current_user: U
     "/{tenant_id}/reset-admin-password",
     response_model=ResetAdminPasswordResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(authenticated_default_rate_limit)],
 )
 def reset_admin_password(
+    request: Request,
     tenant_id: str,
     payload: ResetAdminPasswordRequest,
     db: Session = Depends(get_db),
@@ -96,6 +182,14 @@ def reset_admin_password(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
+    record_audit_event(
+        db,
+        action="tenant.reset_admin_password",
+        resource="tenants",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+    )
     return ResetAdminPasswordResponse(
         tenant_id=tenant.id,
         domain=tenant.domain,

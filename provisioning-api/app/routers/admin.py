@@ -2,32 +2,138 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import require_admin
-from app.models import Tenant, User
-from app.schemas import MessageResponse, TenantOut
+from app.models import Job, Tenant, User
+from app.queue.enqueue import get_dlq
+from app.rate_limits import authenticated_default_rate_limit
+from app.schemas import DeadLetterJobOut, JobOut, MessageResponse, TenantOut
+from app.services.audit_service import record_audit_event
+from app.services.notifications import notification_service
+from app.services.tenant_state import InvalidTenantStatusTransition, transition_tenant_status
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-@router.get("/tenants", response_model=list[TenantOut])
-def list_all_tenants(db: Session = Depends(get_db), _: User = Depends(require_admin)) -> list[TenantOut]:
+@router.get("/tenants", response_model=list[TenantOut], dependencies=[Depends(authenticated_default_rate_limit)])
+def list_all_tenants(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+) -> list[TenantOut]:
     tenants = db.query(Tenant).order_by(Tenant.created_at.desc()).all()
+    record_audit_event(
+        db,
+        action="admin.view_all_tenants",
+        resource="tenants",
+        actor=current_admin,
+        request=request,
+        metadata={"count": len(tenants)},
+    )
     return [TenantOut.model_validate(item) for item in tenants]
 
 
-@router.post("/tenants/{tenant_id}/suspend", response_model=MessageResponse)
-def suspend_tenant(tenant_id: str, db: Session = Depends(get_db), _: User = Depends(require_admin)) -> MessageResponse:
+@router.post(
+    "/tenants/{tenant_id}/suspend",
+    response_model=MessageResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+)
+def suspend_tenant(
+    request: Request,
+    tenant_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+) -> MessageResponse:
     tenant = db.get(Tenant, tenant_id)
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
 
-    tenant.status = "suspended"
+    try:
+        transition_tenant_status(tenant, "suspended")
+    except InvalidTenantStatusTransition as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     tenant.updated_at = datetime.utcnow()
     db.add(tenant)
     db.commit()
+    record_audit_event(
+        db,
+        action="admin.suspend_tenant",
+        resource="tenants",
+        actor=current_admin,
+        resource_id=tenant.id,
+        request=request,
+    )
+    owner = db.get(User, tenant.owner_id)
+    if owner:
+        background_tasks.add_task(
+            notification_service.send_tenant_suspended,
+            owner.email,
+            tenant.domain,
+            "Administrative action",
+        )
     return MessageResponse(message="Tenant suspended")
+
+
+@router.get("/jobs/dead-letter", response_model=list[DeadLetterJobOut], dependencies=[Depends(authenticated_default_rate_limit)])
+def list_dead_letter_jobs(_: User = Depends(require_admin)) -> list[DeadLetterJobOut]:
+    queue = get_dlq()
+    results: list[DeadLetterJobOut] = []
+    for job in queue.get_jobs():
+        args = list(job.args or ())
+        kwargs = dict(job.kwargs or {})
+        results.append(
+            DeadLetterJobOut(
+                id=job.id,
+                func_name=job.func_name or "",
+                args=args,
+                kwargs=kwargs,
+                enqueued_at=job.enqueued_at,
+            )
+        )
+    return results
+
+
+@router.get("/jobs", response_model=list[JobOut], dependencies=[Depends(authenticated_default_rate_limit)])
+def list_recent_jobs(
+    request: Request,
+    limit: int = Query(default=50, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+) -> list[JobOut]:
+    jobs = db.query(Job).order_by(Job.created_at.desc()).limit(limit).all()
+    record_audit_event(
+        db,
+        action="admin.view_jobs",
+        resource="jobs",
+        actor=current_admin,
+        request=request,
+        metadata={"count": len(jobs), "limit": limit},
+    )
+    return [JobOut.model_validate(item) for item in jobs]
+
+
+@router.get("/jobs/{job_id}/logs", response_model=JobOut, dependencies=[Depends(authenticated_default_rate_limit)])
+def get_job_logs(
+    request: Request,
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+) -> JobOut:
+    job = db.get(Job, job_id)
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+
+    record_audit_event(
+        db,
+        action="admin.view_job_logs",
+        resource="jobs",
+        actor=current_admin,
+        resource_id=job.id,
+        request=request,
+    )
+    return JobOut.model_validate(job)

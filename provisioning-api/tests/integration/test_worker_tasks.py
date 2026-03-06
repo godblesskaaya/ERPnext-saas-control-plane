@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from app.models import Job, Tenant, User
+from app.models import AuditLog, Job, Tenant, User
 from app.security import hash_password
 from app.workers.tasks import backup_tenant, delete_tenant, provision_tenant
 
@@ -41,6 +41,10 @@ def test_worker_provision_flow(_, db_session):
     assert refreshed_tenant.platform_customer_id == "CUST-001"
     assert refreshed_job.status == "succeeded"
 
+    actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
+    assert actions == ["tenant.provision_started", "tenant.provision_succeeded"]
+
+
 
 def test_worker_backup_and_delete_flow(db_session):
     user = User(email="owner@example.com", password_hash=hash_password("Secret123!"), role="user")
@@ -75,3 +79,6 @@ def test_worker_backup_and_delete_flow(db_session):
     assert db_session.get(Job, backup_job.id).status == "succeeded"
     assert db_session.get(Job, delete_job.id).status == "succeeded"
     assert db_session.get(Tenant, tenant.id).status == "deleted"
+
+    actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
+    assert actions == ["tenant.backup_succeeded", "tenant.delete_completed"]

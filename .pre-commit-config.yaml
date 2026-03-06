@@ -1,0 +1,21 @@
+minimum_pre_commit_version: "3.7.0"
+repos:
+  - repo: local
+    hooks:
+      - id: detect-secrets-scan
+        name: detect-secrets full scan
+        language: system
+        pass_filenames: false
+        entry: >
+          python3 -c "import json, subprocess, sys; cmd=['python3','-m','detect_secrets.main','scan','--all-files','--force-use-all-plugins','--exclude-files','(^.git/|^.venv/|^node_modules/|^.next/|^dist/|^build/|^.mypy_cache/|^.pytest_cache/|^coverage/)']; out=subprocess.run(cmd, check=True, capture_output=True, text=True).stdout; data=json.loads(out or '{}'); findings={k:v for k,v in (data.get('results') or {}).items() if v}; print('Potential secrets detected:' + ''.join(f'\\n- {k}: {len(v)} finding(s)' for k,v in sorted(findings.items()))) if findings else None; sys.exit(1 if findings else 0)"
+
+      - id: no-merge-conflict-markers
+        name: block merge conflict markers
+        language: pygrep
+        entry: "^(<<<<<<<|=======|>>>>>>>)( .*)?$"
+
+      - id: no-trailing-whitespace
+        name: trim trailing whitespace (non-markdown)
+        language: pygrep
+        entry: "[ \t]+$"
+        exclude: "\\.md$"

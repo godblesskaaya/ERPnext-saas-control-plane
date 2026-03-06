@@ -1,26 +1,319 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { api } from "../../lib/api";
-import type { Tenant } from "../../lib/types";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { api, getApiErrorMessage } from "../../lib/api";
+import type { DeadLetterJob, Job, Tenant } from "../../lib/types";
+import { JobLogPanel } from "../../components/JobLogPanel";
+
+function statusBadgeClass(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "active") return "bg-emerald-500/20 text-emerald-300";
+  if (normalized === "provisioning" || normalized === "pending" || normalized === "deleting") {
+    return "bg-amber-500/20 text-amber-300";
+  }
+  if (normalized === "failed") return "bg-red-500/20 text-red-300";
+  if (normalized === "deleted") return "bg-slate-500/20 text-slate-300";
+  if (normalized === "suspended") return "bg-orange-500/20 text-orange-300";
+  return "bg-sky-500/20 text-sky-300";
+}
+
+function formatDate(value?: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
 
 export default function AdminPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [tenantsError, setTenantsError] = useState<string | null>(null);
+  const [busyTenantId, setBusyTenantId] = useState<string | null>(null);
 
-  useEffect(() => {
-    api.listAllTenants().then(setTenants).catch(() => setTenants([]));
+  const [deadLetters, setDeadLetters] = useState<DeadLetterJob[]>([]);
+  const [deadLetterSupported, setDeadLetterSupported] = useState(true);
+  const [deadLetterError, setDeadLetterError] = useState<string | null>(null);
+
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobsSupported, setJobsSupported] = useState(true);
+  const [jobsError, setJobsError] = useState<string | null>(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [selectedJobSupported, setSelectedJobSupported] = useState(true);
+
+  const loadTenants = useCallback(async () => {
+    try {
+      const data = await api.listAllTenants();
+      setTenants(data);
+      setTenantsError(null);
+    } catch (err) {
+      setTenantsError(getApiErrorMessage(err, "Failed to load admin tenants"));
+      setTenants([]);
+    }
   }, []);
 
+  const loadDeadLetters = useCallback(async () => {
+    try {
+      const result = await api.listDeadLetterJobs();
+      if (!result.supported) {
+        setDeadLetterSupported(false);
+        setDeadLetters([]);
+        setDeadLetterError(null);
+        return;
+      }
+      setDeadLetterSupported(true);
+      setDeadLetters(result.data);
+      setDeadLetterError(null);
+    } catch (err) {
+      setDeadLetterError(getApiErrorMessage(err, "Failed to load dead-letter queue"));
+    }
+  }, []);
+
+  const loadJobs = useCallback(async () => {
+    try {
+      const result = await api.listAdminJobs(100);
+      if (!result.supported) {
+        setJobsSupported(false);
+        setJobs([]);
+        setJobsError(null);
+        return;
+      }
+      setJobsSupported(true);
+      setJobs(result.data);
+      setJobsError(null);
+    } catch (err) {
+      setJobsError(getApiErrorMessage(err, "Failed to load jobs"));
+    }
+  }, []);
+
+  const loadJobLogs = useCallback(async (jobId: string) => {
+    try {
+      const result = await api.getAdminJobLogs(jobId);
+      if (!result.supported) {
+        setSelectedJobSupported(false);
+        return;
+      }
+      setSelectedJobSupported(true);
+      setSelectedJob(result.data);
+    } catch (err) {
+      setJobsError(getApiErrorMessage(err, "Failed to load job logs"));
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadTenants();
+    void loadDeadLetters();
+    void loadJobs();
+  }, [loadDeadLetters, loadJobs, loadTenants]);
+
+  const suspendedCount = useMemo(
+    () => tenants.filter((tenant) => tenant.status.toLowerCase() === "suspended").length,
+    [tenants]
+  );
+
   return (
-    <section className="space-y-4">
-      <h1 className="text-2xl font-semibold">Admin Tenants</h1>
-      <ul className="space-y-2">
-        {tenants.map((tenant) => (
-          <li key={tenant.id} className="rounded border border-slate-700 p-3">
-            {tenant.company_name} — {tenant.status} — {tenant.domain}
-          </li>
-        ))}
-      </ul>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold">Admin Control Center</h1>
+        <p className="text-sm text-slate-300">
+          {tenants.length} tenant(s) total · {suspendedCount} suspended
+        </p>
+      </div>
+
+      <div className="rounded border border-slate-700 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Recent jobs & logs</h2>
+          <button
+            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            onClick={() => {
+              void loadJobs();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {!jobsSupported ? (
+          <p className="text-sm text-slate-300">Admin jobs endpoint is not available on this backend.</p>
+        ) : jobsError ? (
+          <p className="text-sm text-red-400">{jobsError}</p>
+        ) : jobs.length ? (
+          <div className="space-y-3">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-900/60 text-left">
+                  <tr>
+                    <th className="p-2">Job ID</th>
+                    <th className="p-2">Tenant ID</th>
+                    <th className="p-2">Type</th>
+                    <th className="p-2">Status</th>
+                    <th className="p-2">Created</th>
+                    <th className="p-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {jobs.map((job) => (
+                    <tr key={job.id} className="border-t border-slate-700">
+                      <td className="p-2 font-mono text-xs">{job.id}</td>
+                      <td className="p-2 font-mono text-xs">{job.tenant_id}</td>
+                      <td className="p-2 text-xs">{job.type}</td>
+                      <td className="p-2 text-xs">{job.status}</td>
+                      <td className="p-2 text-xs text-slate-300">{formatDate(job.created_at)}</td>
+                      <td className="p-2 text-right">
+                        <button
+                          className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+                          onClick={() => {
+                            void loadJobLogs(job.id);
+                          }}
+                        >
+                          View logs
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {selectedJob ? (
+              <div className="space-y-2">
+                <p className="text-xs text-slate-300">
+                  Showing logs for job <span className="font-mono">{selectedJob.id}</span>
+                </p>
+                {selectedJobSupported ? (
+                  <JobLogPanel jobId={selectedJob.id} logs={selectedJob.logs} status={selectedJob.status} />
+                ) : (
+                  <pre className="max-h-72 overflow-auto rounded border border-slate-700 bg-slate-950 p-3 text-xs">
+                    {selectedJob.logs || "No logs available."}
+                  </pre>
+                )}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-300">No jobs found.</p>
+        )}
+      </div>
+
+      <div className="rounded border border-slate-700 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Tenant controls</h2>
+          <button
+            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            onClick={() => {
+              void loadTenants();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {tenantsError ? <p className="mb-2 text-sm text-red-400">{tenantsError}</p> : null}
+
+        <ul className="space-y-2">
+          {tenants.map((tenant) => (
+            <li key={tenant.id} className="rounded border border-slate-700/80 bg-slate-900/40 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="font-medium">{tenant.company_name}</p>
+                  <p className="text-xs text-slate-300">{tenant.domain}</p>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className={`rounded-full px-2 py-0.5 font-medium ${statusBadgeClass(tenant.status)}`}>
+                      {tenant.status}
+                    </span>
+                    <span className="rounded-full bg-slate-700/60 px-2 py-0.5">{tenant.plan}</span>
+                    <span className="text-slate-400">Created {formatDate(tenant.created_at)}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={`/tenants/${tenant.id}`}
+                    className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+                  >
+                    View details
+                  </a>
+                  <button
+                    type="button"
+                    disabled={busyTenantId === tenant.id}
+                    className="rounded bg-amber-700 px-2 py-1 text-xs hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={async () => {
+                      const approved = window.confirm(`Suspend ${tenant.company_name}?`);
+                      if (!approved) return;
+
+                      setBusyTenantId(tenant.id);
+                      try {
+                        const result = await api.suspendTenant(tenant.id);
+                        if (!result.supported) {
+                          setTenantsError("Suspend endpoint is not available on this backend.");
+                          return;
+                        }
+                        await loadTenants();
+                      } catch (err) {
+                        setTenantsError(getApiErrorMessage(err, "Failed to suspend tenant"));
+                      } finally {
+                        setBusyTenantId(null);
+                      }
+                    }}
+                  >
+                    {busyTenantId === tenant.id ? "Suspending..." : "Suspend"}
+                  </button>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        {!tenants.length && !tenantsError ? (
+          <p className="text-sm text-slate-300">No tenants found.</p>
+        ) : null}
+      </div>
+
+      <div className="rounded border border-slate-700 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Dead-letter queue</h2>
+          <button
+            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            onClick={() => {
+              void loadDeadLetters();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {!deadLetterSupported ? (
+          <p className="text-sm text-slate-300">Dead-letter endpoint is not available on this backend.</p>
+        ) : deadLetterError ? (
+          <p className="text-sm text-red-400">{deadLetterError}</p>
+        ) : deadLetters.length ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-900/60 text-left">
+                <tr>
+                  <th className="p-2">ID</th>
+                  <th className="p-2">Function</th>
+                  <th className="p-2">Queued</th>
+                  <th className="p-2">Args</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deadLetters.map((job) => (
+                  <tr key={job.id} className="border-t border-slate-700">
+                    <td className="p-2 font-mono text-xs">{job.id}</td>
+                    <td className="p-2 text-xs">{job.func_name}</td>
+                    <td className="p-2 text-xs text-slate-300">{formatDate(job.enqueued_at)}</td>
+                    <td className="p-2 text-xs text-slate-300">
+                      <code>{JSON.stringify(job.args).slice(0, 120)}</code>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-300">No dead-letter jobs.</p>
+        )}
+      </div>
     </section>
   );
 }

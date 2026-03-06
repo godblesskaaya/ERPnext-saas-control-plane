@@ -9,6 +9,14 @@ class MessageResponse(BaseModel):
     message: str
 
 
+class DeadLetterJobOut(BaseModel):
+    id: str
+    func_name: str
+    args: list
+    kwargs: dict
+    enqueued_at: datetime | None = None
+
+
 class SignupRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
@@ -50,6 +58,9 @@ class TenantOut(BaseModel):
     company_name: str
     plan: str
     status: str
+    billing_status: str
+    stripe_checkout_session_id: str | None
+    stripe_subscription_id: str | None
     platform_customer_id: str | None
     created_at: datetime
     updated_at: datetime
@@ -70,9 +81,24 @@ class JobOut(BaseModel):
     finished_at: datetime | None
 
 
+class BackupManifestOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    tenant_id: str
+    job_id: str
+    file_path: str
+    file_size_bytes: int
+    created_at: datetime
+    expires_at: datetime
+    s3_key: str | None
+
+
 class TenantCreateResponse(BaseModel):
     tenant: TenantOut
-    job: JobOut
+    job: JobOut | None = None
+    checkout_url: str | None = None
+    checkout_session_id: str | None = None
 
 
 class ResetAdminPasswordRequest(BaseModel):

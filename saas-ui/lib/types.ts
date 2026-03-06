@@ -1,3 +1,14 @@
+export type TenantStatus =
+  | "pending_payment"
+  | "pending"
+  | "provisioning"
+  | "active"
+  | "suspended"
+  | "deleting"
+  | "deleted"
+  | "failed"
+  | (string & {});
+
 export type Tenant = {
   id: string;
   owner_id: string;
@@ -6,19 +17,47 @@ export type Tenant = {
   site_name: string;
   company_name: string;
   plan: string;
-  status: string;
+  status: TenantStatus;
+  billing_status?: string;
+  stripe_checkout_session_id?: string | null;
+  stripe_subscription_id?: string | null;
+  platform_customer_id?: string | null;
   created_at: string;
   updated_at: string;
-  platform_customer_id?: string | null;
 };
+
+export type JobStatus =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "canceled"
+  | (string & {});
 
 export type Job = {
   id: string;
   tenant_id: string;
   type: string;
-  status: string;
+  status: JobStatus;
+  rq_job_id?: string | null;
   logs: string;
   error?: string | null;
+  created_at?: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+};
+
+export type TenantCreatePayload = {
+  subdomain: string;
+  company_name: string;
+  plan: string;
+};
+
+export type TenantCreateResponse = {
+  tenant: Tenant;
+  job?: Job | null;
+  checkout_url?: string | null;
+  checkout_session_id?: string | null;
 };
 
 export type ResetAdminPasswordResult = {
@@ -28,3 +67,32 @@ export type ResetAdminPasswordResult = {
   admin_password: string;
   message: string;
 };
+
+export type BackupManifestEntry = {
+  id?: string;
+  tenant_id?: string;
+  job_id?: string;
+  file_path?: string;
+  file_size_bytes?: number;
+  created_at?: string;
+  expires_at?: string | null;
+  s3_key?: string | null;
+  download_url?: string | null;
+  [key: string]: unknown;
+};
+
+export type DeadLetterJob = {
+  id: string;
+  func_name: string;
+  args: unknown[];
+  kwargs: Record<string, unknown>;
+  enqueued_at?: string | null;
+};
+
+export type MessageResponse = {
+  message: string;
+};
+
+export type OptionalEndpointResult<T> =
+  | { supported: true; data: T }
+  | { supported: false; data: null };

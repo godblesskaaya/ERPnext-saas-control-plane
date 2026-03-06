@@ -5,6 +5,7 @@ import hmac
 import os
 import secrets
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 from jose import JWTError, jwt
 
@@ -12,6 +13,7 @@ from app.config import get_settings
 
 
 settings = get_settings()
+TokenType = Literal["access", "refresh"]
 
 
 def hash_password(password: str) -> str:
@@ -28,16 +30,54 @@ def verify_password(password: str, password_hash: str) -> bool:
     return hmac.compare_digest(actual, expected)
 
 
-def create_access_token(subject: str, role: str) -> str:
-    expire = datetime.now(UTC) + timedelta(minutes=settings.jwt_expire_minutes)
+def _create_token(subject: str, role: str, token_type: TokenType, expires_delta: timedelta) -> str:
+    expire = datetime.now(UTC) + expires_delta
     payload = {
         "sub": subject,
         "role": role,
         "exp": expire,
         "jti": secrets.token_hex(12),
+        "token_type": token_type,
     }
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
+def create_access_token(subject: str, role: str) -> str:
+    return _create_token(
+        subject=subject,
+        role=role,
+        token_type="access",
+        expires_delta=timedelta(minutes=settings.jwt_access_token_expire_minutes),
+    )
+
+
+def create_refresh_token(subject: str, role: str) -> str:
+    return _create_token(
+        subject=subject,
+        role=role,
+        token_type="refresh",
+        expires_delta=timedelta(days=settings.jwt_refresh_token_expire_days),
+    )
+
+
+def decode_token(token: str, expected_type: TokenType | None = None) -> dict:
+    payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+    token_type = payload.get("token_type")
+    if expected_type and token_type != expected_type:
+        raise JWTError("Unexpected token type")
+    return payload
+
+
 def decode_access_token(token: str) -> dict:
-    return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+    return decode_token(token, expected_type="access")
+
+
+def decode_refresh_token(token: str) -> dict:
+    return decode_token(token, expected_type="refresh")
+
+
+def get_token_ttl_seconds(payload: dict) -> int:
+    exp = payload.get("exp")
+    if exp is None:
+        return 0
+    return max(int(exp - datetime.now(UTC).timestamp()), 0)

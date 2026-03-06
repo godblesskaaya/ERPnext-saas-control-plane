@@ -1,37 +1,115 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
-import { saveToken } from "../../lib/auth";
+import { clearToken, getToken, saveToken } from "../../lib/auth";
+
+function safeRedirectPath(nextParam: string | null): string {
+  if (!nextParam || !nextParam.startsWith("/") || nextParam.startsWith("//")) {
+    return "/dashboard";
+  }
+  return nextParam;
+}
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const searchParams = useSearchParams();
+
+  const [email, setEmail] = useState(searchParams.get("email") ?? "");
   const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const nextPath = useMemo(
+    () => safeRedirectPath(searchParams.get("next")),
+    [searchParams],
+  );
+
+  useEffect(() => {
+    const sessionExpired = searchParams.get("sessionExpired") === "1";
+    const logout = searchParams.get("logout") === "1";
+
+    if (logout) {
+      clearToken();
+      setNotice("You have been logged out.");
+      return;
+    }
+
+    if (sessionExpired) {
+      clearToken();
+      setNotice("Your session expired. Please sign in again.");
+      return;
+    }
+
+    if (getToken()) {
+      router.replace(nextPath);
+    }
+  }, [nextPath, router, searchParams]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    setBusy(true);
     setError(null);
+
     try {
       const token = await api.login(email, password);
       saveToken(token.access_token);
-      router.push("/dashboard");
+      router.replace(nextPath);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
-    <section className="space-y-4">
-      <h1 className="text-2xl font-semibold">Login</h1>
-      <form className="space-y-3" onSubmit={submit}>
-        <input className="w-full rounded border border-slate-600 bg-slate-900 p-2" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" />
-        <input className="w-full rounded border border-slate-600 bg-slate-900 p-2" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" />
-        <button className="rounded bg-blue-600 px-4 py-2">Login</button>
+    <section className="mx-auto max-w-xl space-y-6 rounded-2xl border border-slate-800 bg-slate-900/50 p-8">
+      <div className="space-y-2">
+        <h1 className="text-3xl font-semibold text-white">Welcome back</h1>
+        <p className="text-sm text-slate-300">Sign in to continue managing your ERP tenants.</p>
+      </div>
+
+      {notice ? (
+        <p className="rounded-md border border-amber-500/40 bg-amber-950/40 p-3 text-sm text-amber-100">{notice}</p>
+      ) : null}
+
+      <form className="space-y-4" onSubmit={submit}>
+        <input
+          className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 placeholder:text-slate-500"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="Email"
+          type="email"
+          required
+        />
+        <input
+          className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 placeholder:text-slate-500"
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="Password"
+          minLength={8}
+          required
+        />
+        <button
+          className="w-full rounded-md bg-sky-500 px-4 py-2 font-semibold text-slate-950 transition hover:bg-sky-400 disabled:opacity-60"
+          disabled={busy}
+        >
+          {busy ? "Signing in..." : "Sign in"}
+        </button>
       </form>
-      {error ? <p className="text-red-400">{error}</p> : null}
+
+      {error ? <p className="rounded-md border border-red-500/40 bg-red-950/40 p-3 text-sm text-red-200">{error}</p> : null}
+
+      <p className="text-sm text-slate-400">
+        Need an account?{" "}
+        <Link href="/signup" className="text-sky-300 hover:text-sky-200">
+          Create one
+        </Link>
+      </p>
     </section>
   );
 }

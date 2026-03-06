@@ -1,35 +1,179 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { JobLogPanel } from "../../../components/JobLogPanel";
-import { api } from "../../../lib/api";
+import { api, getApiErrorMessage, isSessionExpiredError } from "../../../lib/api";
+import type { BackupManifestEntry, Tenant } from "../../../lib/types";
+
+function statusClass(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "active") return "bg-emerald-500/20 text-emerald-300";
+  if (normalized === "provisioning" || normalized === "pending" || normalized === "deleting") {
+    return "bg-amber-500/20 text-amber-300";
+  }
+  if (normalized === "failed") return "bg-red-500/20 text-red-300";
+  if (normalized === "deleted") return "bg-slate-500/20 text-slate-300";
+  return "bg-sky-500/20 text-sky-300";
+}
+
+function formatTimestamp(value?: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
+function resolveBackupDownload(entry: BackupManifestEntry): string | null {
+  const direct = entry.download_url;
+  if (typeof direct === "string" && direct.trim()) return direct;
+  const path = entry.file_path;
+  if (typeof path === "string" && path.trim()) return path;
+  return null;
+}
 
 export default function TenantDetailPage() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   const id = params.id;
-  const [tenant, setTenant] = useState<any>(null);
+  const jobId = searchParams.get("job") || undefined;
 
-  useEffect(() => {
+  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [backups, setBackups] = useState<BackupManifestEntry[]>([]);
+  const [backupsSupported, setBackupsSupported] = useState(true);
+
+  const loadTenant = useCallback(async () => {
     if (!id) return;
-    api.getTenant(id).then(setTenant).catch(() => setTenant(null));
+    try {
+      const nextTenant = await api.getTenant(id);
+      setTenant(nextTenant);
+      setError(null);
+    } catch (err) {
+      if (isSessionExpiredError(err)) {
+        setError("Session expired. Please log in again.");
+      } else {
+        setError(getApiErrorMessage(err, "Failed to load tenant"));
+      }
+      setTenant(null);
+    }
   }, [id]);
 
+  const loadBackups = useCallback(async () => {
+    if (!id) return;
+    try {
+      const result = await api.listTenantBackups(id);
+      if (!result.supported) {
+        setBackupsSupported(false);
+        setBackups([]);
+        return;
+      }
+      setBackupsSupported(true);
+      setBackups(result.data);
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Failed to load backup history"));
+    }
+  }, [id]);
+
+  useEffect(() => {
+    void loadTenant();
+    void loadBackups();
+  }, [loadBackups, loadTenant]);
+
+  const sortedBackups = useMemo(
+    () => [...backups].sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? ""))),
+    [backups]
+  );
+
   if (!tenant) {
-    return <p>Loading tenant...</p>;
+    return <p>{error ?? "Loading tenant..."}</p>;
   }
 
   return (
-    <section className="space-y-4">
-      <h1 className="text-2xl font-semibold">{tenant.company_name}</h1>
-      <p>Status: {tenant.status}</p>
-      <p>
-        ERP URL:{" "}
-        <a href={`https://${tenant.domain}`} target="_blank" rel="noreferrer">
-          {tenant.domain}
-        </a>
-      </p>
-      <JobLogPanel logs={"Use /jobs/{id} polling in dashboard for detailed logs."} />
+    <section className="space-y-6">
+      <div className="space-y-2">
+        <h1 className="text-2xl font-semibold">{tenant.company_name}</h1>
+        <p>
+          Status:{" "}
+          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(tenant.status)}`}>
+            {tenant.status}
+          </span>
+        </p>
+        <p>
+          ERP URL:{" "}
+          <a href={`https://${tenant.domain}`} target="_blank" rel="noreferrer" className="text-blue-300 hover:text-blue-200">
+            {tenant.domain}
+          </a>
+        </p>
+      </div>
+
+      {jobId ? (
+        <div className="space-y-2">
+          <h2 className="text-lg font-semibold">Realtime Job Progress</h2>
+          <JobLogPanel jobId={jobId} />
+        </div>
+      ) : null}
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Backup history</h2>
+          <button
+            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            onClick={() => {
+              void loadBackups();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {!backupsSupported ? (
+          <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
+            Backup history endpoint is not available on this backend yet.
+          </p>
+        ) : sortedBackups.length ? (
+          <div className="overflow-x-auto rounded border border-slate-700">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-900/60">
+                <tr>
+                  <th className="p-2 text-left">Created</th>
+                  <th className="p-2 text-left">File</th>
+                  <th className="p-2 text-left">Size</th>
+                  <th className="p-2 text-left">Expires</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedBackups.map((entry, index) => {
+                  const link = resolveBackupDownload(entry);
+                  return (
+                    <tr key={`${entry.id ?? entry.job_id ?? "backup"}-${index}`} className="border-t border-slate-700">
+                      <td className="p-2">{formatTimestamp(typeof entry.created_at === "string" ? entry.created_at : null)}</td>
+                      <td className="p-2">
+                        {link ? (
+                          <a href={link} target="_blank" rel="noreferrer" className="text-blue-300 hover:text-blue-200">
+                            {String(entry.file_path ?? "Download backup")}
+                          </a>
+                        ) : (
+                          <span className="text-slate-400">{String(entry.file_path ?? "Unavailable")}</span>
+                        )}
+                      </td>
+                      <td className="p-2">{typeof entry.file_size_bytes === "number" ? `${entry.file_size_bytes} bytes` : "—"}</td>
+                      <td className="p-2">{formatTimestamp(typeof entry.expires_at === "string" ? entry.expires_at : null)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
+            No backup records yet.
+          </p>
+        )}
+      </div>
+
+      {error ? <p className="text-sm text-red-400">{error}</p> : null}
     </section>
   );
 }

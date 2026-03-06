@@ -1,0 +1,123 @@
+from __future__ import annotations
+
+from unittest.mock import patch
+
+from app.models import AuditLog, Job, Tenant, User
+
+
+class DummyRQJob:
+    id = "rq-billing-1"
+
+
+def fake_enqueue(*args, **kwargs):
+    return DummyRQJob()
+
+
+@patch("app.services.tenant_service.get_queue")
+def test_checkout_completed_webhook_enqueues_provisioning_once(mock_get_queue, client, db_session):
+    mock_get_queue.return_value.enqueue = fake_enqueue
+
+    user = User(email="owner@example.com", password_hash="hash", role="user")
+    tenant = Tenant(
+        owner_id=user.id,
+        subdomain="paid",
+        domain="paid.erp.blenkotechnologies.co.tz",
+        site_name="paid.erp.blenkotechnologies.co.tz",
+        company_name="Paid Ltd",
+        plan="starter",
+        status="pending_payment",
+        billing_status="pending",
+    )
+    db_session.add(user)
+    db_session.flush()
+    tenant.owner_id = user.id
+    db_session.add(tenant)
+    db_session.commit()
+    db_session.refresh(tenant)
+
+    payload = {
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "id": "cs_test_123",
+                "customer": "cus_test_123",
+                "subscription": "sub_test_123",
+                "metadata": {"tenant_id": tenant.id, "plan": "starter"},
+            }
+        },
+    }
+
+    first = client.post("/billing/webhook", json=payload)
+    assert first.status_code == 200
+    assert first.json()["message"] == "processed:checkout.session.completed"
+
+    second = client.post("/billing/webhook", json=payload)
+    assert second.status_code == 200
+    assert second.json()["message"] == "processed:checkout.session.completed"
+
+    db_session.expire_all()
+    refreshed_user = db_session.get(User, user.id)
+    refreshed_tenant = db_session.get(Tenant, tenant.id)
+    jobs = db_session.query(Job).filter(Job.tenant_id == tenant.id, Job.type == "create").all()
+    assert len(jobs) == 1
+    assert jobs[0].status == "queued"
+    assert jobs[0].rq_job_id == "rq-billing-1"
+    assert refreshed_user.stripe_customer_id == "cus_test_123"
+    assert refreshed_tenant.stripe_checkout_session_id == "cs_test_123"
+    assert refreshed_tenant.stripe_subscription_id == "sub_test_123"
+    assert refreshed_tenant.billing_status == "paid"
+
+    payment_actions = [
+        row.action
+        for row in db_session.query(AuditLog).filter(AuditLog.resource_id == tenant.id).order_by(AuditLog.created_at.asc()).all()
+    ]
+    assert payment_actions.count("billing.payment_succeeded") == 2
+
+
+def test_payment_failed_and_subscription_cancelled_audited(client, db_session):
+    user = User(email="owner2@example.com", password_hash="hash", role="user")
+    tenant = Tenant(
+        owner_id=user.id,
+        subdomain="billing",
+        domain="billing.erp.blenkotechnologies.co.tz",
+        site_name="billing.erp.blenkotechnologies.co.tz",
+        company_name="Billing Ltd",
+        plan="business",
+        status="pending_payment",
+        billing_status="pending",
+        stripe_subscription_id="sub_cancel_1",
+    )
+    db_session.add(user)
+    db_session.flush()
+    tenant.owner_id = user.id
+    db_session.add(tenant)
+    db_session.commit()
+    db_session.refresh(tenant)
+
+    failed_payload = {
+        "type": "invoice.payment_failed",
+        "data": {"object": {"id": "in_test_1", "metadata": {"tenant_id": tenant.id}}},
+    }
+    failed = client.post("/billing/webhook", json=failed_payload)
+    assert failed.status_code == 200
+    assert failed.json()["message"] == "processed:payment_failed"
+
+    cancelled_payload = {
+        "type": "customer.subscription.deleted",
+        "data": {"object": {"id": "sub_cancel_1"}},
+    }
+    cancelled = client.post("/billing/webhook", json=cancelled_payload)
+    assert cancelled.status_code == 200
+    assert cancelled.json()["message"] == "processed:subscription_cancelled"
+
+    db_session.expire_all()
+    refreshed_tenant = db_session.get(Tenant, tenant.id)
+    assert refreshed_tenant.billing_status == "cancelled"
+    assert refreshed_tenant.status == "suspended"
+
+    actions = [
+        row.action
+        for row in db_session.query(AuditLog).filter(AuditLog.resource_id == tenant.id).order_by(AuditLog.created_at.asc()).all()
+    ]
+    assert "billing.payment_failed" in actions
+    assert "billing.subscription_cancelled" in actions

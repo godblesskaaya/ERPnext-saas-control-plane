@@ -8,6 +8,18 @@ from app.config import get_settings
 SUBDOMAIN_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$")
 DOMAIN_PATTERN = re.compile(r"^[a-z0-9][a-z0-9.-]{1,253}[a-z0-9]$")
 APP_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{1,30}$")
+BUSINESS_APPS = frozenset(
+    {
+        "crm",
+        "hrms",
+        "frappe_whatsapp",
+        "posawesome",
+        "lms",
+        "helpdesk",
+        "payments",
+        "lending",
+    }
+)
 BLOCKLIST = frozenset(
     {
         "admin",
@@ -71,7 +83,7 @@ def validate_app_name(app_name: str) -> str:
     cleaned = app_name.strip().lower()
     if not APP_PATTERN.fullmatch(cleaned):
         raise ValidationError("Invalid app name")
-    if cleaned not in {"erpnext", "crm", "hrms"}:
+    if cleaned not in ({"erpnext"} | BUSINESS_APPS):
         raise ValidationError("App is not allowlisted")
     return cleaned
 

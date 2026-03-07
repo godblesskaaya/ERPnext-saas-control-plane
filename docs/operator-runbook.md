@@ -225,3 +225,14 @@ Direct script path:
 scripts/backup_site.sh <tenant-domain>.erp.blenkotechnologies.co.tz
 ```
 
+---
+
+## 11) Peer-review sign-off record (required)
+
+Use this section to record that someone other than the change author reviewed runbook/procedure updates.
+
+Related runtime-proof checklist: [`docs/runtime-verification-sentry-email.md`](./runtime-verification-sentry-email.md)
+
+| Date (UTC) | Scope reviewed | Author | Reviewer (must differ from author) | Result | Notes / links |
+|---|---|---|---|---|---|
+| `<YYYY-MM-DD>` | `<section/file>` | `<name>` | `<name>` | `<approved / changes-requested>` | `<PR/commit/evidence link>` |

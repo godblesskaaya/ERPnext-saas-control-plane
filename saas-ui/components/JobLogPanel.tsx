@@ -39,6 +39,7 @@ export function JobLogPanel({ jobId, logs, status, onJobUpdate }: Props) {
   const [jobStatus, setJobStatus] = useState(status ?? "unknown");
   const [streamState, setStreamState] = useState<"idle" | "connecting" | "live" | "completed" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const isTerminal = useMemo(() => TERMINAL_STATUSES.has(jobStatus.toLowerCase()), [jobStatus]);
 
@@ -148,11 +149,40 @@ export function JobLogPanel({ jobId, logs, status, onJobUpdate }: Props) {
   }, [isTerminal, jobId, refreshJob]);
 
   return (
-    <div className="space-y-2 rounded border border-slate-700 bg-slate-900/70 p-3">
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className={`rounded px-2 py-0.5 font-medium ${statusBadgeClass(jobStatus)}`}>{jobStatus}</span>
-        {jobId ? <span className="text-slate-400">Job {jobId.slice(0, 8)}...</span> : null}
-        {jobId ? <span className="text-slate-500">Stream: {streamState}</span> : null}
+    <div className="space-y-2 rounded-lg border border-slate-700 bg-slate-900/70 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`rounded px-2 py-0.5 font-medium ${statusBadgeClass(jobStatus)}`}>{jobStatus}</span>
+          {jobId ? <span className="text-slate-400">Job {jobId.slice(0, 8)}...</span> : null}
+          {jobId ? <span className="text-slate-500">Stream: {streamState}</span> : null}
+          <span className="text-slate-500">Lines: {logLines.length}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className="rounded border border-slate-600 px-2 py-1 hover:bg-slate-800"
+            onClick={() => {
+              void refreshJob().catch(() => undefined);
+            }}
+          >
+            Refresh
+          </button>
+          <button
+            type="button"
+            className="rounded border border-slate-600 px-2 py-1 hover:bg-slate-800"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(logLines.join("\n"));
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 1500);
+              } catch {
+                setCopied(false);
+              }
+            }}
+          >
+            {copied ? "Copied" : "Copy logs"}
+          </button>
+        </div>
       </div>
 
       <pre className="max-h-72 overflow-auto rounded border border-slate-700 bg-slate-950 p-3 text-xs">

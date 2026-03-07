@@ -57,12 +57,18 @@ def _detect_legacy_schema_revision(database_url: str) -> str | None:
         if not core_tables.issubset(tables):
             return None
 
+        tenant_columns = {column["name"] for column in inspector.get_columns("tenants")} if "tenants" in tables else set()
+        if {"payment_provider", "dpo_transaction_token"}.issubset(tenant_columns):
+            return "20260307_0006"
+
+        if "chosen_app" in tenant_columns:
+            return "20260307_0005"
+
         if "backups" in tables:
             return "20260306_0004"
 
         has_audit = "audit_logs" in tables
         users_columns = {column["name"] for column in inspector.get_columns("users")}
-        tenant_columns = {column["name"] for column in inspector.get_columns("tenants")}
         has_billing = {
             "billing_status",
             "stripe_checkout_session_id",

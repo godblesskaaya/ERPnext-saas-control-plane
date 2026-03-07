@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api, getApiErrorMessage } from "../lib/api";
-import type { TenantCreateResponse } from "../lib/types";
-import { PlanSelector } from "./PlanSelector";
+import type { TenantCreatePayload, TenantCreateResponse } from "../lib/types";
+import { BUSINESS_APP_OPTIONS, PlanSelector } from "./PlanSelector";
 
 type Props = {
   onCreated: (result: TenantCreateResponse) => void | Promise<void>;
@@ -25,14 +25,19 @@ export function TenantCreateForm({ onCreated }: Props) {
   const [subdomain, setSubdomain] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [plan, setPlan] = useState("starter");
+  const [chosenApp, setChosenApp] = useState("erpnext");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<TenantCreateResponse | null>(null);
 
   const normalizedSubdomain = useMemo(() => normalizeSubdomain(subdomain), [subdomain]);
-  const domainPreview = normalizedSubdomain
-    ? `${normalizedSubdomain}.${DOMAIN_SUFFIX}`
-    : `your-company.${DOMAIN_SUFFIX}`;
+  const domainPreview = normalizedSubdomain ? `${normalizedSubdomain}.${DOMAIN_SUFFIX}` : `your-company.${DOMAIN_SUFFIX}`;
+
+  useEffect(() => {
+    if (plan.toLowerCase() !== "business") {
+      setChosenApp("erpnext");
+    }
+  }, [plan]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -45,12 +50,24 @@ export function TenantCreateForm({ onCreated }: Props) {
       return;
     }
 
+    if (!companyName.trim()) {
+      setBusy(false);
+      setError("Company name is required.");
+      return;
+    }
+
+    const payload: TenantCreatePayload = {
+      subdomain: normalizedSubdomain,
+      company_name: companyName.trim(),
+      plan,
+    };
+
+    if (plan.toLowerCase() === "business") {
+      payload.chosen_app = chosenApp;
+    }
+
     try {
-      const result = await api.createTenant({
-        subdomain: normalizedSubdomain,
-        company_name: companyName.trim(),
-        plan,
-      });
+      const result = await api.createTenant(payload);
       setCreated(result);
       setSubdomain("");
       setCompanyName("");
@@ -62,51 +79,73 @@ export function TenantCreateForm({ onCreated }: Props) {
     }
   };
 
+  const selectedBusinessApp = BUSINESS_APP_OPTIONS.find((option) => option.id === chosenApp);
+
   return (
-    <form id="create-tenant" onSubmit={submit} className="space-y-4 rounded border border-slate-700 p-4">
+    <form id="create-tenant" onSubmit={submit} className="space-y-5 rounded-xl border border-slate-700 bg-slate-900/60 p-5">
       <div className="space-y-1">
-        <h2 className="text-lg font-semibold">Create ERP Instance</h2>
-        <p className="text-sm text-slate-300">Choose a subdomain, pick a plan, then continue to secure checkout.</p>
+        <h2 className="text-xl font-semibold text-white">Create ERP Instance</h2>
+        <p className="text-sm text-slate-300">
+          Configure workspace identity, pick plan + app profile, then continue to secure checkout.
+        </p>
       </div>
 
-      <div className="space-y-2">
-        <label className="text-sm text-slate-300" htmlFor="subdomain-input">
-          Subdomain
-        </label>
-        <input
-          id="subdomain-input"
-          className="w-full rounded border border-slate-600 bg-slate-900 p-2"
-          placeholder="acme"
-          value={subdomain}
-          onChange={(e) => setSubdomain(normalizeSubdomain(e.target.value))}
-          required
-        />
-        <p className="text-xs text-slate-400">Your ERP URL will be: {domainPreview}</p>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-2">
+          <label className="text-sm text-slate-300" htmlFor="subdomain-input">
+            Subdomain
+          </label>
+          <input
+            id="subdomain-input"
+            className="w-full rounded-md border border-slate-600 bg-slate-950 p-2.5 text-slate-100"
+            placeholder="acme"
+            value={subdomain}
+            onChange={(e) => setSubdomain(normalizeSubdomain(e.target.value))}
+            required
+          />
+          <p className="text-xs text-slate-400">ERP URL preview: {domainPreview}</p>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm text-slate-300" htmlFor="company-input">
+            Company name
+          </label>
+          <input
+            id="company-input"
+            className="w-full rounded-md border border-slate-600 bg-slate-950 p-2.5 text-slate-100"
+            placeholder="Acme Inc"
+            value={companyName}
+            onChange={(e) => setCompanyName(e.target.value)}
+            required
+          />
+          <p className="text-xs text-slate-400">Used in tenant records and billing metadata.</p>
+        </div>
       </div>
 
-      <div className="space-y-2">
-        <label className="text-sm text-slate-300" htmlFor="company-input">
-          Company name
-        </label>
-        <input
-          id="company-input"
-          className="w-full rounded border border-slate-600 bg-slate-900 p-2"
-          placeholder="Acme Inc"
-          value={companyName}
-          onChange={(e) => setCompanyName(e.target.value)}
-          required
-        />
+      <PlanSelector value={plan} onChange={setPlan} chosenApp={chosenApp} onChosenAppChange={setChosenApp} />
+
+      <div className="rounded-lg border border-slate-700 bg-slate-950/50 p-3 text-xs text-slate-300">
+        <p className="font-medium text-slate-100">Request preview</p>
+        <p className="mt-1">Plan: {plan}</p>
+        {plan.toLowerCase() === "business" ? (
+          <p>
+            Chosen app: <span className="text-emerald-200">{selectedBusinessApp?.label ?? chosenApp}</span>
+          </p>
+        ) : (
+          <p>Chosen app: auto-managed by selected plan</p>
+        )}
       </div>
 
-      <PlanSelector value={plan} onChange={setPlan} />
-
-      <button
-        disabled={busy}
-        type="submit"
-        className="rounded bg-blue-600 px-4 py-2 font-medium hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {busy ? "Creating..." : "Create ERP"}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          disabled={busy}
+          type="submit"
+          className="rounded-md bg-blue-600 px-4 py-2 font-medium hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {busy ? "Creating..." : "Create ERP"}
+        </button>
+        <span className="text-xs text-slate-400">Idempotent request protection enabled.</span>
+      </div>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
@@ -115,6 +154,9 @@ export function TenantCreateForm({ onCreated }: Props) {
           <p className="font-semibold text-emerald-200">Tenant request accepted</p>
           <p>
             <span className="text-slate-300">Domain:</span> {created.tenant.domain}
+          </p>
+          <p>
+            <span className="text-slate-300">Status:</span> {created.tenant.status}
           </p>
           {created.checkout_url ? (
             <a

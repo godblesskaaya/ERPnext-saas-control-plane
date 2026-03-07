@@ -31,6 +31,8 @@ def test_validate_plan_rejects_unknown():
 
 def test_validate_app_name_allowlist():
     assert validate_app_name("erpnext") == "erpnext"
+    assert validate_app_name("helpdesk") == "helpdesk"
+    assert validate_app_name("posawesome") == "posawesome"
     with pytest.raises(ValidationError):
         validate_app_name("customapp")
 

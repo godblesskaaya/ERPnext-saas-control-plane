@@ -188,6 +188,67 @@ function resolveWsBase(): string {
   return `${protocol}//${window.location.host}`;
 }
 
+function normalizeTenantCreatePayload(payload: TenantCreatePayload): TenantCreatePayload {
+  const chosen = (payload.chosen_app ?? "").trim();
+  if (!chosen) {
+    const { chosen_app, ...legacyPayload } = payload;
+    void chosen_app;
+    return legacyPayload;
+  }
+  return { ...payload, chosen_app: chosen };
+}
+
+function shouldRetryWithoutChosenApp(error: unknown, payload: TenantCreatePayload): boolean {
+  if (!payload.chosen_app) {
+    return false;
+  }
+  if (!(error instanceof ApiRequestError) || error.status !== 422) {
+    return false;
+  }
+
+  const bodyText = JSON.stringify(error.body ?? "").toLowerCase();
+  return (
+    bodyText.includes("chosen_app") ||
+    bodyText.includes("extra fields not permitted") ||
+    bodyText.includes("extra_forbidden") ||
+    bodyText.includes("unexpected keyword")
+  );
+}
+
+async function createTenantWithCompatibility(
+  payload: TenantCreatePayload,
+  idempotencyKey = createIdempotencyKey()
+): Promise<TenantCreateResponse> {
+  const normalizedPayload = normalizeTenantCreatePayload(payload);
+
+  try {
+    return await request<TenantCreateResponse>(
+      "/tenants",
+      {
+        method: "POST",
+        body: JSON.stringify(normalizedPayload),
+      },
+      { idempotencyKey }
+    );
+  } catch (error) {
+    if (!shouldRetryWithoutChosenApp(error, normalizedPayload)) {
+      throw error;
+    }
+
+    const { chosen_app, ...legacyPayload } = normalizedPayload;
+    void chosen_app;
+
+    return request<TenantCreateResponse>(
+      "/tenants",
+      {
+        method: "POST",
+        body: JSON.stringify(legacyPayload),
+      },
+      { idempotencyKey: createIdempotencyKey() }
+    );
+  }
+}
+
 export function jobStreamUrl(jobId: string, token: string): string {
   const base = resolveWsBase().replace(/\/+$/, "");
   return `${base}/ws/jobs/${encodeURIComponent(jobId)}?token=${encodeURIComponent(token)}`;
@@ -232,14 +293,7 @@ export const api = {
   getTenant: (id: string) => request<Tenant>(`/tenants/${id}`),
 
   createTenant: (payload: TenantCreatePayload, idempotencyKey = createIdempotencyKey()) =>
-    request<TenantCreateResponse>(
-      "/tenants",
-      {
-        method: "POST",
-        body: JSON.stringify(payload),
-      },
-      { idempotencyKey }
-    ),
+    createTenantWithCompatibility(payload, idempotencyKey),
 
   backupTenant: (id: string) => request<Job>(`/tenants/${id}/backup`, { method: "POST" }),
 
@@ -260,12 +314,9 @@ export const api = {
   suspendTenant: (tenantId: string) =>
     requestOptionalEndpoint<MessageResponse>(`/admin/tenants/${tenantId}/suspend`, { method: "POST" }),
 
-  listTenantBackups: (tenantId: string) =>
-    requestOptionalEndpoint<BackupManifestEntry[]>(`/tenants/${tenantId}/backups`),
+  listTenantBackups: (tenantId: string) => requestOptionalEndpoint<BackupManifestEntry[]>(`/tenants/${tenantId}/backups`),
 
-  listAdminJobs: (limit = 50) =>
-    requestOptionalEndpoint<Job[]>(`/admin/jobs?limit=${encodeURIComponent(String(limit))}`),
+  listAdminJobs: (limit = 50) => requestOptionalEndpoint<Job[]>(`/admin/jobs?limit=${encodeURIComponent(String(limit))}`),
 
-  getAdminJobLogs: (jobId: string) =>
-    requestOptionalEndpoint<Job>(`/admin/jobs/${encodeURIComponent(jobId)}/logs`),
+  getAdminJobLogs: (jobId: string) => requestOptionalEndpoint<Job>(`/admin/jobs/${encodeURIComponent(jobId)}/logs`),
 };

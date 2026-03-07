@@ -5,21 +5,33 @@ import { useRouter } from "next/navigation";
 
 import { TenantCreateForm } from "../../components/TenantCreateForm";
 import { TenantTable } from "../../components/TenantTable";
-import {
-  api,
-  getApiErrorMessage,
-  isSessionExpiredError,
-  onSessionExpired,
-} from "../../lib/api";
+import { api, getApiErrorMessage, isSessionExpiredError, onSessionExpired } from "../../lib/api";
 import type { Job, Tenant, TenantCreateResponse } from "../../lib/types";
 
 const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed", "deleted", "canceled", "cancelled"]);
+
+function metricCard(label: string, value: number, tone: "default" | "good" | "warn" = "default") {
+  const toneClass =
+    tone === "good"
+      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+      : tone === "warn"
+      ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
+      : "border-slate-700 bg-slate-900/70 text-slate-100";
+
+  return (
+    <article className={`rounded-lg border p-3 ${toneClass}`}>
+      <p className="text-xs uppercase tracking-wide opacity-80">{label}</p>
+      <p className="mt-1 text-2xl font-semibold">{value}</p>
+    </article>
+  );
+}
 
 export default function DashboardPage() {
   const router = useRouter();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [jobsByTenant, setJobsByTenant] = useState<Record<string, Job | undefined>>({});
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const handleError = useCallback(
     (err: unknown, fallback: string) => {
@@ -34,6 +46,7 @@ export default function DashboardPage() {
   );
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const data = await api.listTenants();
       setTenants(data);
@@ -50,6 +63,8 @@ export default function DashboardPage() {
       });
     } catch (err) {
       handleError(err, "Failed to load tenants");
+    } finally {
+      setLoading(false);
     }
   }, [handleError]);
 
@@ -69,6 +84,21 @@ export default function DashboardPage() {
     [jobsByTenant]
   );
 
+  const activeTenants = useMemo(
+    () => tenants.filter((tenant) => tenant.status.toLowerCase() === "active").length,
+    [tenants]
+  );
+
+  const provisioningTenants = useMemo(
+    () => tenants.filter((tenant) => ["pending", "pending_payment", "provisioning"].includes(tenant.status.toLowerCase())).length,
+    [tenants]
+  );
+
+  const failedTenants = useMemo(
+    () => tenants.filter((tenant) => tenant.status.toLowerCase() === "failed").length,
+    [tenants]
+  );
+
   const setTenantJob = (tenantId: string, job: Job) => {
     setJobsByTenant((previous) => ({ ...previous, [tenantId]: job }));
   };
@@ -76,12 +106,33 @@ export default function DashboardPage() {
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
-        {activeJobs ? (
-          <span className="rounded-full bg-blue-600/20 px-3 py-1 text-xs text-blue-200">
-            {activeJobs} job{activeJobs === 1 ? "" : "s"} tracked live
-          </span>
-        ) : null}
+        <div>
+          <h1 className="text-2xl font-semibold">Dashboard</h1>
+          <p className="text-sm text-slate-300">Operational overview, tenant controls, and provisioning activity.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {activeJobs ? (
+            <span className="rounded-full bg-blue-600/20 px-3 py-1 text-xs text-blue-200">
+              {activeJobs} job{activeJobs === 1 ? "" : "s"} tracked live
+            </span>
+          ) : null}
+          <button
+            className="rounded border border-slate-600 px-3 py-1.5 text-xs hover:bg-slate-800 disabled:opacity-60"
+            onClick={() => {
+              void load();
+            }}
+            disabled={loading}
+          >
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        {metricCard("Total tenants", tenants.length)}
+        {metricCard("Active", activeTenants, "good")}
+        {metricCard("Provisioning", provisioningTenants, "warn")}
+        {metricCard("Failed", failedTenants, failedTenants > 0 ? "warn" : "default")}
       </div>
 
       <TenantCreateForm

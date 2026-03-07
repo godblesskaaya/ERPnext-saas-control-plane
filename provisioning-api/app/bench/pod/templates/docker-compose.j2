@@ -1,0 +1,50 @@
+name: {{ project_name }}
+services:
+  mariadb:
+    image: {{ db_image }}
+    environment:
+      MARIADB_ROOT_PASSWORD: "{{ admin_password }}"
+      MARIADB_DATABASE: "site_{{ subdomain | replace('-', '_') }}"
+    volumes:
+      - db-data:/var/lib/mysql
+
+  redis:
+    image: {{ redis_image }}
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
+  backend:
+    image: {{ backend_image }}
+    environment:
+      SITE_NAME: "{{ domain }}"
+      ADMIN_PASSWORD: "{{ admin_password }}"
+      TENANT_ID: "{{ tenant_id }}"
+      TENANT_SUBDOMAIN: "{{ subdomain }}"
+    depends_on:
+      - mariadb
+      - redis
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network={{ traefik_network }}"
+      - "traefik.http.routers.{{ project_name }}.rule=Host(`{{ domain }}`)"
+      - "traefik.http.routers.{{ project_name }}.entrypoints=websecure"
+      - "traefik.http.routers.{{ project_name }}.tls=true"
+      - "traefik.http.services.{{ project_name }}.loadbalancer.server.port=8000"
+    deploy:
+      resources:
+        limits:
+          cpus: "{{ cpu_limit }}"
+          memory: "{{ memory_limit }}"
+    networks:
+      - default
+      - proxy
+
+volumes:
+  db-data:
+  redis-data:
+
+networks:
+  proxy:
+    external: true
+

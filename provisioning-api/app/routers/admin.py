@@ -18,8 +18,24 @@ from app.services.tenant_state import InvalidTenantStatusTransition, transition_
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
+AUTH_401_RESPONSE = {"description": "Unauthorized: missing, invalid, or revoked access token."}
+FORBIDDEN_403_RESPONSE = {"description": "Forbidden: admin role is required."}
+NOT_FOUND_404_RESPONSE = {"description": "Requested admin resource was not found."}
+CONFLICT_409_RESPONSE = {"description": "Conflict with current tenant state transition."}
+VALIDATION_422_RESPONSE = {"description": "Request validation failed."}
+RATE_LIMIT_429_RESPONSE = {"description": "Too many requests. Retry after the rate-limit window."}
 
-@router.get("/tenants", response_model=list[TenantOut], dependencies=[Depends(authenticated_default_rate_limit)])
+
+@router.get(
+    "/tenants",
+    response_model=list[TenantOut],
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
 def list_all_tenants(
     request: Request,
     db: Session = Depends(get_db),
@@ -41,6 +57,13 @@ def list_all_tenants(
     "/tenants/{tenant_id}/suspend",
     response_model=MessageResponse,
     dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_409_CONFLICT: CONFLICT_409_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
 )
 def suspend_tenant(
     request: Request,
@@ -79,7 +102,16 @@ def suspend_tenant(
     return MessageResponse(message="Tenant suspended")
 
 
-@router.get("/jobs/dead-letter", response_model=list[DeadLetterJobOut], dependencies=[Depends(authenticated_default_rate_limit)])
+@router.get(
+    "/jobs/dead-letter",
+    response_model=list[DeadLetterJobOut],
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
 def list_dead_letter_jobs(_: User = Depends(require_admin)) -> list[DeadLetterJobOut]:
     queue = get_dlq()
     results: list[DeadLetterJobOut] = []
@@ -98,7 +130,17 @@ def list_dead_letter_jobs(_: User = Depends(require_admin)) -> list[DeadLetterJo
     return results
 
 
-@router.get("/jobs", response_model=list[JobOut], dependencies=[Depends(authenticated_default_rate_limit)])
+@router.get(
+    "/jobs",
+    response_model=list[JobOut],
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
 def list_recent_jobs(
     request: Request,
     limit: int = Query(default=50, ge=1, le=500),
@@ -117,7 +159,17 @@ def list_recent_jobs(
     return [JobOut.model_validate(item) for item in jobs]
 
 
-@router.get("/jobs/{job_id}/logs", response_model=JobOut, dependencies=[Depends(authenticated_default_rate_limit)])
+@router.get(
+    "/jobs/{job_id}/logs",
+    response_model=JobOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
 def get_job_logs(
     request: Request,
     job_id: str,

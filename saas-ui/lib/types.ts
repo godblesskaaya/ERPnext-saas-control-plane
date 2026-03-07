@@ -9,6 +9,8 @@ export type TenantStatus =
   | "failed"
   | (string & {});
 
+export type TenantPlan = "starter" | "business" | "enterprise" | (string & {});
+
 export type Tenant = {
   id: string;
   owner_id: string;
@@ -16,12 +18,15 @@ export type Tenant = {
   domain: string;
   site_name: string;
   company_name: string;
-  plan: string;
+  plan: TenantPlan;
+  chosen_app?: string | null;
   status: TenantStatus;
   billing_status?: string;
   stripe_checkout_session_id?: string | null;
   stripe_subscription_id?: string | null;
   platform_customer_id?: string | null;
+  payment_provider?: string | null;
+  dpo_transaction_token?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -50,7 +55,8 @@ export type Job = {
 export type TenantCreatePayload = {
   subdomain: string;
   company_name: string;
-  plan: string;
+  plan: TenantPlan;
+  chosen_app?: string;
 };
 
 export type TenantCreateResponse = {

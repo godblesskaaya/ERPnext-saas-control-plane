@@ -31,6 +31,11 @@ from app.token_store import get_token_store
 router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
 
+AUTH_401_RESPONSE = {"description": "Unauthorized: missing, invalid, or revoked credentials/token."}
+RATE_LIMIT_429_RESPONSE = {"description": "Too many requests. Retry after the rate-limit window."}
+VALIDATION_422_RESPONSE = {"description": "Request validation failed."}
+CONFLICT_409_RESPONSE = {"description": "Conflict with existing resource state."}
+
 
 def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
     response.set_cookie(
@@ -48,7 +53,17 @@ def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(key=settings.refresh_cookie_name, path="/auth")
 
 
-@router.post("/signup", response_model=UserOut, status_code=status.HTTP_201_CREATED, dependencies=[Depends(signup_rate_limit)])
+@router.post(
+    "/signup",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(signup_rate_limit)],
+    responses={
+        status.HTTP_409_CONFLICT: CONFLICT_409_RESPONSE,
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
 def signup(
     request: Request,
     payload: SignupRequest,
@@ -75,7 +90,16 @@ def signup(
     return UserOut.model_validate(user)
 
 
-@router.post("/login", response_model=TokenResponse, dependencies=[Depends(login_rate_limit)])
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    dependencies=[Depends(login_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
 def login(request: Request, response: Response, payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
     user = db.query(User).filter(User.email == payload.email.lower()).first()
     if not user or not verify_password(payload.password, user.password_hash):
@@ -105,7 +129,15 @@ def login(request: Request, response: Response, payload: LoginRequest, db: Sessi
     return TokenResponse(access_token=access_token)
 
 
-@router.post("/refresh", response_model=TokenResponse, dependencies=[Depends(refresh_token_rate_limit)])
+@router.post(
+    "/refresh",
+    response_model=TokenResponse,
+    dependencies=[Depends(refresh_token_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
 def refresh_token(request: Request, response: Response, db: Session = Depends(get_db), token_store=Depends(get_token_store)) -> TokenResponse:
     refresh_token_value = request.cookies.get(settings.refresh_cookie_name)
     if not refresh_token_value:
@@ -131,7 +163,15 @@ def refresh_token(request: Request, response: Response, db: Session = Depends(ge
     return TokenResponse(access_token=access_token)
 
 
-@router.post("/logout", response_model=MessageResponse, dependencies=[Depends(logout_rate_limit)])
+@router.post(
+    "/logout",
+    response_model=MessageResponse,
+    dependencies=[Depends(logout_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
 def logout(
     request: Request,
     response: Response,

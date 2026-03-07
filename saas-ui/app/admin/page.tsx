@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { JobLogPanel } from "../../components/JobLogPanel";
 import { api, getApiErrorMessage } from "../../lib/api";
 import type { DeadLetterJob, Job, Tenant } from "../../lib/types";
-import { JobLogPanel } from "../../components/JobLogPanel";
 
 function statusBadgeClass(status: string): string {
   const normalized = status.toLowerCase();
@@ -23,6 +23,22 @@ function formatDate(value?: string | null): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
+}
+
+function metricCard(label: string, value: number, tone: "default" | "good" | "warn" = "default") {
+  const toneClass =
+    tone === "good"
+      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+      : tone === "warn"
+      ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
+      : "border-slate-700 bg-slate-900/70 text-slate-100";
+
+  return (
+    <article className={`rounded-lg border p-3 ${toneClass}`}>
+      <p className="text-xs uppercase tracking-wide opacity-80">{label}</p>
+      <p className="mt-1 text-2xl font-semibold">{value}</p>
+    </article>
+  );
 }
 
 export default function AdminPage() {
@@ -109,17 +125,37 @@ export default function AdminPage() {
     () => tenants.filter((tenant) => tenant.status.toLowerCase() === "suspended").length,
     [tenants]
   );
+  const provisioningCount = useMemo(
+    () => tenants.filter((tenant) => ["pending", "pending_payment", "provisioning"].includes(tenant.status.toLowerCase())).length,
+    [tenants]
+  );
+  const failedCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "failed").length, [tenants]);
 
   return (
     <section className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold">Admin Control Center</h1>
-        <p className="text-sm text-slate-300">
-          {tenants.length} tenant(s) total · {suspendedCount} suspended
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold">Admin Control Center</h1>
+          <p className="text-sm text-slate-300">Tenant governance, job inspection, and failure recovery workflows.</p>
+        </div>
+        <div className="flex gap-2">
+          <button className="rounded border border-slate-600 px-3 py-1.5 text-xs hover:bg-slate-800" onClick={() => void loadTenants()}>
+            Refresh tenants
+          </button>
+          <button className="rounded border border-slate-600 px-3 py-1.5 text-xs hover:bg-slate-800" onClick={() => void loadJobs()}>
+            Refresh jobs
+          </button>
+        </div>
       </div>
 
-      <div className="rounded border border-slate-700 p-4">
+      <div className="grid gap-3 md:grid-cols-4">
+        {metricCard("Tenants", tenants.length)}
+        {metricCard("Suspended", suspendedCount, suspendedCount ? "warn" : "default")}
+        {metricCard("Provisioning", provisioningCount, provisioningCount ? "warn" : "default")}
+        {metricCard("Failed", failedCount, failedCount ? "warn" : "good")}
+      </div>
+
+      <div className="rounded-xl border border-slate-700 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Recent jobs & logs</h2>
           <button
@@ -140,7 +176,7 @@ export default function AdminPage() {
           <div className="space-y-3">
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-900/60 text-left">
+                <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
                   <tr>
                     <th className="p-2">Job ID</th>
                     <th className="p-2">Tenant ID</th>
@@ -194,7 +230,7 @@ export default function AdminPage() {
         )}
       </div>
 
-      <div className="rounded border border-slate-700 p-4">
+      <div className="rounded-xl border border-slate-700 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Tenant controls</h2>
           <button
@@ -209,66 +245,79 @@ export default function AdminPage() {
 
         {tenantsError ? <p className="mb-2 text-sm text-red-400">{tenantsError}</p> : null}
 
-        <ul className="space-y-2">
-          {tenants.map((tenant) => (
-            <li key={tenant.id} className="rounded border border-slate-700/80 bg-slate-900/40 p-3">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="font-medium">{tenant.company_name}</p>
-                  <p className="text-xs text-slate-300">{tenant.domain}</p>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className={`rounded-full px-2 py-0.5 font-medium ${statusBadgeClass(tenant.status)}`}>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
+              <tr>
+                <th className="p-2">Company</th>
+                <th className="p-2">Plan/App</th>
+                <th className="p-2">Status</th>
+                <th className="p-2">Provider</th>
+                <th className="p-2">Created</th>
+                <th className="p-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tenants.map((tenant) => (
+                <tr key={tenant.id} className="border-t border-slate-700/80">
+                  <td className="space-y-1 p-2">
+                    <p className="font-medium text-white">{tenant.company_name}</p>
+                    <p className="text-xs text-slate-300">{tenant.domain}</p>
+                    <p className="font-mono text-[11px] text-slate-500">{tenant.id}</p>
+                  </td>
+                  <td className="p-2 text-xs text-slate-200">
+                    <p>{tenant.plan}</p>
+                    <p className="text-slate-400">{tenant.chosen_app || "auto"}</p>
+                  </td>
+                  <td className="p-2">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(tenant.status)}`}>
                       {tenant.status}
                     </span>
-                    <span className="rounded-full bg-slate-700/60 px-2 py-0.5">{tenant.plan}</span>
-                    <span className="text-slate-400">Created {formatDate(tenant.created_at)}</span>
-                  </div>
-                </div>
+                  </td>
+                  <td className="p-2 text-xs text-slate-300">{tenant.payment_provider || "n/a"}</td>
+                  <td className="p-2 text-xs text-slate-300">{formatDate(tenant.created_at)}</td>
+                  <td className="p-2">
+                    <div className="flex flex-wrap gap-2">
+                      <a href={`/tenants/${tenant.id}`} className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800">
+                        Details
+                      </a>
+                      <button
+                        type="button"
+                        disabled={busyTenantId === tenant.id}
+                        className="rounded bg-amber-700 px-2 py-1 text-xs hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                        onClick={async () => {
+                          const approved = window.confirm(`Suspend ${tenant.company_name}?`);
+                          if (!approved) return;
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <a
-                    href={`/tenants/${tenant.id}`}
-                    className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
-                  >
-                    View details
-                  </a>
-                  <button
-                    type="button"
-                    disabled={busyTenantId === tenant.id}
-                    className="rounded bg-amber-700 px-2 py-1 text-xs hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
-                    onClick={async () => {
-                      const approved = window.confirm(`Suspend ${tenant.company_name}?`);
-                      if (!approved) return;
+                          setBusyTenantId(tenant.id);
+                          try {
+                            const result = await api.suspendTenant(tenant.id);
+                            if (!result.supported) {
+                              setTenantsError("Suspend endpoint is not available on this backend.");
+                              return;
+                            }
+                            await loadTenants();
+                          } catch (err) {
+                            setTenantsError(getApiErrorMessage(err, "Failed to suspend tenant"));
+                          } finally {
+                            setBusyTenantId(null);
+                          }
+                        }}
+                      >
+                        {busyTenantId === tenant.id ? "Suspending..." : "Suspend"}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
-                      setBusyTenantId(tenant.id);
-                      try {
-                        const result = await api.suspendTenant(tenant.id);
-                        if (!result.supported) {
-                          setTenantsError("Suspend endpoint is not available on this backend.");
-                          return;
-                        }
-                        await loadTenants();
-                      } catch (err) {
-                        setTenantsError(getApiErrorMessage(err, "Failed to suspend tenant"));
-                      } finally {
-                        setBusyTenantId(null);
-                      }
-                    }}
-                  >
-                    {busyTenantId === tenant.id ? "Suspending..." : "Suspend"}
-                  </button>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
-
-        {!tenants.length && !tenantsError ? (
-          <p className="text-sm text-slate-300">No tenants found.</p>
-        ) : null}
+        {!tenants.length && !tenantsError ? <p className="mt-3 text-sm text-slate-300">No tenants found.</p> : null}
       </div>
 
-      <div className="rounded border border-slate-700 p-4">
+      <div className="rounded-xl border border-slate-700 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Dead-letter queue</h2>
           <button
@@ -288,7 +337,7 @@ export default function AdminPage() {
         ) : deadLetters.length ? (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-slate-900/60 text-left">
+              <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
                 <tr>
                   <th className="p-2">ID</th>
                   <th className="p-2">Function</th>

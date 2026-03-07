@@ -10,11 +10,22 @@ class DummyRQJob:
 
 
 class DummyCheckout:
-    def __init__(self, session_id: str = "cs_mock_123", checkout_url: str = "https://mock-billing.local/checkout/cs_mock_123"):
+    def __init__(
+        self,
+        session_id: str = "cs_mock_123",
+        checkout_url: str = "https://mock-billing.local/checkout/cs_mock_123",
+        provider: str = "stripe",
+    ):
         self.session_id = session_id
         self.checkout_url = checkout_url
-        self.customer_id = "cus_mock_123"
+        self.customer_ref = "cus_mock_123"
+        self.provider = provider
         self.mock_mode = True
+
+
+class DummyGateway:
+    def create_checkout(self, tenant, owner):
+        return DummyCheckout()
 
 
 def fake_enqueue(*args, **kwargs):
@@ -39,7 +50,7 @@ def _admin_headers(client, db_session):
     return {"Authorization": f"Bearer {token}"}
 
 
-@patch("app.services.tenant_service.billing_client.create_checkout_session", return_value=DummyCheckout())
+@patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
 def test_create_and_list_tenant_returns_checkout(_, client, db_session):
     headers = _auth_headers(client)
     create = client.post(
@@ -52,6 +63,8 @@ def test_create_and_list_tenant_returns_checkout(_, client, db_session):
     assert payload["tenant"]["domain"] == "acme.erp.blenkotechnologies.co.tz"
     assert payload["tenant"]["status"] == "pending"
     assert payload["tenant"]["billing_status"] == "pending"
+    assert payload["tenant"]["chosen_app"] is None
+    assert payload["tenant"]["payment_provider"] == "stripe"
     assert payload["job"] is None
     assert payload["checkout_url"] == "https://mock-billing.local/checkout/cs_mock_123"
     assert payload["checkout_session_id"] == "cs_mock_123"
@@ -84,7 +97,7 @@ def test_create_and_list_tenant_returns_checkout(_, client, db_session):
     assert actions.count("tenant.reset_admin_password") == 2
 
 
-@patch("app.services.tenant_service.billing_client.create_checkout_session", return_value=DummyCheckout())
+@patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
 def test_create_tenant_idempotency_key_returns_cached_response(_, client, db_session):
     headers = _auth_headers(client)
     headers["X-Idempotency-Key"] = "idem-123"
@@ -106,7 +119,7 @@ def test_create_tenant_idempotency_key_returns_cached_response(_, client, db_ses
     assert db_session.query(Tenant).filter(Tenant.subdomain == "idem").count() == 1
 
 
-@patch("app.services.tenant_service.billing_client.create_checkout_session", return_value=DummyCheckout())
+@patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
 @patch("app.services.tenant_service.get_queue")
 def test_create_tenant_rate_limit_and_backup_limit(mock_get_queue, _, client, db_session):
     mock_get_queue.return_value.enqueue = fake_enqueue
@@ -144,7 +157,7 @@ def test_create_tenant_rate_limit_and_backup_limit(mock_get_queue, _, client, db
     assert second_backup.status_code == 429
 
 
-@patch("app.services.tenant_service.billing_client.create_checkout_session", return_value=DummyCheckout())
+@patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
 @patch("app.services.tenant_service.get_queue")
 def test_backup_plan_daily_limit_enforced(mock_get_queue, _, client, db_session):
     mock_get_queue.return_value.enqueue = fake_enqueue
@@ -180,7 +193,7 @@ def test_backup_plan_daily_limit_enforced(mock_get_queue, _, client, db_session)
     assert "Plan limit reached" in blocked.json()["detail"]
 
 
-@patch("app.services.tenant_service.billing_client.create_checkout_session", return_value=DummyCheckout())
+@patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
 def test_reserved_subdomain_security_headers_and_cors(_, client):
     headers = _auth_headers(client)
 
@@ -207,6 +220,82 @@ def test_reserved_subdomain_security_headers_and_cors(_, client):
         },
     )
     assert "access-control-allow-origin" not in blocked.headers
+
+
+@patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
+def test_business_plan_requires_and_persists_chosen_app(_, client):
+    headers = _auth_headers(client)
+
+    missing = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "biz-missing", "company_name": "Biz Missing", "plan": "business"},
+    )
+    assert missing.status_code == 422
+    assert "chosen_app is required" in missing.json()["detail"]
+
+    created = client.post(
+        "/tenants",
+        headers=headers,
+        json={
+            "subdomain": "biz-ok",
+            "company_name": "Biz OK",
+            "plan": "business",
+            "chosen_app": "helpdesk",
+        },
+    )
+    assert created.status_code == 202
+    assert created.json()["tenant"]["chosen_app"] == "helpdesk"
+
+
+@patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
+def test_business_plan_rejects_non_allowlisted_chosen_app(_, client):
+    headers = _auth_headers(client)
+    response = client.post(
+        "/tenants",
+        headers=headers,
+        json={
+            "subdomain": "biz-invalid",
+            "company_name": "Biz Invalid",
+            "plan": "business",
+            "chosen_app": "customapp",
+        },
+    )
+    assert response.status_code == 422
+    assert "allowlisted" in response.json()["detail"].lower()
+
+
+@patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
+def test_starter_plan_rejects_chosen_app(_, client):
+    headers = _auth_headers(client)
+    response = client.post(
+        "/tenants",
+        headers=headers,
+        json={
+            "subdomain": "starter-app",
+            "company_name": "Starter App",
+            "plan": "starter",
+            "chosen_app": "crm",
+        },
+    )
+    assert response.status_code == 422
+    assert "starter plan does not support chosen_app" in response.json()["detail"]
+
+
+@patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
+def test_enterprise_plan_allows_null_chosen_app(_, client):
+    headers = _auth_headers(client)
+    response = client.post(
+        "/tenants",
+        headers=headers,
+        json={
+            "subdomain": "ent-null",
+            "company_name": "Enterprise Null",
+            "plan": "enterprise",
+        },
+    )
+    assert response.status_code == 202
+    assert response.json()["tenant"]["chosen_app"] is None
 
 
 def test_admin_list_and_suspend_audit_state_changes(client, db_session):

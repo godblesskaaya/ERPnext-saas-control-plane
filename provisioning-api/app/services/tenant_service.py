@@ -7,17 +7,24 @@ from fastapi import HTTPException, Request, status
 from rq import Retry
 from sqlalchemy.orm import Session
 
-from app.bench.validators import ValidationError, domain_from_subdomain, validate_plan, validate_subdomain
+from app.bench.validators import (
+    BUSINESS_APPS,
+    ValidationError,
+    domain_from_subdomain,
+    validate_app_name,
+    validate_plan,
+    validate_subdomain,
+)
 from app.logging_config import get_logger
 from app.models import AuditLog, Job, Tenant, User
 from app.queue.enqueue import get_queue
 from app.services.audit_service import record_audit_event
-from app.services.billing_client import BillingClient, CheckoutSessionResult
+from app.services.payment.base import CheckoutResult
+from app.services.payment.factory import get_payment_gateway
 from app.services.tenant_state import InvalidTenantStatusTransition, transition_tenant_status
 
 
 log = get_logger(__name__)
-billing_client = BillingClient()
 
 PLAN_BACKUP_DAILY_LIMITS: dict[str, int | None] = {
     "starter": 1,
@@ -32,9 +39,10 @@ def create_tenant_and_start_checkout(
     subdomain: str,
     company_name: str,
     plan: str,
+    chosen_app: str | None,
     *,
     request: Request,
-) -> tuple[Tenant, CheckoutSessionResult]:
+) -> tuple[Tenant, CheckoutResult]:
     request_log = log.bind(actor_user_id=owner.id, subdomain=subdomain, requested_plan=plan)
     try:
         clean_subdomain = validate_subdomain(subdomain)
@@ -43,6 +51,31 @@ def create_tenant_and_start_checkout(
     except ValidationError as exc:
         request_log.info("tenant.create.validation_failed", error=str(exc))
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+    selected_app: str | None = None
+    if selected_plan == "business":
+        if not chosen_app:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="chosen_app is required for business plan",
+            )
+        try:
+            selected_app = validate_app_name(chosen_app)
+        except ValidationError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        if selected_app not in BUSINESS_APPS:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="chosen_app is not allowlisted for business plan",
+            )
+    elif selected_plan == "starter":
+        if chosen_app:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="starter plan does not support chosen_app",
+            )
+    elif selected_plan == "enterprise":
+        selected_app = None
 
     existing = db.query(Tenant).filter(Tenant.domain == domain).first()
     if existing:
@@ -56,6 +89,7 @@ def create_tenant_and_start_checkout(
         site_name=domain,
         company_name=company_name,
         plan=selected_plan,
+        chosen_app=selected_app,
         status="pending_payment",
         billing_status="pending",
     )
@@ -63,11 +97,19 @@ def create_tenant_and_start_checkout(
     db.commit()
     db.refresh(tenant)
 
-    checkout_session = billing_client.create_checkout_session(tenant, owner)
-    tenant.stripe_checkout_session_id = checkout_session.session_id
+    checkout_session = get_payment_gateway().create_checkout(tenant, owner)
+    provider = getattr(checkout_session, "provider", "stripe")
+    tenant.payment_provider = provider
+    if provider == "stripe":
+        tenant.stripe_checkout_session_id = checkout_session.session_id
+        tenant.dpo_transaction_token = None
+    else:
+        tenant.dpo_transaction_token = checkout_session.session_id
+        tenant.stripe_checkout_session_id = None
     transition_tenant_status(tenant, "pending")
-    if checkout_session.customer_id and owner.stripe_customer_id != checkout_session.customer_id:
-        owner.stripe_customer_id = checkout_session.customer_id
+    customer_ref = getattr(checkout_session, "customer_ref", None)
+    if provider == "stripe" and customer_ref and owner.stripe_customer_id != customer_ref:
+        owner.stripe_customer_id = checkout_session.customer_ref
         db.add(owner)
     db.add(tenant)
     db.commit()
@@ -83,7 +125,9 @@ def create_tenant_and_start_checkout(
         metadata={
             "subdomain": tenant.subdomain,
             "plan": tenant.plan,
-            "stripe_checkout_session_id": checkout_session.session_id,
+            "chosen_app": tenant.chosen_app,
+            "payment_provider": tenant.payment_provider,
+            "checkout_session_id": checkout_session.session_id,
         },
     )
     request_log.info(

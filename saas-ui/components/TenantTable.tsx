@@ -40,6 +40,20 @@ function planBadgeClass(plan: string): string {
   return "bg-slate-600/30 text-slate-200";
 }
 
+function formatDate(value?: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
+function getBillingLabel(tenant: Tenant): string {
+  if (tenant.billing_status?.trim()) return tenant.billing_status;
+  if (tenant.stripe_subscription_id) return "subscribed";
+  if (tenant.stripe_checkout_session_id) return "checkout_created";
+  return "n/a";
+}
+
 export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onResetAdminPassword, onJobUpdate }: Props) {
   const [expandedTenantId, setExpandedTenantId] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
@@ -157,15 +171,16 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded border border-slate-700">
+      <div className="overflow-x-auto rounded-xl border border-slate-700">
         <table className="min-w-full text-sm">
-          <thead className="bg-slate-900/50 text-left">
+          <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
             <tr>
-              <th className="p-2">Tenant</th>
-              <th className="p-2">Plan</th>
-              <th className="p-2">Status</th>
-              <th className="p-2">ERP URL</th>
-              <th className="p-2">Actions</th>
+              <th className="p-2.5">Tenant</th>
+              <th className="p-2.5">Plan / App</th>
+              <th className="p-2.5">Status</th>
+              <th className="p-2.5">Billing</th>
+              <th className="p-2.5">Created</th>
+              <th className="p-2.5">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -176,88 +191,98 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
 
               return (
                 <Fragment key={tenant.id}>
-                  <tr className="border-t border-slate-700 align-top">
-                    <td className="p-2">
-                      <p className="font-medium">{tenant.company_name}</p>
-                      <p className="text-xs text-slate-400">{tenant.subdomain}</p>
+                  <tr className="border-t border-slate-700/80 align-top">
+                    <td className="space-y-1 p-2.5">
+                      <p className="font-medium text-white">{tenant.company_name}</p>
+                      <p className="text-xs text-slate-300">{tenant.subdomain}</p>
+                      <a
+                        href={`https://${tenant.domain}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-blue-300 hover:text-blue-200"
+                      >
+                        {tenant.domain}
+                      </a>
                     </td>
-                    <td className="p-2">
+                    <td className="p-2.5">
                       <div className="space-y-1">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${planBadgeClass(tenant.plan)}`}>
                           {plan?.label ?? tenant.plan}
                         </span>
-                        {tenant.plan.toLowerCase() !== "enterprise" ? (
-                          <div>
-                            <a
-                              href="/#pricing"
-                              className="text-xs text-blue-300 underline decoration-dotted underline-offset-2 hover:text-blue-200"
-                            >
-                              Upgrade plan
-                            </a>
-                          </div>
+                        <p className="text-xs text-slate-300">
+                          App: <span className="text-slate-100">{tenant.chosen_app || "auto"}</span>
+                        </p>
+                        {tenant.payment_provider ? (
+                          <p className="text-xs text-slate-400">Provider: {tenant.payment_provider}</p>
                         ) : null}
                       </div>
                     </td>
-                    <td className="p-2">
+                    <td className="p-2.5">
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(tenant.status)}`}>
                         {tenant.status}
                       </span>
+                      {job ? <p className="mt-1 text-xs text-slate-400">Job: {job.status}</p> : null}
                     </td>
-                    <td className="p-2">
-                      <a href={`https://${tenant.domain}`} target="_blank" rel="noreferrer" className="text-blue-300 hover:text-blue-200">
-                        {tenant.domain}
-                      </a>
-                    </td>
-                    <td className="space-x-2 p-2">
-                      <button
-                        className="rounded bg-slate-700 px-2 py-1 hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={busyTenantId === tenant.id}
-                        onClick={async () => {
-                          setBusyTenantId(tenant.id);
-                          try {
-                            await onBackup(tenant.id);
-                          } finally {
-                            setBusyTenantId(null);
-                          }
-                        }}
-                      >
-                        Backup
-                      </button>
-                      <button
-                        className="rounded bg-amber-700 px-2 py-1 hover:bg-amber-600"
-                        onClick={() => {
-                          setConfirmAction({ type: "reset", tenant, phrase: confirmationPhrase });
-                          setConfirmInput("");
-                          setNewPassword("");
-                          setConfirmError(null);
-                        }}
-                      >
-                        Reset Admin Password
-                      </button>
-                      <button
-                        className="rounded bg-red-700 px-2 py-1 hover:bg-red-600"
-                        onClick={() => {
-                          setConfirmAction({ type: "delete", tenant, phrase: confirmationPhrase });
-                          setConfirmInput("");
-                          setConfirmError(null);
-                        }}
-                      >
-                        Delete
-                      </button>
-                      {job ? (
-                        <button
+                    <td className="p-2.5 text-xs text-slate-300">{getBillingLabel(tenant)}</td>
+                    <td className="p-2.5 text-xs text-slate-300">{formatDate(tenant.created_at)}</td>
+                    <td className="p-2.5">
+                      <div className="flex flex-wrap gap-1.5">
+                        <a
+                          href={`/tenants/${tenant.id}`}
                           className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
-                          onClick={() => setExpandedTenantId((current) => (current === tenant.id ? null : tenant.id))}
                         >
-                          {expandedTenantId === tenant.id ? "Hide progress" : "Show progress"}
+                          Details
+                        </a>
+                        <button
+                          className="rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={busyTenantId === tenant.id}
+                          onClick={async () => {
+                            setBusyTenantId(tenant.id);
+                            try {
+                              await onBackup(tenant.id);
+                            } finally {
+                              setBusyTenantId(null);
+                            }
+                          }}
+                        >
+                          Backup
                         </button>
-                      ) : null}
+                        <button
+                          className="rounded bg-amber-700 px-2 py-1 text-xs hover:bg-amber-600"
+                          onClick={() => {
+                            setConfirmAction({ type: "reset", tenant, phrase: confirmationPhrase });
+                            setConfirmInput("");
+                            setNewPassword("");
+                            setConfirmError(null);
+                          }}
+                        >
+                          Reset admin
+                        </button>
+                        <button
+                          className="rounded bg-red-700 px-2 py-1 text-xs hover:bg-red-600"
+                          onClick={() => {
+                            setConfirmAction({ type: "delete", tenant, phrase: confirmationPhrase });
+                            setConfirmInput("");
+                            setConfirmError(null);
+                          }}
+                        >
+                          Delete
+                        </button>
+                        {job ? (
+                          <button
+                            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+                            onClick={() => setExpandedTenantId((current) => (current === tenant.id ? null : tenant.id))}
+                          >
+                            {expandedTenantId === tenant.id ? "Hide logs" : "Show logs"}
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
 
                   {job && expandedTenantId === tenant.id ? (
                     <tr className="border-t border-slate-700/80 bg-slate-900/30">
-                      <td className="p-3" colSpan={5}>
+                      <td className="p-3" colSpan={6}>
                         <JobLogPanel
                           jobId={job.id}
                           logs={job.logs}
@@ -305,11 +330,7 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
             ) : null}
             {confirmError ? <p className="text-red-400">{confirmError}</p> : null}
             <div className="flex justify-end gap-2">
-              <button
-                className="rounded border border-slate-600 px-3 py-1.5"
-                disabled={isSubmitting}
-                onClick={closeConfirm}
-              >
+              <button className="rounded border border-slate-600 px-3 py-1.5" disabled={isSubmitting} onClick={closeConfirm}>
                 Cancel
               </button>
               <button

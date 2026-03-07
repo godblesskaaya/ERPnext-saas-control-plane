@@ -35,5 +35,8 @@ def test_settings_default_stripe_values_allow_offline_tests(monkeypatch) -> None
     assert settings.stripe_price_starter == ""
     assert settings.stripe_price_business == ""
     assert settings.stripe_price_enterprise == ""
+    assert settings.active_payment_provider == "stripe"
+    assert settings.dpo_company_token == ""
+    assert settings.dpo_service_type == ""
 
     get_settings.cache_clear()

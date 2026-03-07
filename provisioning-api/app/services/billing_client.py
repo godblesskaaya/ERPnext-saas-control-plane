@@ -9,6 +9,7 @@ import httpx
 from app.config import get_settings
 from app.models import Tenant, User
 from app.schemas import BillingPayload
+from app.services.payment.factory import get_payment_gateway
 
 
 settings = get_settings()
@@ -19,6 +20,7 @@ class CheckoutSessionResult:
     session_id: str
     checkout_url: str
     customer_id: str
+    provider: str = "stripe"
     mock_mode: bool = False
 
 
@@ -65,50 +67,14 @@ class BillingClient:
         return price_id
 
     def create_checkout_session(self, tenant: Tenant, owner: User) -> CheckoutSessionResult:
-        if self.mock_mode:
-            customer_id = owner.stripe_customer_id or f"mock-customer-{owner.id[:8]}"
-            session_id = f"cs_mock_{tenant.id.replace('-', '')[:20]}"
-            return CheckoutSessionResult(
-                session_id=session_id,
-                checkout_url=f"https://mock-billing.local/checkout/{session_id}",
-                customer_id=customer_id,
-                mock_mode=True,
-            )
-
-        stripe = self._import_stripe()
-        if stripe is None:
-            raise RuntimeError("Stripe SDK is required when STRIPE_SECRET_KEY is configured")
-
-        stripe.api_key = settings.stripe_secret_key
-        customer_id = owner.stripe_customer_id
-        if not customer_id:
-            customer = stripe.Customer.create(email=owner.email, metadata={"owner_id": owner.id})
-            customer_id = customer["id"]
-
-        session = stripe.checkout.Session.create(
-            mode="subscription",
-            customer=customer_id,
-            line_items=[{"price": self._price_id_for_plan(tenant.plan), "quantity": 1}],
-            success_url=settings.billing_checkout_success_url,
-            cancel_url=settings.billing_checkout_cancel_url,
-            metadata={
-                "tenant_id": tenant.id,
-                "owner_id": owner.id,
-                "plan": tenant.plan,
-            },
-            subscription_data={
-                "metadata": {
-                    "tenant_id": tenant.id,
-                    "owner_id": owner.id,
-                    "plan": tenant.plan,
-                }
-            },
-        )
+        gateway = get_payment_gateway()
+        result = gateway.create_checkout(tenant, owner)
         return CheckoutSessionResult(
-            session_id=session["id"],
-            checkout_url=session["url"],
-            customer_id=customer_id,
-            mock_mode=False,
+            session_id=result.session_id,
+            checkout_url=result.checkout_url,
+            customer_id=result.customer_ref,
+            provider=result.provider,
+            mock_mode=result.mock_mode,
         )
 
     def parse_webhook_event(self, payload: bytes, signature_header: str | None) -> dict[str, Any]:

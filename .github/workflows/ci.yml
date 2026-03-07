@@ -90,20 +90,140 @@ jobs:
       - name: Build SaaS UI image
         run: docker build -t erp-saas-ui-ci ./saas-ui
 
-  deploy-stub:
-    name: Deploy (stub)
+  deploy-production:
+    name: Deploy production
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs:
       - pre-commit
       - backend-quality
       - docker-builds
     runs-on: ubuntu-latest
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
     environment: production
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     steps:
-      - name: Deployment placeholder
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Derive image metadata
+        id: meta
         run: |
-          echo "Deploy job is intentionally a stub for Sprint S7."
-          echo "TODO: configure cloud credentials/OIDC login."
-          echo "TODO: push versioned images to container registry."
-          echo "TODO: run migrations in target environment."
-          echo "TODO: roll out API, worker, and UI with smoke checks."
+          IMAGE_TAG="${GITHUB_SHA::12}"
+          API_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/erp-saas-api:${IMAGE_TAG}"
+          API_IMAGE_LATEST="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/erp-saas-api:latest"
+          UI_IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/erp-saas-ui:${IMAGE_TAG}"
+          UI_IMAGE_LATEST="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/erp-saas-ui:latest"
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "api_image=${API_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "api_image_latest=${API_IMAGE_LATEST}" >> "$GITHUB_OUTPUT"
+          echo "ui_image=${UI_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "ui_image_latest=${UI_IMAGE_LATEST}" >> "$GITHUB_OUTPUT"
+
+      - name: OIDC-ready auth placeholder
+        run: |
+          echo "OIDC is enabled for this job (id-token: write)."
+          echo "If your production target requires cloud auth, add provider-specific OIDC action here."
+
+      - name: Validate production deployment configuration
+        env:
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          PROD_SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          PROD_SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+          PROD_DEPLOY_PATH: ${{ vars.PROD_DEPLOY_PATH }}
+          PROD_HEALTHCHECK_URL: ${{ vars.PROD_HEALTHCHECK_URL }}
+          PROD_UI_HEALTHCHECK_URL: ${{ vars.PROD_UI_HEALTHCHECK_URL }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for key in PROD_SSH_HOST PROD_SSH_USER PROD_SSH_PRIVATE_KEY PROD_SSH_KNOWN_HOSTS PROD_DEPLOY_PATH PROD_HEALTHCHECK_URL PROD_UI_HEALTHCHECK_URL; do
+            if [ -z "${!key:-}" ]; then
+              missing+=("${key}")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Missing required production secrets/vars: ${missing[*]}"
+            echo "Configure secrets: PROD_SSH_HOST, PROD_SSH_USER, PROD_SSH_PRIVATE_KEY, PROD_SSH_KNOWN_HOSTS"
+            echo "Configure vars: PROD_DEPLOY_PATH, PROD_HEALTHCHECK_URL, PROD_UI_HEALTHCHECK_URL (optional PROD_COMPOSE_FILE)"
+            exit 1
+          fi
+
+      - name: Login to GHCR with GitHub token
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+
+      - name: Build and push provisioning API image
+        run: |
+          docker build \
+            -t "${{ steps.meta.outputs.api_image }}" \
+            -t "${{ steps.meta.outputs.api_image_latest }}" \
+            ./provisioning-api
+          docker push "${{ steps.meta.outputs.api_image }}"
+          docker push "${{ steps.meta.outputs.api_image_latest }}"
+
+      - name: Build and push SaaS UI image
+        run: |
+          docker build \
+            -t "${{ steps.meta.outputs.ui_image }}" \
+            -t "${{ steps.meta.outputs.ui_image_latest }}" \
+            ./saas-ui
+          docker push "${{ steps.meta.outputs.ui_image }}"
+          docker push "${{ steps.meta.outputs.ui_image_latest }}"
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+
+      - name: Configure SSH known hosts
+        env:
+          PROD_SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf "%s\n" "${PROD_SSH_KNOWN_HOSTS}" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Roll out on production host
+        env:
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          PROD_DEPLOY_PATH: ${{ vars.PROD_DEPLOY_PATH }}
+          PROD_COMPOSE_FILE: ${{ vars.PROD_COMPOSE_FILE }}
+          API_IMAGE: ${{ steps.meta.outputs.api_image }}
+          UI_IMAGE: ${{ steps.meta.outputs.ui_image }}
+        run: |
+          set -euo pipefail
+          compose_file="${PROD_COMPOSE_FILE:-docker-compose.yml}"
+          ssh "${PROD_SSH_USER}@${PROD_SSH_HOST}" \
+            "cd '${PROD_DEPLOY_PATH}' \
+            && export ERP_SAAS_API_IMAGE='${API_IMAGE}' ERP_SAAS_UI_IMAGE='${UI_IMAGE}' \
+            && docker compose -f '${compose_file}' pull api worker saas-ui \
+            && docker compose -f '${compose_file}' up -d api worker saas-ui \
+            && docker compose -f '${compose_file}' exec -T api alembic upgrade head"
+
+      - name: Post-deploy smoke checks
+        env:
+          PROD_HEALTHCHECK_URL: ${{ vars.PROD_HEALTHCHECK_URL }}
+          PROD_UI_HEALTHCHECK_URL: ${{ vars.PROD_UI_HEALTHCHECK_URL }}
+        run: |
+          set -euo pipefail
+          curl -fsS "${PROD_HEALTHCHECK_URL}"
+          curl -fsSI "${PROD_UI_HEALTHCHECK_URL}"
+
+      - name: Rollback placeholder (manual follow-up)
+        if: failure()
+        run: |
+          echo "::warning::Deployment failed after rollout attempt."
+          echo "Manual rollback placeholder:"
+          echo "1) Identify previous working image tags in GHCR."
+          echo "2) On production host, set ERP_SAAS_API_IMAGE and ERP_SAAS_UI_IMAGE to previous tags."
+          echo "3) Re-run: docker compose -f <compose-file> up -d api worker saas-ui"
+          echo "4) Re-run smoke checks and capture incident notes."

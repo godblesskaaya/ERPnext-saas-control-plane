@@ -49,11 +49,11 @@ def test_checkout_completed_webhook_enqueues_provisioning_once(mock_get_queue, c
 
     first = client.post("/billing/webhook", json=payload)
     assert first.status_code == 200
-    assert first.json()["message"] == "processed:checkout.session.completed"
+    assert first.json()["message"] == "processed:payment.confirmed"
 
     second = client.post("/billing/webhook", json=payload)
     assert second.status_code == 200
-    assert second.json()["message"] == "processed:checkout.session.completed"
+    assert second.json()["message"] == "processed:payment.confirmed"
 
     db_session.expire_all()
     refreshed_user = db_session.get(User, user.id)
@@ -100,7 +100,7 @@ def test_payment_failed_and_subscription_cancelled_audited(client, db_session):
     }
     failed = client.post("/billing/webhook", json=failed_payload)
     assert failed.status_code == 200
-    assert failed.json()["message"] == "processed:payment_failed"
+    assert failed.json()["message"] == "processed:payment.failed"
 
     cancelled_payload = {
         "type": "customer.subscription.deleted",
@@ -108,7 +108,7 @@ def test_payment_failed_and_subscription_cancelled_audited(client, db_session):
     }
     cancelled = client.post("/billing/webhook", json=cancelled_payload)
     assert cancelled.status_code == 200
-    assert cancelled.json()["message"] == "processed:subscription_cancelled"
+    assert cancelled.json()["message"] == "processed:subscription.cancelled"
 
     db_session.expire_all()
     refreshed_tenant = db_session.get(Tenant, tenant.id)

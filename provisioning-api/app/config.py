@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     allowed_plans: str = "starter,business,enterprise"
     saas_ui_origins: str = "http://localhost:3000"
 
-    bench_exec_mode: str = "mock"  # mock | docker-compose
+    bench_exec_mode: str = "mock"  # mock | docker-compose | pod
     bench_workdir: str = "/workspace"
     bench_compose_file: str = "/workspace/docker-compose.yml"
     bench_compose_command: str = "docker-compose"
@@ -35,6 +35,21 @@ class Settings(BaseSettings):
     bench_timeout_seconds: int = 180
     bench_db_root_username: str = "root"
     bench_db_root_password: str = ""
+
+    pods_root: str = "/opt/erp-pods"
+    pod_compose_filename: str = "docker-compose.yml"
+    pod_project_prefix: str = "erp-pod"
+    pod_compose_command: str = "docker compose"
+    pod_command_timeout_seconds: int = 180
+    pod_health_command: str = "ps backend"
+    pod_health_timeout_seconds: int = 180
+    pod_health_poll_interval_seconds: float = 5.0
+    pod_backend_image: str = "frappe/erpnext-worker:latest"
+    pod_db_image: str = "mariadb:10.6"
+    pod_redis_image: str = "redis:7-alpine"
+    pod_traefik_network: str = "proxy"
+    pod_cpu_limit: str = "2.0"
+    pod_memory_limit: str = "4g"
     backup_s3_bucket: str = ""
     backup_s3_region: str | None = None
     backup_s3_prefix: str = "backups"
@@ -48,6 +63,11 @@ class Settings(BaseSettings):
     stripe_price_starter: str = ""
     stripe_price_business: str = ""
     stripe_price_enterprise: str = ""
+    active_payment_provider: str = "stripe"  # stripe | dpo
+    dpo_company_token: str = ""
+    dpo_service_type: str = ""
+    dpo_payment_url: str = "https://secure.3gdirectpay.com/payv2.php"
+    dpo_api_url: str = "https://secure.3gdirectpay.com/API/v6/"
     billing_checkout_success_url: str = "http://localhost:3000/onboarding?payment=success"
     billing_checkout_cancel_url: str = "http://localhost:3000/onboarding?payment=cancelled"
 

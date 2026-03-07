@@ -34,6 +34,13 @@ from app.token_store import get_token_store
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 
+AUTH_401_RESPONSE = {"description": "Unauthorized: missing, invalid, or revoked access token."}
+FORBIDDEN_403_RESPONSE = {"description": "Forbidden: not allowed to access this tenant resource or plan-limit exceeded."}
+NOT_FOUND_404_RESPONSE = {"description": "Requested tenant resource was not found."}
+CONFLICT_409_RESPONSE = {"description": "Conflict with current tenant state (for example, duplicate domain or invalid transition)."}
+VALIDATION_422_RESPONSE = {"description": "Request payload or business validation failed."}
+RATE_LIMIT_429_RESPONSE = {"description": "Too many requests. Retry after the rate-limit window."}
+
 
 def _get_accessible_tenant(tenant_id: str, db: Session, current_user: User) -> Tenant:
     tenant = db.get(Tenant, tenant_id)
@@ -49,6 +56,12 @@ def _get_accessible_tenant(tenant_id: str, db: Session, current_user: User) -> T
     response_model=TenantCreateResponse,
     status_code=status.HTTP_202_ACCEPTED,
     dependencies=[Depends(tenant_create_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_409_CONFLICT: CONFLICT_409_RESPONSE,
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
 )
 def create_tenant(
     request: Request,
@@ -72,6 +85,7 @@ def create_tenant(
         payload.subdomain,
         payload.company_name,
         payload.plan,
+        payload.chosen_app,
         request=request,
     )
     response_payload = TenantCreateResponse(
@@ -85,7 +99,15 @@ def create_tenant(
     return response_payload
 
 
-@router.get("", response_model=list[TenantOut], dependencies=[Depends(authenticated_default_rate_limit)])
+@router.get(
+    "",
+    response_model=list[TenantOut],
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
 def list_tenants(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[TenantOut]:
     query = db.query(Tenant)
     if current_user.role != "admin":
@@ -94,7 +116,17 @@ def list_tenants(request: Request, db: Session = Depends(get_db), current_user: 
     return [TenantOut.model_validate(item) for item in tenants]
 
 
-@router.get("/{tenant_id}", response_model=TenantOut, dependencies=[Depends(authenticated_default_rate_limit)])
+@router.get(
+    "/{tenant_id}",
+    response_model=TenantOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
 def get_tenant(
     request: Request,
     tenant_id: str,
@@ -110,6 +142,12 @@ def get_tenant(
     response_model=JobOut,
     status_code=status.HTTP_202_ACCEPTED,
     dependencies=[Depends(tenant_backup_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
 )
 def backup_tenant(
     request: Request,
@@ -127,6 +165,12 @@ def backup_tenant(
     "/{tenant_id}/backups",
     response_model=list[BackupManifestOut],
     dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
 )
 def list_tenant_backups(
     request: Request,
@@ -144,6 +188,13 @@ def list_tenant_backups(
     response_model=JobOut,
     status_code=status.HTTP_202_ACCEPTED,
     dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_409_CONFLICT: CONFLICT_409_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
 )
 def delete_tenant(
     request: Request,
@@ -161,6 +212,13 @@ def delete_tenant(
     response_model=ResetAdminPasswordResponse,
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
 )
 def reset_admin_password(
     request: Request,

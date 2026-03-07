@@ -1,0 +1,243 @@
+Plan Architecture (Confirmed)
+StarterBusinessEnterpriseERPNext core✓✓✓Extra apps—1 chosen at signupAllInfrastructureShared benchShared benchDedicated Compose stackBackupsWeekly, 7-dayDaily, 30-dayDaily + S3, 90-daySupportEmailEmail priorityWhatsApp + SLA
+Business app choices: CRM, HRMS, WhatsApp (frappe_whatsapp), POS, LMS, Helpdesk, Payments, lending.
+Enterprise app list: user chooses any of the above.
+
+Sprint 5 — Plan Differentiation
+The worker currently installs erpnext on all plans identically. This is the first sprint deliverable.
+Schema change needed — new Alembic migration (0005):
+python# Add to tenants table
+op.add_column("tenants", sa.Column("chosen_app", sa.String(50), nullable=True))
+chosen_app is NULL for Starter, a single app slug for Business, and NULL for Enterprise (all apps installed from a constant).
+Worker branching logic in workers/tasks.py:
+pythonENTERPRISE_APPS = ["crm", "hrms", "frappe_whatsapp", "posawesome", "lms", "helpdesk", "payments"]
+
+# After install-app erpnext:
+if tenant.plan == "business" and tenant.chosen_app:
+    run_bench_command(build_install_app_command(tenant.domain, tenant.chosen_app))
+
+elif tenant.plan == "enterprise":
+    for app in ENTERPRISE_APPS:
+        run_bench_command(build_install_app_command(tenant.domain, app))
+Validator update in bench/validators.py:
+pythonBUSINESS_APPS = frozenset({"crm", "hrms", "frappe_whatsapp", "posawesome", "lms", "helpdesk", "payments"})
+
+def validate_app_name(app_name: str) -> str:
+    cleaned = app_name.strip().lower()
+    if not APP_PATTERN.fullmatch(cleaned):
+        raise ValidationError("Invalid app name")
+    if cleaned not in ({"erpnext"} | BUSINESS_APPS):
+        raise ValidationError("App is not allowlisted")
+    return cleaned
+Schema update in schemas.py:
+pythonclass TenantCreateRequest(BaseModel):
+    subdomain: str = Field(min_length=3, max_length=63)
+    company_name: str = Field(min_length=2, max_length=255)
+    plan: str = Field(min_length=2, max_length=30)
+    chosen_app: str | None = Field(default=None, max_length=50)
+Validation rule: if plan == "business" and chosen_app is absent or not in BUSINESS_APPS, reject with 422.
+
+Dashboard improvements
+
+Status badges (colour-coded: provisioning = amber, active = green, suspended = red, failed = red with error copy)
+Job progress panel consuming the /ws/jobs/{job_id} WebSocket
+Backup history table with file size, age, expiry, and S3 status indicator
+Plan badge with upgrade CTA
+Empty states for tenants list (first-time user, post-delete)
+Confirmation dialogs for destructive actions (delete tenant, manual backup)
+
+
+Payment Abstraction Architecture
+This is the most architecturally significant decision in this sprint. The current BillingClient is Stripe-only with mock fallback. It needs to become a provider-agnostic interface.
+Design principle: The provisioning pipeline only cares about two outcomes — payment_confirmed and payment_failed. It doesn't care which provider produced that outcome. The webhook handler is the convergence point; everything above it is provider-specific.
+Gateway Interface
+Define an abstract base in a new file services/payment/base.py:
+pythonfrom __future__ import annotations
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any
+
+@dataclass
+class CheckoutResult:
+    session_id: str
+    checkout_url: str
+    customer_ref: str       # provider's customer ID or reference
+    provider: str           # "stripe" | "dpo"
+    mock_mode: bool = False
+
+@dataclass
+class WebhookEvent:
+    event_type: str         # "payment.confirmed" | "payment.failed" | "subscription.cancelled"
+    tenant_id: str | None
+    subscription_id: str | None
+    customer_ref: str | None
+    raw: dict[str, Any]
+
+class PaymentGateway(ABC):
+    @abstractmethod
+    def create_checkout(self, tenant, owner) -> CheckoutResult: ...
+
+    @abstractmethod
+    def parse_webhook(self, payload: bytes, headers: dict[str, str]) -> WebhookEvent: ...
+
+    @property
+    @abstractmethod
+    def provider_name(self) -> str: ...
+Gateway Implementations
+services/payment/stripe_gateway.py — lift the existing BillingClient logic here. The current Stripe implementation maps cleanly:
+
+create_checkout_session → create_checkout
+parse_webhook_event → parse_webhook, normalising Stripe event types to the canonical WebhookEvent.event_type values above
+checkout.session.completed → payment.confirmed
+checkout.session.async_payment_failed / invoice.payment_failed → payment.failed
+customer.subscription.deleted → subscription.cancelled
+
+services/payment/dpo_gateway.py — DPO Pay (Direct Pay Online) is the dominant payment gateway in East Africa, covering Tanzania, Kenya, Uganda, and Zambia. It supports M-Pesa, Tigo Pesa, Airtel Money, bank transfers, and cards in local currencies. Implementation:
+pythonclass DPOGateway(PaymentGateway):
+    """
+    DPO Pay (Direct Pay Online) — https://pay.dpo.group
+    Supports: M-Pesa TZ, Tigo Pesa, Airtel Money, TZS bank transfer, Visa/MC
+    
+    Flow:
+    1. POST /API/v6/ with CreateToken action → receive TransToken
+    2. Redirect customer to https://secure.3gdirectpay.com/payv2.php?ID={TransToken}
+    3. DPO POSTs to your BackURL/NotifyURL on completion
+    4. Verify payment with VerifyToken action before provisioning
+    """
+
+    @property
+    def provider_name(self) -> str:
+        return "dpo"
+
+    def create_checkout(self, tenant, owner) -> CheckoutResult:
+        # POST to DPO CreateToken endpoint
+        # Returns TransToken — this is the session_id equivalent
+        ...
+
+    def parse_webhook(self, payload: bytes, headers: dict[str, str]) -> WebhookEvent:
+        # DPO sends a GET/POST to BackURL with TransactionToken and CCDapproval
+        # Must call VerifyToken to confirm before treating as confirmed
+        ...
+Key DPO config vars to add to config.py:
+pythondpo_company_token: str = ""          # DPO merchant company token
+dpo_service_type: str = ""           # DPO service/product code
+dpo_payment_url: str = "https://secure.3gdirectpay.com/payv2.php"
+dpo_api_url: str = "https://secure.3gdirectpay.com/API/v6/"
+active_payment_provider: str = "stripe"   # "stripe" | "dpo"
+Gateway Middleware / Factory
+services/payment/factory.py:
+pythonfrom app.config import get_settings
+from app.services.payment.base import PaymentGateway
+from app.services.payment.stripe_gateway import StripeGateway
+from app.services.payment.dpo_gateway import DPOGateway
+
+_REGISTRY: dict[str, type[PaymentGateway]] = {
+    "stripe": StripeGateway,
+    "dpo": DPOGateway,
+}
+
+def get_payment_gateway() -> PaymentGateway:
+    provider = get_settings().active_payment_provider.lower()
+    cls = _REGISTRY.get(provider)
+    if cls is None:
+        raise ValueError(f"Unknown payment provider: '{provider}'. Valid: {list(_REGISTRY)}")
+    return cls()
+Adding a third provider in the future (Flutterwave, Pesapal, PayStack) is a single file + one line in _REGISTRY. Nothing else changes.
+Webhook Middleware
+The existing /billing/webhook endpoint is Stripe-specific — it checks for Stripe-Signature. This needs to become provider-aware. The cleanest approach is a single webhook endpoint that delegates to the active gateway:
+python# routers/billing.py
+gateway = get_payment_gateway()
+
+@router.post("/webhook/{provider}", response_model=MessageResponse)
+async def billing_webhook(provider: str, request: Request, ...):
+    if provider != gateway.provider_name:
+        raise HTTPException(400, f"This instance uses {gateway.provider_name}")
+    
+    payload = await request.body()
+    try:
+        event = gateway.parse_webhook(payload, dict(request.headers))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    
+    # From here: pure business logic, provider-agnostic
+    if event.event_type == "payment.confirmed":
+        ...
+    elif event.event_type == "payment.failed":
+        ...
+    elif event.event_type == "subscription.cancelled":
+        ...
+```
+
+The Stripe webhook URL becomes `/billing/webhook/stripe`. The DPO notify URL becomes `/billing/webhook/dpo`. Traefik routes both. Stripe dashboard and DPO merchant portal each get their respective endpoint.
+
+#### `BillingClient` migration
+
+The existing `BillingClient` in `services/billing_client.py` should be deprecated in place — keep it until `StripeGateway` is proven, then remove it. `billing_client.register_customer()` (the ERPNext platform ERP call) is not a payment operation and should move to a separate `PlatformERPClient` service regardless.
+
+---
+
+### Sprint 9 — Enterprise Pod Provisioning
+
+New execution mode: `bench_exec_mode = "pod"`.
+
+New package: `app/bench/pod/` alongside existing `app/bench/`:
+```
+app/bench/
+├── commands.py       # existing — shared bench commands
+├── runner.py         # existing — subprocess executor
+├── validators.py     # existing
+└── pod/
+    ├── __init__.py
+    ├── templates/
+    │   └── docker-compose.j2   # Jinja2 template for per-tenant stack
+    ├── composer.py             # renders template, writes to /opt/erp-pods/{subdomain}/
+    └── runner.py               # runs docker compose up -d, polls health
+workers/tasks.py branches on plan and exec mode:
+pythonif tenant.plan == "enterprise" and settings.bench_exec_mode == "pod":
+    from app.bench.pod.runner import provision_pod
+    provision_pod(tenant, admin_password, job)
+else:
+    # existing shared bench path
+    run_bench_command(build_new_site_command(...))
+The compose.j2 template assigns each tenant a unique Traefik router rule (Host({subdomain}.erp.blenkotechnologies.co.tz)) and resource limits (deploy.resources.limits.cpus, memory). No port mapping needed — Traefik reaches containers via Docker network labels.
+
+Alembic Migration Chain for This Phase
+RevisionDescription20260306_0001Initial: users, tenants, jobs20260306_0002Audit logs20260306_0003Billing columns20260306_0004Backups20260307_0005tenants.chosen_app (Sprint 5)20260307_0006Payment provider columns: tenants.payment_provider, tenants.dpo_transaction_token (Sprint 8)
+
+
+## Phase 1 Audit Backlog carried into Phase 2 (March 7, 2026)
+
+Source of truth: `docs/phase1-audit.md`.
+
+The following backlog is promoted into this phase so the original desired-state criteria can be fully closed.
+Status marks below are based on repository state (not production execution evidence):
+
+1. **Plan differentiation (required, Sprint 5)** — **Done**
+   - `tenants.chosen_app` migration present (`alembic/versions/20260307_0005_chosen_app.py`).
+   - Plan/app validation + worker branching present (`app/bench/validators.py`, `app/workers/tasks.py`).
+
+2. **Payment provider abstraction (required, Sprint 8)** — **Done**
+   - Provider abstraction and registry present (`app/services/payment/*`, `factory.py`).
+   - Provider-aware webhook path present (`app/routers/billing.py`, `/billing/webhook/{provider}`).
+   - Payment-provider tenant columns migration present (`alembic/versions/20260307_0006_payment_provider_columns.py`).
+
+3. **Enterprise pod provisioning mode (required, Sprint 9)** — **Done**
+   - Pod provisioning package present (`app/bench/pod/*`).
+   - Enterprise+pod worker branch present (`app/workers/tasks.py`).
+   - Deterministic unit/integration test coverage present (`tests/unit/test_pod_provisioning.py`, `tests/integration/test_worker_tasks.py`).
+
+4. **CI/CD completion (required for ops maturity)** — **Done**
+   - `deploy-production` workflow implemented with image build/push, guarded config validation, rollout, migration, and smoke checks (`.github/workflows/ci.yml`).
+   - Operational prerequisite remains: production secrets/vars must be populated in GitHub environment before first live run.
+
+5. **OpenAPI response/example completeness** — **Done**
+   - Endpoint response/example metadata updates documented in `docs/phase2-backlog-progress.md`.
+
+6. **Performance and UX validation artifacts** — **Done**
+   - Baseline scripts and wrappers added (`tests/performance/*`, `scripts/run_perf_baseline.sh`, `scripts/run_onboarding_sla.sh`).
+   - Baseline thresholds and artifact instructions documented in `docs/performance-baseline.md`.
+
+7. **Operational proof items from Phase 1 DoD** — **In Progress**
+   - Runtime verification checklist template added: `docs/runtime-verification-sentry-email.md`.
+   - Peer-review sign-off record section added: `docs/operator-runbook.md` (Section 11).
+   - Remaining closure: populate timestamped runtime evidence + actual reviewer sign-offs.

@@ -12,8 +12,23 @@ from app.schemas import JobOut
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
+AUTH_401_RESPONSE = {"description": "Unauthorized: missing, invalid, or revoked access token."}
+FORBIDDEN_403_RESPONSE = {"description": "Forbidden: not allowed to access this job."}
+NOT_FOUND_404_RESPONSE = {"description": "Job or related tenant not found."}
+RATE_LIMIT_429_RESPONSE = {"description": "Too many requests. Retry after the rate-limit window."}
 
-@router.get("/{job_id}", response_model=JobOut, dependencies=[Depends(authenticated_default_rate_limit)])
+
+@router.get(
+    "/{job_id}",
+    response_model=JobOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
 def get_job(
     request: Request,
     job_id: str,

@@ -10,20 +10,32 @@ from app.bench.commands import (
     build_new_site_command,
 )
 from app.bench.runner import BenchCommandError, run_bench_command
+from app.config import get_settings
 from app.db import SessionLocal
 from app.logging_config import get_logger
 from app.models import Job, Tenant, User
 from app.schemas import BillingPayload
 from app.services.audit_service import record_audit_event
 from app.services.backup_service import persist_backup_manifest
-from app.services.billing_client import BillingClient
 from app.services.job_service import append_log, mark_job_failed, mark_job_running, mark_job_success
 from app.services.notifications import notification_service
+from app.services.platform_erp_client import PlatformERPClient
 from app.services.tenant_state import InvalidTenantStatusTransition, transition_tenant_status
 
 
-billing_client = BillingClient()
+platform_erp_client = PlatformERPClient()
 log = get_logger(__name__)
+settings = get_settings()
+ENTERPRISE_APPS = [
+    "crm",
+    "hrms",
+    "frappe_whatsapp",
+    "posawesome",
+    "lms",
+    "helpdesk",
+    "payments",
+    "lending",
+]
 
 
 def _load_entities(db, job_id: str, tenant_id: str) -> tuple[Job, Tenant]:
@@ -56,23 +68,62 @@ def provision_tenant(job_id: str, tenant_id: str, owner_email: str, admin_passwo
             metadata={"job_id": job.id},
         )
 
-        db_name = f"site_{tenant.subdomain.replace('-', '_')}"
+        if tenant.plan == "enterprise" and settings.bench_exec_mode == "pod":
+            from app.bench.pod.runner import provision_pod
 
-        new_site_res = run_bench_command(build_new_site_command(tenant.domain, admin_password, db_name))
-        append_log(job, f"new-site: {new_site_res.stdout.strip()}")
-        task_log.info(
-            "tenant.provision.new_site_completed",
-            command=new_site_res.command,
-            returncode=new_site_res.returncode,
-        )
+            pod_result = provision_pod(tenant, admin_password)
+            append_log(job, f"pod-compose: {pod_result.artifact.compose_file}")
+            append_log(job, f"pod-up-cmd: {' '.join(pod_result.up_command)}")
+            append_log(job, f"pod-up: {pod_result.up_stdout.strip() or 'OK'}")
+            if pod_result.up_stderr.strip():
+                append_log(job, f"pod-up-stderr: {pod_result.up_stderr.strip()}")
+            append_log(job, f"pod-health-cmd: {' '.join(pod_result.health_command)}")
+            append_log(job, f"pod-health: {pod_result.health_stdout.strip() or 'OK'}")
+            if pod_result.health_stderr.strip():
+                append_log(job, f"pod-health-stderr: {pod_result.health_stderr.strip()}")
+            task_log.info(
+                "tenant.provision.pod_completed",
+                compose_file=str(pod_result.artifact.compose_file),
+                project=str(pod_result.artifact.project_name),
+            )
+        else:
+            db_name = f"site_{tenant.subdomain.replace('-', '_')}"
 
-        install_res = run_bench_command(build_install_app_command(tenant.domain, "erpnext"))
-        append_log(job, f"install-app: {install_res.stdout.strip()}")
-        task_log.info(
-            "tenant.provision.install_app_completed",
-            command=install_res.command,
-            returncode=install_res.returncode,
-        )
+            new_site_res = run_bench_command(build_new_site_command(tenant.domain, admin_password, db_name))
+            append_log(job, f"new-site: {new_site_res.stdout.strip()}")
+            task_log.info(
+                "tenant.provision.new_site_completed",
+                command=new_site_res.command,
+                returncode=new_site_res.returncode,
+            )
+
+            install_res = run_bench_command(build_install_app_command(tenant.domain, "erpnext"))
+            append_log(job, f"install-app: {install_res.stdout.strip()}")
+            task_log.info(
+                "tenant.provision.install_app_completed",
+                command=install_res.command,
+                returncode=install_res.returncode,
+            )
+
+            if tenant.plan == "business" and tenant.chosen_app:
+                business_install = run_bench_command(build_install_app_command(tenant.domain, tenant.chosen_app))
+                append_log(job, f"install-app ({tenant.chosen_app}): {business_install.stdout.strip()}")
+                task_log.info(
+                    "tenant.provision.install_business_app_completed",
+                    app=tenant.chosen_app,
+                    command=business_install.command,
+                    returncode=business_install.returncode,
+                )
+            elif tenant.plan == "enterprise":
+                for app_name in ENTERPRISE_APPS:
+                    enterprise_install = run_bench_command(build_install_app_command(tenant.domain, app_name))
+                    append_log(job, f"install-app ({app_name}): {enterprise_install.stdout.strip()}")
+                    task_log.info(
+                        "tenant.provision.install_enterprise_app_completed",
+                        app=app_name,
+                        command=enterprise_install.command,
+                        returncode=enterprise_install.returncode,
+                    )
 
         billing_payload = BillingPayload(
             tenant_id=tenant.id,
@@ -81,7 +132,7 @@ def provision_tenant(job_id: str, tenant_id: str, owner_email: str, admin_passwo
             plan=tenant.plan,
             owner_email=owner_email,
         )
-        customer_id = billing_client.register_customer(billing_payload)
+        customer_id = platform_erp_client.register_customer(billing_payload)
         append_log(job, f"billing: customer={customer_id}")
 
         tenant.platform_customer_id = customer_id

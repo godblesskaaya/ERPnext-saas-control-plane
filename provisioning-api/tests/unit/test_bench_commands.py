@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.bench.commands import (
+    build_assets_command,
     build_backup_command,
     build_install_app_command,
     build_new_site_command,
@@ -32,3 +33,16 @@ def test_build_install_and_backup_commands():
     assert install[-2:] == ["install-app", "erpnext"]
     assert backup[-1] == "backup"
     assert reset[-2:] == ["set-admin-password", "StrongPass123!"]
+
+
+def test_build_assets_command_targets_frontend_service():
+    assets = build_assets_command()
+    assert assets[:6] == [
+        "docker-compose",
+        "-f",
+        "/workspace/docker-compose.yml",
+        "exec",
+        "-T",
+        "frontend",
+    ]
+    assert assets[-3:] == ["bench", "build", "--force"]

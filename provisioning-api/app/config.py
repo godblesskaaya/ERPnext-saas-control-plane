@@ -32,9 +32,15 @@ class Settings(BaseSettings):
     bench_compose_file: str = "/workspace/docker-compose.yml"
     bench_compose_command: str = "docker-compose"
     bench_service_name: str = "backend"
+    bench_assets_service_name: str = "frontend"
     bench_timeout_seconds: int = 180
+    bench_build_assets_after_provision: bool = True
     bench_db_root_username: str = "root"
     bench_db_root_password: str = ""
+    tenant_tls_sync_enabled: bool = False
+    tenant_tls_sync_script_path: str = "/workspace/saas/scripts/sync_tenant_tls_routes.sh"
+    tenant_tls_sync_timeout_seconds: int = 120
+    tenant_tls_sync_prime_on_provision: bool = True
 
     pods_root: str = "/opt/erp-pods"
     pod_compose_filename: str = "docker-compose.yml"

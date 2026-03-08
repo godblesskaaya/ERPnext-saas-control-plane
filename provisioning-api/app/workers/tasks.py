@@ -4,6 +4,7 @@ import traceback
 from datetime import datetime
 
 from app.bench.commands import (
+    build_assets_command,
     build_backup_command,
     build_delete_site_command,
     build_install_app_command,
@@ -20,6 +21,7 @@ from app.services.backup_service import persist_backup_manifest
 from app.services.job_service import append_log, mark_job_failed, mark_job_running, mark_job_success
 from app.services.notifications import notification_service
 from app.services.platform_erp_client import PlatformERPClient
+from app.services.tenant_tls_sync import sync_tenant_tls_routes
 from app.services.tenant_state import InvalidTenantStatusTransition, transition_tenant_status
 
 
@@ -125,6 +127,15 @@ def provision_tenant(job_id: str, tenant_id: str, owner_email: str, admin_passwo
                         returncode=enterprise_install.returncode,
                     )
 
+            if settings.bench_build_assets_after_provision:
+                assets_res = run_bench_command(build_assets_command(force=True))
+                append_log(job, f"assets-build: {assets_res.stdout.strip()}")
+                task_log.info(
+                    "tenant.provision.assets_build_completed",
+                    command=assets_res.command,
+                    returncode=assets_res.returncode,
+                )
+
         billing_payload = BillingPayload(
             tenant_id=tenant.id,
             domain=tenant.domain,
@@ -144,6 +155,13 @@ def provision_tenant(job_id: str, tenant_id: str, owner_email: str, admin_passwo
         db.commit()
         db.refresh(job)
         mark_job_success(db, job)
+
+        tls_sync = sync_tenant_tls_routes(prime_certs=settings.tenant_tls_sync_prime_on_provision)
+        if tls_sync.attempted:
+            append_log(job, f"tls-sync: {tls_sync.message}")
+        elif not tls_sync.succeeded:
+            append_log(job, f"tls-sync-warning: {tls_sync.message}")
+
         record_audit_event(
             db,
             action="tenant.provision_succeeded",
@@ -305,6 +323,13 @@ def delete_tenant(job_id: str, tenant_id: str) -> None:
         owner = db.get(User, tenant.owner_id)
         if owner:
             notification_service.send_tenant_deleted(owner.email, tenant.domain)
+        tls_sync = sync_tenant_tls_routes(prime_certs=False)
+        if tls_sync.attempted:
+            append_log(job, f"tls-sync: {tls_sync.message}")
+        elif not tls_sync.succeeded:
+            append_log(job, f"tls-sync-warning: {tls_sync.message}")
+        db.add(job)
+        db.commit()
     except InvalidTenantStatusTransition as exc:
         job, tenant = _load_entities(db, job_id, tenant_id)
         append_log(job, f"State transition error: {exc}")

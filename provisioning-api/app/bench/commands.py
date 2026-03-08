@@ -9,13 +9,13 @@ from app.bench.validators import validate_admin_password, validate_app_name, val
 settings = get_settings()
 
 
-def _docker_compose_prefix() -> list[str]:
+def _docker_compose_prefix(service_name: str | None = None) -> list[str]:
     return shlex.split(settings.bench_compose_command) + [
         "-f",
         settings.bench_compose_file,
         "exec",
         "-T",
-        settings.bench_service_name,
+        service_name or settings.bench_service_name,
     ]
 
 
@@ -71,3 +71,10 @@ def build_set_admin_password_command(domain: str, admin_password: str) -> list[s
         "set-admin-password",
         validated_password,
     ]
+
+
+def build_assets_command(*, force: bool = True) -> list[str]:
+    command = _docker_compose_prefix(settings.bench_assets_service_name) + ["bench", "build"]
+    if force:
+        command.append("--force")
+    return command

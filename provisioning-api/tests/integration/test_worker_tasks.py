@@ -40,6 +40,7 @@ def test_worker_provision_flow(_, db_session):
     assert refreshed_tenant.status == "active"
     assert refreshed_tenant.platform_customer_id == "CUST-001"
     assert refreshed_job.status == "succeeded"
+    assert "assets-build: MOCK_OK" in refreshed_job.logs
 
     actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
     assert actions == ["tenant.provision_started", "tenant.provision_succeeded"]

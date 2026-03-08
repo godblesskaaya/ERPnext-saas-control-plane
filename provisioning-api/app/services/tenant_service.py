@@ -15,6 +15,7 @@ from app.bench.validators import (
     validate_plan,
     validate_subdomain,
 )
+from app.config import get_settings
 from app.logging_config import get_logger
 from app.models import AuditLog, Job, Tenant, User
 from app.queue.enqueue import get_queue
@@ -97,7 +98,20 @@ def create_tenant_and_start_checkout(
     db.commit()
     db.refresh(tenant)
 
-    checkout_session = get_payment_gateway().create_checkout(tenant, owner)
+    try:
+        checkout_session = get_payment_gateway().create_checkout(tenant, owner)
+    except (RuntimeError, ValueError) as exc:
+        request_log.error("tenant.create.billing_unavailable", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Billing provider is not configured for checkout",
+        ) from exc
+    if checkout_session.mock_mode and not get_settings().mock_billing_allowed:
+        request_log.error("tenant.create.mock_billing_blocked")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Mock billing checkout is disabled in production mode",
+        )
     provider = getattr(checkout_session, "provider", "stripe")
     tenant.payment_provider = provider
     if provider == "stripe":

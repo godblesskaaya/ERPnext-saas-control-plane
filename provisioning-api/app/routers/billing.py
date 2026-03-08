@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db import get_db
 from app.models import Tenant, User
 from app.schemas import MessageResponse
@@ -198,9 +199,16 @@ async def billing_webhook_default_provider(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ) -> MessageResponse:
+    settings = get_settings()
+    if not settings.default_billing_webhook_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
     gateway = get_payment_gateway()
     payload = await request.body()
-    event = gateway.parse_webhook(payload, dict(request.headers))
+    try:
+        event = gateway.parse_webhook(payload, dict(request.headers))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return _process_event(
         request=request,
         background_tasks=background_tasks,
@@ -236,7 +244,10 @@ async def billing_webhook_for_provider(
         )
 
     payload = await request.body()
-    event = gateway.parse_webhook(payload, dict(request.headers))
+    try:
+        event = gateway.parse_webhook(payload, dict(request.headers))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return _process_event(
         request=request,
         background_tasks=background_tasks,

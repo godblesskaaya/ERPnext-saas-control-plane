@@ -7,9 +7,6 @@ from app.config import get_settings
 from app.services.payment.base import CheckoutResult, PaymentGateway, WebhookEvent
 
 
-settings = get_settings()
-
-
 class StripeGateway(PaymentGateway):
     def __init__(self) -> None:
         self._stripe_module = None
@@ -32,6 +29,7 @@ class StripeGateway(PaymentGateway):
 
     @property
     def mock_mode(self) -> bool:
+        settings = get_settings()
         if not settings.stripe_secret_key:
             return True
         required_prices = [settings.stripe_price_starter, settings.stripe_price_business, settings.stripe_price_enterprise]
@@ -42,6 +40,7 @@ class StripeGateway(PaymentGateway):
         return False
 
     def _price_id_for_plan(self, plan: str) -> str:
+        settings = get_settings()
         mapping = {
             "starter": settings.stripe_price_starter,
             "business": settings.stripe_price_business,
@@ -53,7 +52,10 @@ class StripeGateway(PaymentGateway):
         return price_id
 
     def create_checkout(self, tenant, owner) -> CheckoutResult:
+        settings = get_settings()
         if self.mock_mode:
+            if not settings.mock_billing_allowed:
+                raise RuntimeError("Mock billing checkout is disabled in production mode")
             customer_ref = owner.stripe_customer_id or f"mock-customer-{owner.id[:8]}"
             session_id = f"cs_mock_{tenant.id.replace('-', '')[:20]}"
             return CheckoutResult(
@@ -102,6 +104,7 @@ class StripeGateway(PaymentGateway):
         )
 
     def _extract_stripe_event(self, payload: bytes, headers: dict[str, str]) -> dict[str, Any]:
+        settings = get_settings()
         signature_header = headers.get("stripe-signature") or headers.get("Stripe-Signature")
         if settings.stripe_webhook_secret:
             stripe = self._import_stripe()
@@ -113,6 +116,8 @@ class StripeGateway(PaymentGateway):
             if hasattr(event, "to_dict_recursive"):
                 return event.to_dict_recursive()
             return dict(event)
+        if settings.strict_webhook_verification:
+            raise ValueError("Strict webhook verification is enabled but STRIPE_WEBHOOK_SECRET is missing")
 
         try:
             return json.loads(payload.decode("utf-8"))
@@ -140,4 +145,3 @@ class StripeGateway(PaymentGateway):
             customer_ref=obj.get("customer"),
             raw=event,
         )
-

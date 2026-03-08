@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from app.config import get_settings
 from app.models import AuditLog, Job, Tenant, User
 
 
@@ -296,6 +297,27 @@ def test_enterprise_plan_allows_null_chosen_app(_, client):
     )
     assert response.status_code == 202
     assert response.json()["tenant"]["chosen_app"] is None
+
+
+@patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
+def test_mock_billing_checkout_blocked_in_production(_, monkeypatch, client):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("ALLOW_MOCK_BILLING", raising=False)
+    get_settings.cache_clear()
+    headers = _auth_headers(client)
+
+    response = client.post(
+        "/tenants",
+        headers=headers,
+        json={
+            "subdomain": "prod-mock-block",
+            "company_name": "Prod Mock Block",
+            "plan": "starter",
+        },
+    )
+    assert response.status_code == 503
+    assert "billing provider" in response.json()["detail"].lower() or "mock billing" in response.json()["detail"].lower()
+    get_settings.cache_clear()
 
 
 def test_admin_list_and_suspend_audit_state_changes(client, db_session):

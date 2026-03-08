@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from app.config import get_settings
+
+
 def test_settings_loads_stripe_env_vars(monkeypatch) -> None:
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_123")
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_123")
@@ -38,5 +40,47 @@ def test_settings_default_stripe_values_allow_offline_tests(monkeypatch) -> None
     assert settings.active_payment_provider == "stripe"
     assert settings.dpo_company_token == ""
     assert settings.dpo_service_type == ""
+    assert settings.mock_billing_allowed is True
+    assert settings.default_billing_webhook_enabled is True
+
+    get_settings.cache_clear()
+
+
+def test_settings_production_disables_mock_and_default_webhook(monkeypatch) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("ALLOW_MOCK_BILLING", raising=False)
+    monkeypatch.delenv("ALLOW_DEFAULT_BILLING_WEBHOOK", raising=False)
+    monkeypatch.delenv("REQUIRE_STRICT_WEBHOOK_VERIFICATION", raising=False)
+
+    get_settings.cache_clear()
+    settings = get_settings()
+
+    assert settings.is_production is True
+    assert settings.mock_billing_allowed is False
+    assert settings.default_billing_webhook_enabled is False
+    assert settings.strict_webhook_verification is True
+
+    get_settings.cache_clear()
+
+
+def test_settings_disable_docs_and_metrics_in_production_by_default(monkeypatch) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("EXPOSE_METRICS", raising=False)
+    monkeypatch.delenv("EXPOSE_API_DOCS", raising=False)
+    monkeypatch.delenv("EXPOSE_OPENAPI_SCHEMA", raising=False)
+    monkeypatch.delenv("ALLOW_DEFAULT_BILLING_WEBHOOK", raising=False)
+    monkeypatch.delenv("ALLOW_MOCK_BILLING", raising=False)
+    monkeypatch.delenv("REQUIRE_STRICT_WEBHOOK_VERIFICATION", raising=False)
+
+    get_settings.cache_clear()
+    settings = get_settings()
+
+    assert settings.is_production is True
+    assert settings.metrics_enabled is False
+    assert settings.api_docs_enabled is False
+    assert settings.openapi_schema_enabled is False
+    assert settings.default_billing_webhook_enabled is False
+    assert settings.mock_billing_allowed is False
+    assert settings.strict_webhook_verification is True
 
     get_settings.cache_clear()

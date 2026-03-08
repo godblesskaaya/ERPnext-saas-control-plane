@@ -105,7 +105,7 @@ export function JobLogPanel({ jobId, logs, status, onJobUpdate }: Props) {
       return;
     }
 
-    const ws = new WebSocket(jobStreamUrl(jobId, token));
+    const ws = new WebSocket(jobStreamUrl(jobId), [`bearer.${token}`]);
     setStreamState("connecting");
 
     ws.onopen = () => {

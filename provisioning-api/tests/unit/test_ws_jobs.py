@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 from starlette.websockets import WebSocketDisconnect
 
+from app.config import get_settings
 from app.models import Job, Tenant, User
 from app.security import create_access_token
 
@@ -66,12 +67,21 @@ def test_ws_job_stream_for_authorized_user(_, client, db_session):
     db_session.refresh(job)
 
     token = create_access_token(subject=user.id, role=user.role)
-    with client.websocket_connect(f"/ws/jobs/{job.id}?token={token}") as ws:
+    with client.websocket_connect(f"/ws/jobs/{job.id}", subprotocols=[f"bearer.{token}"]) as ws:
         assert ws.receive_text() == "log line 1"
         assert ws.receive_text() == "__DONE__"
 
 
 def test_ws_job_stream_rejects_invalid_token(client):
-    with client.websocket_connect("/ws/jobs/does-not-matter?token=invalid") as ws:
+    with client.websocket_connect("/ws/jobs/does-not-matter", subprotocols=["bearer.invalid"]) as ws:
         with pytest.raises(WebSocketDisconnect):
             ws.receive_text()
+
+
+def test_ws_job_stream_rejects_query_token_in_production(monkeypatch, client):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    get_settings.cache_clear()
+    with client.websocket_connect("/ws/jobs/does-not-matter?token=legacy-query-token") as ws:
+        with pytest.raises(WebSocketDisconnect):
+            ws.receive_text()
+    get_settings.cache_clear()

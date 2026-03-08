@@ -43,7 +43,10 @@ def init_sentry(*, include_fastapi: bool = True, include_rq: bool = True) -> boo
     return True
 
 
-def init_metrics(app) -> bool:
+def init_metrics(app, *, enabled: bool = True) -> bool:
+    if not enabled:
+        return False
+
     try:
         instrumentator_module = import_module("prometheus_fastapi_instrumentator")
     except ModuleNotFoundError:

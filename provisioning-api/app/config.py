@@ -73,6 +73,12 @@ class Settings(BaseSettings):
 
     sentry_dsn: str = ""
     sentry_traces_sample_rate: float = 0.2
+    expose_metrics: bool | None = None
+    expose_api_docs: bool | None = None
+    expose_openapi_schema: bool | None = None
+    allow_default_billing_webhook: bool | None = None
+    allow_mock_billing: bool | None = None
+    require_strict_webhook_verification: bool | None = None
 
     mailersend_api_key: str = ""
     mail_from_email: str = "noreply@example.com"
@@ -95,6 +101,46 @@ class Settings(BaseSettings):
     @property
     def use_secure_cookies(self) -> bool:
         return self.environment.lower() not in {"development", "test"}
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment.lower() == "production"
+
+    @property
+    def metrics_enabled(self) -> bool:
+        if self.expose_metrics is not None:
+            return self.expose_metrics
+        return not self.is_production
+
+    @property
+    def api_docs_enabled(self) -> bool:
+        if self.expose_api_docs is not None:
+            return self.expose_api_docs
+        return not self.is_production
+
+    @property
+    def openapi_schema_enabled(self) -> bool:
+        if self.expose_openapi_schema is not None:
+            return self.expose_openapi_schema
+        return self.api_docs_enabled
+
+    @property
+    def default_billing_webhook_enabled(self) -> bool:
+        if self.allow_default_billing_webhook is not None:
+            return self.allow_default_billing_webhook
+        return not self.is_production
+
+    @property
+    def mock_billing_allowed(self) -> bool:
+        if self.allow_mock_billing is not None:
+            return self.allow_mock_billing
+        return not self.is_production
+
+    @property
+    def strict_webhook_verification(self) -> bool:
+        if self.require_strict_webhook_verification is not None:
+            return self.require_strict_webhook_verification
+        return self.is_production
 
 
 @lru_cache(maxsize=1)

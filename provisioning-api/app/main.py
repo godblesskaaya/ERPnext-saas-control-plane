@@ -25,7 +25,12 @@ from app.routers import admin, auth, billing, jobs, tenants, ws
 settings = get_settings()
 init_sentry(include_fastapi=True, include_rq=True)
 
-app = FastAPI(title=settings.app_name)
+app = FastAPI(
+    title=settings.app_name,
+    docs_url="/docs" if settings.api_docs_enabled else None,
+    openapi_url="/openapi.json" if settings.openapi_schema_enabled else None,
+    redoc_url=None,
+)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -37,7 +42,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 APP_ROOT = Path(__file__).resolve().parents[1]
-init_metrics(app)
+init_metrics(app, enabled=settings.metrics_enabled)
 
 
 def _detect_legacy_schema_revision(database_url: str) -> str | None:

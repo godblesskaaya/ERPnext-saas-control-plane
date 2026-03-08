@@ -249,9 +249,9 @@ async function createTenantWithCompatibility(
   }
 }
 
-export function jobStreamUrl(jobId: string, token: string): string {
+export function jobStreamUrl(jobId: string): string {
   const base = resolveWsBase().replace(/\/+$/, "");
-  return `${base}/ws/jobs/${encodeURIComponent(jobId)}?token=${encodeURIComponent(token)}`;
+  return `${base}/ws/jobs/${encodeURIComponent(jobId)}`;
 }
 
 export function isSessionExpiredError(error: unknown): error is ApiRequestError {

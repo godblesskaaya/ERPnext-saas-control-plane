@@ -35,6 +35,7 @@ def test_factory_rejects_unknown_provider(monkeypatch):
 
 
 def test_stripe_gateway_webhook_normalization(monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "test")
     monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "")
     get_settings.cache_clear()
     gateway = StripeGateway()
@@ -58,6 +59,7 @@ def test_stripe_gateway_webhook_normalization(monkeypatch):
 
 
 def test_dpo_gateway_webhook_normalization(monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "test")
     monkeypatch.setenv("DPO_COMPANY_TOKEN", "")
     monkeypatch.setenv("DPO_SERVICE_TYPE", "")
     get_settings.cache_clear()
@@ -68,3 +70,28 @@ def test_dpo_gateway_webhook_normalization(monkeypatch):
     assert event.tenant_id == "tenant_123"
     get_settings.cache_clear()
 
+
+def test_stripe_gateway_requires_webhook_secret_when_strict(monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("STRIPE_WEBHOOK_SECRET", raising=False)
+    monkeypatch.delenv("REQUIRE_STRICT_WEBHOOK_VERIFICATION", raising=False)
+    get_settings.cache_clear()
+
+    gateway = StripeGateway()
+    with pytest.raises(ValueError, match="STRICT_WEBHOOK_VERIFICATION|Strict webhook verification"):
+        gateway.parse_webhook(b'{"type":"checkout.session.completed"}', {})
+
+    get_settings.cache_clear()
+
+
+def test_dpo_gateway_rejects_missing_transaction_token(monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "test")
+    monkeypatch.setenv("DPO_COMPANY_TOKEN", "")
+    monkeypatch.setenv("DPO_SERVICE_TYPE", "")
+    get_settings.cache_clear()
+    gateway = DPOGateway()
+
+    with pytest.raises(ValueError, match="TransactionToken"):
+        gateway.parse_webhook(b"CompanyRef=tenant_123&CCDapproval=yes", {"Content-Type": "application/x-www-form-urlencoded"})
+
+    get_settings.cache_clear()

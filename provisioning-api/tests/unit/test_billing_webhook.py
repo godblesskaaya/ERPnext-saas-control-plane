@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from app.config import get_settings
 from app.models import AuditLog, Job, Tenant, User
 
 
@@ -121,3 +122,30 @@ def test_payment_failed_and_subscription_cancelled_audited(client, db_session):
     ]
     assert "billing.payment_failed" in actions
     assert "billing.subscription_cancelled" in actions
+
+
+def test_default_billing_webhook_disabled_in_production(monkeypatch, client):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("ALLOW_DEFAULT_BILLING_WEBHOOK", raising=False)
+    get_settings.cache_clear()
+
+    response = client.post("/billing/webhook", json={"type": "checkout.session.completed", "data": {"object": {"metadata": {}}}})
+    assert response.status_code == 404
+
+    get_settings.cache_clear()
+
+
+def test_provider_webhook_rejects_unsigned_payload_in_strict_mode(monkeypatch, client):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.delenv("STRIPE_WEBHOOK_SECRET", raising=False)
+    monkeypatch.delenv("REQUIRE_STRICT_WEBHOOK_VERIFICATION", raising=False)
+    get_settings.cache_clear()
+
+    response = client.post(
+        "/billing/webhook/stripe",
+        json={"type": "checkout.session.completed", "data": {"object": {"metadata": {"tenant_id": "x"}}}},
+    )
+    assert response.status_code == 400
+    assert "webhook" in response.json()["detail"].lower() or "secret" in response.json()["detail"].lower()
+
+    get_settings.cache_clear()

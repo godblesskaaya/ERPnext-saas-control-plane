@@ -9,9 +9,6 @@ from app.config import get_settings
 from app.services.payment.base import CheckoutResult, PaymentGateway, WebhookEvent
 
 
-settings = get_settings()
-
-
 class DPOGateway(PaymentGateway):
     @property
     def provider_name(self) -> str:
@@ -19,10 +16,14 @@ class DPOGateway(PaymentGateway):
 
     @property
     def mock_mode(self) -> bool:
+        settings = get_settings()
         return not (settings.dpo_company_token and settings.dpo_service_type)
 
     def create_checkout(self, tenant, owner) -> CheckoutResult:
+        settings = get_settings()
         if self.mock_mode:
+            if not settings.mock_billing_allowed:
+                raise RuntimeError("Mock billing checkout is disabled in production mode")
             token = f"dpo_mock_{tenant.id.replace('-', '')[:16]}"
             checkout_url = f"{settings.dpo_payment_url}?ID={token}"
             return CheckoutResult(
@@ -63,6 +64,7 @@ class DPOGateway(PaymentGateway):
         )
 
     def _verify_token(self, transaction_token: str) -> bool:
+        settings = get_settings()
         if self.mock_mode:
             return True
 
@@ -78,6 +80,7 @@ class DPOGateway(PaymentGateway):
         return status in {"000", "approved", "success", "paid"}
 
     def parse_webhook(self, payload: bytes, headers: dict[str, str]) -> WebhookEvent:
+        settings = get_settings()
         content_type = (headers.get("content-type") or headers.get("Content-Type") or "").lower()
         raw_text = payload.decode("utf-8")
 
@@ -94,13 +97,17 @@ class DPOGateway(PaymentGateway):
             or raw.get("TransToken")
             or ""
         )
+        if not transaction_token:
+            raise ValueError("Missing TransactionToken")
+
+        if settings.strict_webhook_verification and self.mock_mode:
+            raise ValueError("Strict webhook verification is enabled but DPO credentials are not configured")
+
         tenant_id = raw.get("CompanyRef") or raw.get("tenant_id")
         subscription_id = raw.get("TransactionID") or raw.get("subscription_id")
         customer_ref = raw.get("CustomerRef") or raw.get("customer_ref")
 
-        approved_flag = str(raw.get("CCDapproval") or raw.get("status") or raw.get("payment_status") or "").lower()
-        approved_hint = approved_flag in {"yes", "true", "approved", "paid", "success", "000"}
-        verified = self._verify_token(transaction_token) if transaction_token else approved_hint
+        verified = self._verify_token(transaction_token)
 
         event_type = "payment.confirmed" if verified else "payment.failed"
         if str(raw.get("event_type") or "").lower() in {"subscription.cancelled", "subscription.canceled"}:
@@ -113,4 +120,3 @@ class DPOGateway(PaymentGateway):
             customer_ref=str(customer_ref) if customer_ref else None,
             raw={"provider": self.provider_name, **raw},
         )
-

@@ -5,6 +5,7 @@ import asyncio
 from fastapi import APIRouter, WebSocket
 from starlette.websockets import WebSocketState
 
+from app.config import get_settings
 from app.db import SessionLocal
 from app.models import Job, Tenant, User
 from app.queue.redis import get_redis_connection
@@ -14,14 +15,38 @@ from app.security import decode_access_token
 router = APIRouter(tags=["ws"])
 
 
+def _extract_token_from_subprotocol(header_value: str | None) -> tuple[str | None, str | None]:
+    if not header_value:
+        return None, None
+    for raw in header_value.split(","):
+        protocol = raw.strip()
+        if protocol.startswith("bearer."):
+            token = protocol.removeprefix("bearer.").strip()
+            if token:
+                return token, protocol
+    return None, None
+
+
 @router.websocket("/ws/jobs/{job_id}")
-async def job_stream(websocket: WebSocket, job_id: str, token: str):
-    await websocket.accept()
+async def job_stream(websocket: WebSocket, job_id: str, token: str | None = None):
+    settings = get_settings()
+    subprotocol_token, selected_subprotocol = _extract_token_from_subprotocol(
+        websocket.headers.get("sec-websocket-protocol")
+    )
+    await websocket.accept(subprotocol=selected_subprotocol)
     db = SessionLocal()
     pubsub = None
     try:
+        access_token = subprotocol_token or token
+        if settings.is_production and token and not subprotocol_token:
+            await websocket.close(code=4401)
+            return
+        if not access_token:
+            await websocket.close(code=4401)
+            return
+
         try:
-            payload = decode_access_token(token)
+            payload = decode_access_token(access_token)
         except Exception:
             await websocket.close(code=4401)
             return

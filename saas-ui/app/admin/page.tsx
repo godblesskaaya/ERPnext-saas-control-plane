@@ -25,6 +25,12 @@ function formatDate(value?: string | null): string {
   return date.toLocaleString();
 }
 
+type TenantAdminAction = {
+  type: "suspend" | "unsuspend";
+  tenant: Tenant;
+  phrase: string;
+};
+
 function metricCard(label: string, value: number, hint: string, tone: "default" | "good" | "warn" = "default") {
   const toneClass =
     tone === "good"
@@ -46,6 +52,8 @@ export default function AdminPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [tenantsError, setTenantsError] = useState<string | null>(null);
   const [busyTenantId, setBusyTenantId] = useState<string | null>(null);
+  const [tenantAction, setTenantAction] = useState<TenantAdminAction | null>(null);
+  const [tenantActionInput, setTenantActionInput] = useState("");
 
   const [deadLetters, setDeadLetters] = useState<DeadLetterJob[]>([]);
   const [deadLetterSupported, setDeadLetterSupported] = useState(true);
@@ -132,6 +140,41 @@ export default function AdminPage() {
   );
   const failedCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "failed").length, [tenants]);
   const activeCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "active").length, [tenants]);
+
+  const submitTenantAction = async () => {
+    if (!tenantAction) return;
+    if (tenantActionInput !== tenantAction.phrase) {
+      setTenantsError("Confirmation phrase does not match.");
+      return;
+    }
+
+    setBusyTenantId(tenantAction.tenant.id);
+    setTenantsError(null);
+    try {
+      if (tenantAction.type === "suspend") {
+        const result = await api.suspendTenant(tenantAction.tenant.id);
+        if (!result.supported) {
+          setTenantsError("Suspend endpoint is not available on this backend.");
+          return;
+        }
+      } else {
+        const result = await api.unsuspendTenant(tenantAction.tenant.id);
+        if (!result.supported) {
+          setTenantsError("Unsuspend endpoint is not available on this backend.");
+          return;
+        }
+      }
+      await loadTenants();
+      setTenantAction(null);
+      setTenantActionInput("");
+    } catch (err) {
+      setTenantsError(
+        getApiErrorMessage(err, tenantAction.type === "suspend" ? "Failed to suspend tenant" : "Failed to unsuspend tenant")
+      );
+    } finally {
+      setBusyTenantId(null);
+    }
+  };
 
   return (
     <section className="space-y-6">
@@ -312,31 +355,41 @@ export default function AdminPage() {
                       <a href={`/tenants/${tenant.id}`} className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800">
                         Details
                       </a>
-                      <button
-                        type="button"
-                        disabled={busyTenantId === tenant.id}
-                        className="rounded bg-amber-700 px-2 py-1 text-xs hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
-                        onClick={async () => {
-                          const approved = window.confirm(`Suspend ${tenant.company_name}?`);
-                          if (!approved) return;
-
-                          setBusyTenantId(tenant.id);
-                          try {
-                            const result = await api.suspendTenant(tenant.id);
-                            if (!result.supported) {
-                              setTenantsError("Suspend endpoint is not available on this backend.");
-                              return;
-                            }
-                            await loadTenants();
-                          } catch (err) {
-                            setTenantsError(getApiErrorMessage(err, "Failed to suspend tenant"));
-                          } finally {
-                            setBusyTenantId(null);
-                          }
-                        }}
-                      >
-                        {busyTenantId === tenant.id ? "Suspending..." : "Suspend"}
-                      </button>
+                      {tenant.status.toLowerCase() === "suspended" ? (
+                        <button
+                          type="button"
+                          disabled={busyTenantId === tenant.id}
+                          className="rounded bg-emerald-700 px-2 py-1 text-xs hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() => {
+                            setTenantAction({
+                              type: "unsuspend",
+                              tenant,
+                              phrase: tenant.subdomain.toUpperCase(),
+                            });
+                            setTenantActionInput("");
+                            setTenantsError(null);
+                          }}
+                        >
+                          {busyTenantId === tenant.id ? "Reactivating..." : "Unsuspend"}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busyTenantId === tenant.id}
+                          className="rounded bg-amber-700 px-2 py-1 text-xs hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() => {
+                            setTenantAction({
+                              type: "suspend",
+                              tenant,
+                              phrase: tenant.subdomain.toUpperCase(),
+                            });
+                            setTenantActionInput("");
+                            setTenantsError(null);
+                          }}
+                        >
+                          {busyTenantId === tenant.id ? "Suspending..." : "Suspend"}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -394,6 +447,56 @@ export default function AdminPage() {
           <p className="text-sm text-slate-300">No dead-letter jobs.</p>
         )}
       </div>
+
+      {tenantAction ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-white">
+              {tenantAction.type === "suspend" ? "Suspend tenant" : "Unsuspend tenant"}
+            </h3>
+            <p className="mt-2 text-sm text-slate-300">
+              To confirm, type <span className="font-mono text-sky-200">{tenantAction.phrase}</span>.
+            </p>
+            <p className="mt-1 text-xs text-slate-400">{tenantAction.tenant.company_name}</p>
+
+            <input
+              className="mt-4 w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+              value={tenantActionInput}
+              onChange={(event) => setTenantActionInput(event.target.value)}
+              placeholder={tenantAction.phrase}
+            />
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded border border-slate-600 px-3 py-1.5 text-xs hover:bg-slate-800"
+                onClick={() => {
+                  setTenantAction(null);
+                  setTenantActionInput("");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-500 disabled:opacity-60"
+                disabled={busyTenantId === tenantAction.tenant.id || tenantActionInput !== tenantAction.phrase}
+                onClick={() => {
+                  void submitTenantAction();
+                }}
+              >
+                {busyTenantId === tenantAction.tenant.id
+                  ? tenantAction.type === "suspend"
+                    ? "Suspending..."
+                    : "Reactivating..."
+                  : tenantAction.type === "suspend"
+                    ? "Confirm suspend"
+                    : "Confirm unsuspend"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

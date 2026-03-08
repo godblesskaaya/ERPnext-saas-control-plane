@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
+from app.bench.validators import ValidationError, domain_from_subdomain, validate_subdomain
 from app.bench.commands import build_set_admin_password_command
 from app.bench.runner import BenchCommandError, run_bench_command
 from app.db import get_db
@@ -17,6 +18,7 @@ from app.schemas import (
     JobOut,
     ResetAdminPasswordRequest,
     ResetAdminPasswordResponse,
+    SubdomainAvailabilityResponse,
     TenantCreateRequest,
     TenantCreateResponse,
     TenantOut,
@@ -97,6 +99,55 @@ def create_tenant(
     if cache_key:
         token_store.setex(cache_key, 24 * 60 * 60, response_payload.model_dump_json())
     return response_payload
+
+
+@router.get(
+    "/check-subdomain",
+    response_model=SubdomainAvailabilityResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def check_subdomain_availability(
+    request: Request,
+    subdomain: str = Query(min_length=1, max_length=63),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SubdomainAvailabilityResponse:
+    del request, current_user
+
+    try:
+        normalized = validate_subdomain(subdomain)
+    except ValidationError as exc:
+        reason = "reserved" if "reserved" in str(exc).lower() else "invalid"
+        return SubdomainAvailabilityResponse(
+            subdomain=subdomain.strip().lower(),
+            domain=None,
+            available=False,
+            reason=reason,
+            message=str(exc),
+        )
+
+    full_domain = domain_from_subdomain(normalized)
+    existing = db.query(Tenant).filter((Tenant.subdomain == normalized) | (Tenant.domain == full_domain)).first()
+    if existing:
+        return SubdomainAvailabilityResponse(
+            subdomain=normalized,
+            domain=full_domain,
+            available=False,
+            reason="taken",
+            message="Subdomain is already taken",
+        )
+
+    return SubdomainAvailabilityResponse(
+        subdomain=normalized,
+        domain=full_domain,
+        available=True,
+        reason=None,
+        message="Subdomain is available",
+    )
 
 
 @router.get(

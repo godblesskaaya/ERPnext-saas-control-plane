@@ -198,6 +198,12 @@ def test_backup_plan_daily_limit_enforced(mock_get_queue, _, client, db_session)
 def test_reserved_subdomain_security_headers_and_cors(_, client):
     headers = _auth_headers(client)
 
+    available = client.get("/tenants/check-subdomain", headers=headers, params={"subdomain": "freshbiz"})
+    assert available.status_code == 200
+    assert available.json()["available"] is True
+    assert available.json()["reason"] is None
+    assert available.json()["domain"] == "freshbiz.erp.blenkotechnologies.co.tz"
+
     reserved = client.post(
         "/tenants",
         headers=headers,
@@ -221,6 +227,23 @@ def test_reserved_subdomain_security_headers_and_cors(_, client):
         },
     )
     assert "access-control-allow-origin" not in blocked.headers
+
+    taken_source = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "freshbiz", "company_name": "Fresh Biz", "plan": "starter"},
+    )
+    assert taken_source.status_code == 202
+
+    taken = client.get("/tenants/check-subdomain", headers=headers, params={"subdomain": "freshbiz"})
+    assert taken.status_code == 200
+    assert taken.json()["available"] is False
+    assert taken.json()["reason"] == "taken"
+
+    invalid = client.get("/tenants/check-subdomain", headers=headers, params={"subdomain": "%%%bad%%%"})
+    assert invalid.status_code == 200
+    assert invalid.json()["available"] is False
+    assert invalid.json()["reason"] in {"invalid", "reserved"}
 
 
 @patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
@@ -353,9 +376,17 @@ def test_admin_list_and_suspend_audit_state_changes(client, db_session):
     db_session.expire_all()
     assert db_session.get(Tenant, tenant.id).status == "suspended"
 
+    unsuspended = client.post(f"/admin/tenants/{tenant.id}/unsuspend", headers=headers)
+    assert unsuspended.status_code == 200
+    assert unsuspended.json()["message"] == "Tenant unsuspended"
+
+    db_session.expire_all()
+    assert db_session.get(Tenant, tenant.id).status == "active"
+
     actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
     assert "admin.view_all_tenants" in actions
     assert "admin.suspend_tenant" in actions
+    assert "admin.unsuspend_tenant" in actions
 
 
 def test_admin_jobs_and_logs_view(client, db_session):

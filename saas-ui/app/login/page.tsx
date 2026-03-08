@@ -114,6 +114,13 @@ export default function LoginPage() {
       {error ? <p className="rounded-md border border-red-500/40 bg-red-950/40 p-3 text-sm text-red-200">{error}</p> : null}
 
       <p className="text-sm text-slate-400">
+        Forgot password?{" "}
+        <Link href="/forgot-password" className="text-sky-300 hover:text-sky-200">
+          Reset access
+        </Link>
+      </p>
+
+      <p className="text-sm text-slate-400">
         Need an account to get started quickly?{" "}
         <Link href="/signup" className="text-sky-300 hover:text-sky-200">
           Create account

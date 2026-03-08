@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { PlanSelector, BUSINESS_APP_OPTIONS } from "../../components/PlanSelector";
 import { api } from "../../lib/api";
+import type { SubdomainAvailability } from "../../lib/types";
 
 type OnboardingStep = "details" | "plan" | "payment" | "waiting" | "success";
 
@@ -23,7 +24,18 @@ type TenantCreateResponse = {
   checkout_url?: string | null;
 };
 
+type PersistedOnboardingState = {
+  step: OnboardingStep;
+  subdomain: string;
+  companyName: string;
+  plan: string;
+  chosenApp: string;
+  tenantId: string | null;
+  checkoutUrl: string | null;
+};
+
 const flow = ["details", "plan", "payment", "waiting", "success"] as const;
+const ONBOARDING_STATE_KEY = "erp-saas:onboarding-state:v1";
 const flowLabels: Record<OnboardingStep, string> = {
   details: "1. Business details",
   plan: "2. Choose operating level",
@@ -74,6 +86,19 @@ function statusLabel(status: string): string {
   }
 }
 
+function deriveStepFromTenant(tenant: TenantRecord, checkoutUrl: string | null): OnboardingStep {
+  const status = (tenant.status ?? "").toLowerCase();
+  if (status === "active") return "success";
+  if (status === "pending_payment") return checkoutUrl ? "payment" : "waiting";
+  if (status === "pending" || status === "provisioning" || status === "failed") return "waiting";
+  return "details";
+}
+
+function clearPersistedState() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(ONBOARDING_STATE_KEY);
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -90,16 +115,152 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [subdomainAvailability, setSubdomainAvailability] = useState<SubdomainAvailability | null>(null);
+  const [subdomainChecking, setSubdomainChecking] = useState(false);
+  const [restored, setRestored] = useState(false);
+
+  const hydratedRef = useRef(false);
 
   const cleanSubdomain = useMemo(() => sanitizeSubdomain(subdomain), [subdomain]);
   const previewDomain = `${cleanSubdomain || "your-company"}.erp.your-domain.com`;
   const selectedBusinessApp = BUSINESS_APP_OPTIONS.find((option) => option.id === chosenApp);
+  const canUseSubdomain = Boolean(cleanSubdomain.length >= 3 && subdomainAvailability?.available);
 
   useEffect(() => {
     if (plan.toLowerCase() !== "business") {
       setChosenApp("erpnext");
     }
   }, [plan]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || hydratedRef.current) return;
+    hydratedRef.current = true;
+
+    const raw = window.localStorage.getItem(ONBOARDING_STATE_KEY);
+    if (!raw) {
+      setRestored(true);
+      return;
+    }
+
+    let parsed: PersistedOnboardingState | null = null;
+    try {
+      parsed = JSON.parse(raw) as PersistedOnboardingState;
+    } catch {
+      clearPersistedState();
+      setRestored(true);
+      return;
+    }
+
+    if (!parsed) {
+      setRestored(true);
+      return;
+    }
+
+    setStep(parsed.step || "details");
+    setSubdomain(parsed.subdomain || "");
+    setCompanyName(parsed.companyName || "");
+    setPlan(parsed.plan || "starter");
+    setChosenApp(parsed.chosenApp || "erpnext");
+    setCheckoutUrl(parsed.checkoutUrl || null);
+
+    const restoredTenantId = parsed.tenantId;
+    const restoredCheckoutUrl = parsed.checkoutUrl || null;
+
+    if (!restoredTenantId) {
+      setRestored(true);
+      return;
+    }
+
+    void (async () => {
+      try {
+        const latest = (await api.getTenant(restoredTenantId)) as TenantRecord;
+        setTenant(latest);
+        setProgress(progressForStatus((latest.status ?? "").toLowerCase()));
+        setStep(deriveStepFromTenant(latest, restoredCheckoutUrl));
+      } catch (err) {
+        clearPersistedState();
+        const message = err instanceof Error ? err.message : "Unable to restore onboarding state";
+        if (message.toLowerCase().includes("404")) {
+          setTenant(null);
+          setStep("details");
+        }
+      } finally {
+        setRestored(true);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!restored || typeof window === "undefined") return;
+    if (step === "success") {
+      clearPersistedState();
+      return;
+    }
+
+    const state: PersistedOnboardingState = {
+      step,
+      subdomain,
+      companyName,
+      plan,
+      chosenApp,
+      tenantId: tenant?.id ?? null,
+      checkoutUrl,
+    };
+    window.localStorage.setItem(ONBOARDING_STATE_KEY, JSON.stringify(state));
+  }, [restored, step, subdomain, companyName, plan, chosenApp, tenant?.id, checkoutUrl]);
+
+  useEffect(() => {
+    if (!restored) return;
+    if (tenant?.id) return;
+    if (!(step === "details" || step === "plan")) return;
+
+    if (!cleanSubdomain) {
+      setSubdomainAvailability(null);
+      setSubdomainChecking(false);
+      return;
+    }
+
+    if (cleanSubdomain.length < 3) {
+      setSubdomainAvailability({
+        subdomain: cleanSubdomain,
+        domain: null,
+        available: false,
+        reason: "invalid",
+        message: "Subdomain must be at least 3 characters.",
+      });
+      setSubdomainChecking(false);
+      return;
+    }
+
+    let active = true;
+    setSubdomainChecking(true);
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const result = await api.checkSubdomainAvailability(cleanSubdomain);
+          if (!active) return;
+          setSubdomainAvailability(result);
+        } catch (err) {
+          if (!active) return;
+          setSubdomainAvailability({
+            subdomain: cleanSubdomain,
+            domain: null,
+            available: false,
+            reason: "invalid",
+            message: err instanceof Error ? err.message : "Could not validate subdomain",
+          });
+        } finally {
+          if (active) setSubdomainChecking(false);
+        }
+      })();
+    }, 400);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+      setSubdomainChecking(false);
+    };
+  }, [cleanSubdomain, restored, step, tenant?.id]);
 
   useEffect(() => {
     if (searchParams.get("welcome") === "1") {
@@ -123,12 +284,21 @@ export default function OnboardingPage() {
         if (nextStatus === "active") {
           setStep("success");
           setError(null);
+          clearPersistedState();
         } else if (nextStatus === "failed") {
           setError("Provisioning failed. Please contact support or retry with a different subdomain.");
         }
       } catch (err) {
         if (!active) return;
         const message = err instanceof Error ? err.message : "Unable to load provisioning status";
+
+        if (message.toLowerCase().includes("404")) {
+          clearPersistedState();
+          setTenant(null);
+          setStep("details");
+          setError("Saved onboarding session was not found. Please start again.");
+          return;
+        }
 
         if (message.includes("401") || message.toLowerCase().includes("not authenticated")) {
           router.push("/login?sessionExpired=1&next=/onboarding");
@@ -153,6 +323,10 @@ export default function OnboardingPage() {
   const submitTenant = async () => {
     if (!cleanSubdomain || cleanSubdomain.length < 3) {
       setError("Please choose a valid subdomain (at least 3 characters).");
+      return;
+    }
+    if (!subdomainAvailability?.available) {
+      setError(subdomainAvailability?.message || "Please choose an available subdomain before continuing.");
       return;
     }
 
@@ -266,13 +440,31 @@ export default function OnboardingPage() {
                 <p className="mt-2 text-sm text-slate-400">
                   Preview: <span className="font-medium text-sky-200">https://{previewDomain}</span>
                 </p>
+                <p
+                  className={`mt-1 text-xs ${
+                    !cleanSubdomain
+                      ? "text-slate-400"
+                      : subdomainChecking
+                        ? "text-amber-300"
+                        : subdomainAvailability?.available
+                          ? "text-emerald-300"
+                          : "text-red-300"
+                  }`}
+                >
+                  {!cleanSubdomain
+                    ? "Enter a subdomain to verify availability."
+                    : subdomainChecking
+                      ? "Checking subdomain availability..."
+                      : subdomainAvailability?.message ?? "Subdomain availability not checked yet."}
+                </p>
               </div>
               <button
-                className="rounded-md bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
+                className="rounded-md bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:opacity-60"
                 onClick={() => {
                   setError(null);
                   setStep("plan");
                 }}
+                disabled={!canUseSubdomain || subdomainChecking}
               >
                 Continue to package selection
               </button>
@@ -304,7 +496,7 @@ export default function OnboardingPage() {
                   onClick={() => {
                     void submitTenant();
                   }}
-                  disabled={busy}
+                  disabled={busy || !canUseSubdomain || subdomainChecking}
                 >
                   {busy ? "Submitting..." : "Submit and continue"}
                 </button>

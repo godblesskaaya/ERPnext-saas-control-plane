@@ -48,6 +48,23 @@ class InMemoryTokenStore:
             return None
         return item[0]
 
+    def delete(self, *names: str) -> int:
+        removed = 0
+        with self._lock:
+            for name in names:
+                if name in self._items:
+                    self._items.pop(name, None)
+                    removed += 1
+        return removed
+
+    def getdel(self, name: str) -> str | None:
+        self._purge_expired(name)
+        with self._lock:
+            item = self._items.pop(name, None)
+        if not item:
+            return None
+        return item[0]
+
     def ping(self) -> bool:
         return True
 

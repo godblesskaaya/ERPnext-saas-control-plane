@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import secrets
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -9,12 +12,22 @@ from app.db import get_db
 from app.deps import bearer_scheme, get_current_user
 from app.models import User
 from app.rate_limits import (
+    forgot_password_rate_limit,
     login_rate_limit,
     logout_rate_limit,
+    reset_password_rate_limit,
     refresh_token_rate_limit,
     signup_rate_limit,
 )
-from app.schemas import LoginRequest, MessageResponse, SignupRequest, TokenResponse, UserOut
+from app.schemas import (
+    ForgotPasswordRequest,
+    LoginRequest,
+    MessageResponse,
+    ResetPasswordRequest,
+    SignupRequest,
+    TokenResponse,
+    UserOut,
+)
 from app.security import (
     create_access_token,
     create_refresh_token,
@@ -35,6 +48,11 @@ AUTH_401_RESPONSE = {"description": "Unauthorized: missing, invalid, or revoked 
 RATE_LIMIT_429_RESPONSE = {"description": "Too many requests. Retry after the rate-limit window."}
 VALIDATION_422_RESPONSE = {"description": "Request validation failed."}
 CONFLICT_409_RESPONSE = {"description": "Conflict with existing resource state."}
+
+
+def _password_reset_token_key(raw_token: str) -> str:
+    digest = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    return f"password-reset:{digest}"
 
 
 def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
@@ -127,6 +145,107 @@ def login(request: Request, response: Response, payload: LoginRequest, db: Sessi
         request=request,
     )
     return TokenResponse(access_token=access_token)
+
+
+@router.post(
+    "/forgot-password",
+    response_model=MessageResponse,
+    dependencies=[Depends(forgot_password_rate_limit)],
+    responses={
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+    },
+)
+def forgot_password(
+    request: Request,
+    payload: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    token_store=Depends(get_token_store),
+) -> MessageResponse:
+    normalized_email = payload.email.lower()
+    user = db.query(User).filter(User.email == normalized_email).first()
+
+    if user:
+        raw_token = secrets.token_urlsafe(32)
+        token_store.setex(
+            _password_reset_token_key(raw_token),
+            settings.password_reset_token_expire_minutes * 60,
+            user.id,
+        )
+        record_audit_event(
+            db,
+            action="auth.forgot_password_requested",
+            resource="users",
+            actor=user,
+            resource_id=user.id,
+            request=request,
+        )
+        background_tasks.add_task(
+            notification_service.send_password_reset_requested,
+            normalized_email,
+            raw_token,
+            f"{settings.password_reset_url_base}?token={raw_token}",
+        )
+    else:
+        record_audit_event(
+            db,
+            action="auth.forgot_password_requested",
+            resource="users",
+            actor_role="anonymous",
+            request=request,
+            metadata={"email": normalized_email, "user_found": False},
+        )
+
+    return MessageResponse(message="If the account exists, password reset instructions have been sent.")
+
+
+@router.post(
+    "/reset-password",
+    response_model=MessageResponse,
+    dependencies=[Depends(reset_password_rate_limit)],
+    responses={
+        status.HTTP_400_BAD_REQUEST: {"description": "Invalid, expired, or already-used reset token."},
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+    },
+)
+def reset_password(
+    request: Request,
+    payload: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+    token_store=Depends(get_token_store),
+) -> MessageResponse:
+    token_key = _password_reset_token_key(payload.token)
+    getdel = getattr(token_store, "getdel", None)
+    user_id: str | None
+    if callable(getdel):
+        user_id = getdel(token_key)
+    else:
+        user_id = token_store.get(token_key)
+        if user_id:
+            token_store.delete(token_key)
+
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reset token is invalid or expired")
+
+    user = db.get(User, str(user_id))
+    if not user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reset token is invalid or expired")
+
+    user.password_hash = hash_password(payload.new_password)
+    db.add(user)
+    db.commit()
+    record_audit_event(
+        db,
+        action="auth.password_reset",
+        resource="users",
+        actor=user,
+        resource_id=user.id,
+        request=request,
+    )
+
+    return MessageResponse(message="Password reset successful. You can now sign in.")
 
 
 @router.post(

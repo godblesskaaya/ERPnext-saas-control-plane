@@ -72,6 +72,8 @@ def _build_limit_dependency(name: str, limit_value: str, key_func=None):
 
 signup_rate_limit = _build_limit_dependency("signup_rate_limit", "5/minute")
 login_rate_limit = _build_limit_dependency("login_rate_limit", "10/minute")
+forgot_password_rate_limit = _build_limit_dependency("forgot_password_rate_limit", "5/minute")
+reset_password_rate_limit = _build_limit_dependency("reset_password_rate_limit", "10/minute")
 refresh_token_rate_limit = _build_limit_dependency("refresh_token_rate_limit", "60/minute", refresh_rate_limit_key)
 logout_rate_limit = _build_limit_dependency("logout_rate_limit", "60/minute", user_rate_limit_key)
 tenant_create_rate_limit = _build_limit_dependency("tenant_create_rate_limit", "3/minute", user_rate_limit_key)

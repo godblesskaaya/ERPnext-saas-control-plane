@@ -32,6 +32,10 @@ function isAdminRoute(pathname: string): boolean {
   return pathname === "/admin" || pathname.startsWith("/admin/");
 }
 
+function isPublicAuthRoute(pathname: string): boolean {
+  return ["/login", "/signup", "/forgot-password", "/reset-password"].includes(pathname);
+}
+
 function safeRedirectPath(value: string | null): string {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
     return "/dashboard";
@@ -78,7 +82,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(TOKEN_COOKIE)?.value;
 
-  if (pathname === "/login" || pathname === "/signup") {
+  if (isPublicAuthRoute(pathname)) {
     if (request.nextUrl.searchParams.get("logout") === "1") {
       return NextResponse.next();
     }
@@ -136,5 +140,13 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*", "/onboarding/:path*", "/login", "/signup"],
+  matcher: [
+    "/dashboard/:path*",
+    "/admin/:path*",
+    "/onboarding/:path*",
+    "/login",
+    "/signup",
+    "/forgot-password",
+    "/reset-password",
+  ],
 };

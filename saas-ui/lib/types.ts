@@ -66,6 +66,14 @@ export type TenantCreateResponse = {
   checkout_session_id?: string | null;
 };
 
+export type SubdomainAvailability = {
+  subdomain: string;
+  domain?: string | null;
+  available: boolean;
+  reason?: "reserved" | "invalid" | "taken" | (string & {}) | null;
+  message: string;
+};
+
 export type ResetAdminPasswordResult = {
   tenant_id: string;
   domain: string;

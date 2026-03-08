@@ -102,6 +102,57 @@ def suspend_tenant(
     return MessageResponse(message="Tenant suspended")
 
 
+@router.post(
+    "/tenants/{tenant_id}/unsuspend",
+    response_model=MessageResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_409_CONFLICT: CONFLICT_409_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def unsuspend_tenant(
+    request: Request,
+    tenant_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+) -> MessageResponse:
+    tenant = db.get(Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+
+    try:
+        transition_tenant_status(tenant, "active")
+    except InvalidTenantStatusTransition as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    tenant.updated_at = datetime.utcnow()
+    db.add(tenant)
+    db.commit()
+    record_audit_event(
+        db,
+        action="admin.unsuspend_tenant",
+        resource="tenants",
+        actor=current_admin,
+        resource_id=tenant.id,
+        request=request,
+    )
+
+    owner = db.get(User, tenant.owner_id)
+    if owner:
+        background_tasks.add_task(
+            notification_service.send_tenant_unsuspended,
+            owner.email,
+            tenant.domain,
+        )
+
+    return MessageResponse(message="Tenant unsuspended")
+
+
 @router.get(
     "/jobs/dead-letter",
     response_model=list[DeadLetterJobOut],

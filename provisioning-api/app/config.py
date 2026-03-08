@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 15
     jwt_refresh_token_expire_days: int = 7
     refresh_cookie_name: str = "refresh_token"
+    password_reset_url_base: str = "http://localhost:3000/reset-password"
+    password_reset_token_expire_minutes: int = 30
 
     tenant_domain_suffix: str = "erp.blenkotechnologies.co.tz"
     allowed_plans: str = "starter,business,enterprise"

@@ -82,6 +82,24 @@ class NotificationService:
             )
         )
 
+    def send_password_reset_requested(self, email: str, reset_token: str, reset_url: str | None = None) -> bool:
+        instructions = (
+            f"Open this link to reset your password:\n{reset_url}"
+            if reset_url
+            else f"Use this one-time token to reset your password:\n{reset_token}"
+        )
+        return self.send(
+            NotificationMessage(
+                to_email=email,
+                subject="Reset your ERP SaaS password",
+                text=(
+                    "A password reset was requested for your ERP SaaS account.\n\n"
+                    f"{instructions}\n\n"
+                    "If you did not request this, you can safely ignore this email."
+                ),
+            )
+        )
+
     def send_provisioning_complete(self, email: str, domain: str) -> bool:
         return self.send(
             NotificationMessage(
@@ -145,6 +163,18 @@ class NotificationService:
             )
         )
 
+    def send_tenant_unsuspended(self, email: str, domain: str) -> bool:
+        return self.send(
+            NotificationMessage(
+                to_email=email,
+                subject="Tenant access restored",
+                text=(
+                    f"Your tenant {domain} has been reactivated.\n\n"
+                    "You can now sign in and continue operations."
+                ),
+            )
+        )
+
     def send_tenant_deleted(self, email: str, domain: str) -> bool:
         return self.send(
             NotificationMessage(
@@ -159,4 +189,3 @@ class NotificationService:
 
 
 notification_service = NotificationService()
-

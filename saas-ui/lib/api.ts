@@ -6,6 +6,7 @@ import type {
   MessageResponse,
   OptionalEndpointResult,
   ResetAdminPasswordResult,
+  SubdomainAvailability,
   Tenant,
   TenantCreatePayload,
   TenantCreateResponse,
@@ -288,12 +289,27 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
 
+  forgotPassword: (email: string) =>
+    request<MessageResponse>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  resetPassword: (token: string, newPassword: string) =>
+    request<MessageResponse>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, new_password: newPassword }),
+    }),
+
   listTenants: () => request<Tenant[]>("/tenants"),
 
   getTenant: (id: string) => request<Tenant>(`/tenants/${id}`),
 
   createTenant: (payload: TenantCreatePayload, idempotencyKey = createIdempotencyKey()) =>
     createTenantWithCompatibility(payload, idempotencyKey),
+
+  checkSubdomainAvailability: (subdomain: string) =>
+    request<SubdomainAvailability>(`/tenants/check-subdomain?subdomain=${encodeURIComponent(subdomain)}`),
 
   backupTenant: (id: string) => request<Job>(`/tenants/${id}/backup`, { method: "POST" }),
 
@@ -313,6 +329,9 @@ export const api = {
 
   suspendTenant: (tenantId: string) =>
     requestOptionalEndpoint<MessageResponse>(`/admin/tenants/${tenantId}/suspend`, { method: "POST" }),
+
+  unsuspendTenant: (tenantId: string) =>
+    requestOptionalEndpoint<MessageResponse>(`/admin/tenants/${tenantId}/unsuspend`, { method: "POST" }),
 
   listTenantBackups: (tenantId: string) => requestOptionalEndpoint<BackupManifestEntry[]>(`/tenants/${tenantId}/backups`),
 

@@ -49,6 +49,36 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128, description="Account password.")
 
 
+class ForgotPasswordRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "email": "owner@example.com",
+                }
+            ]
+        }
+    )
+
+    email: EmailStr = Field(description="Account email to receive reset instructions.")
+
+
+class ResetPasswordRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "token": "reset-token",
+                    "new_password": "N3wS3cureP@ssw0rd!",
+                }
+            ]
+        }
+    )
+
+    token: str = Field(min_length=20, max_length=512, description="One-time password-reset token.")
+    new_password: str = Field(min_length=8, max_length=128, description="New password (8-128 chars).")
+
+
 class TokenResponse(BaseModel):
     access_token: str = Field(description="JWT access token.")
     token_type: str = Field(default="bearer", description="OAuth2 token type.")
@@ -121,6 +151,18 @@ class TenantOut(BaseModel):
     platform_customer_id: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class SubdomainAvailabilityResponse(BaseModel):
+    subdomain: str = Field(description="Normalized requested subdomain.")
+    domain: str | None = Field(default=None, description="Full domain when the subdomain syntax is valid.")
+    available: bool = Field(description="Whether the subdomain can be used for a new tenant.")
+    reason: str | None = Field(
+        default=None,
+        description="Availability reason. Typical values: reserved, invalid, taken.",
+        examples=["taken"],
+    )
+    message: str = Field(description="Human-readable availability explanation.")
 
 
 class JobOut(BaseModel):

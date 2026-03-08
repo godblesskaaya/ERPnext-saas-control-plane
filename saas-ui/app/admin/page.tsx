@@ -25,7 +25,7 @@ function formatDate(value?: string | null): string {
   return date.toLocaleString();
 }
 
-function metricCard(label: string, value: number, tone: "default" | "good" | "warn" = "default") {
+function metricCard(label: string, value: number, hint: string, tone: "default" | "good" | "warn" = "default") {
   const toneClass =
     tone === "good"
       ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
@@ -37,6 +37,7 @@ function metricCard(label: string, value: number, tone: "default" | "good" | "wa
     <article className={`rounded-lg border p-3 ${toneClass}`}>
       <p className="text-xs uppercase tracking-wide opacity-80">{label}</p>
       <p className="mt-1 text-2xl font-semibold">{value}</p>
+      <p className="mt-1 text-xs opacity-80">{hint}</p>
     </article>
   );
 }
@@ -130,13 +131,16 @@ export default function AdminPage() {
     [tenants]
   );
   const failedCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "failed").length, [tenants]);
+  const activeCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "active").length, [tenants]);
 
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold">Admin Control Center</h1>
-          <p className="text-sm text-slate-300">Tenant governance, job inspection, and failure recovery workflows.</p>
+          <p className="text-sm text-slate-300">
+            Keep tenant reliability high with fast attention routing for setup delays, failures, and governance tasks.
+          </p>
         </div>
         <div className="flex gap-2">
           <button className="rounded border border-slate-600 px-3 py-1.5 text-xs hover:bg-slate-800" onClick={() => void loadTenants()}>
@@ -148,16 +152,43 @@ export default function AdminPage() {
         </div>
       </div>
 
+      <div className="rounded-xl border border-slate-700 bg-slate-900/50 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-medium text-white">Attention lane</p>
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs ${
+              failedCount || suspendedCount || deadLetters.length ? "bg-amber-500/20 text-amber-200" : "bg-emerald-500/20 text-emerald-200"
+            }`}
+          >
+            {failedCount || suspendedCount || deadLetters.length ? "Intervention recommended" : "Platform healthy"}
+          </span>
+        </div>
+        <div className="mt-3 grid gap-2 text-xs md:grid-cols-4">
+          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
+            Active tenants: <span className="font-semibold text-emerald-200">{activeCount}</span>
+          </p>
+          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
+            Setup queue: <span className="font-semibold text-amber-200">{provisioningCount}</span>
+          </p>
+          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
+            Failed: <span className="font-semibold text-red-200">{failedCount}</span>
+          </p>
+          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
+            Dead letters: <span className="font-semibold text-orange-200">{deadLetters.length}</span>
+          </p>
+        </div>
+      </div>
+
       <div className="grid gap-3 md:grid-cols-4">
-        {metricCard("Tenants", tenants.length)}
-        {metricCard("Suspended", suspendedCount, suspendedCount ? "warn" : "default")}
-        {metricCard("Provisioning", provisioningCount, provisioningCount ? "warn" : "default")}
-        {metricCard("Failed", failedCount, failedCount ? "warn" : "good")}
+        {metricCard("Total tenants", tenants.length, "All managed customer environments")}
+        {metricCard("Suspended", suspendedCount, "Access paused pending review", suspendedCount ? "warn" : "default")}
+        {metricCard("Provisioning", provisioningCount, "Still onboarding or awaiting payment", provisioningCount ? "warn" : "default")}
+        {metricCard("Failed", failedCount, "Requires immediate operator follow-up", failedCount ? "warn" : "good")}
       </div>
 
       <div className="rounded-xl border border-slate-700 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Recent jobs & logs</h2>
+          <h2 className="text-lg font-semibold">Execution monitor</h2>
           <button
             className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
             onClick={() => {
@@ -180,8 +211,8 @@ export default function AdminPage() {
                   <tr>
                     <th className="p-2">Job ID</th>
                     <th className="p-2">Tenant ID</th>
-                    <th className="p-2">Type</th>
-                    <th className="p-2">Status</th>
+                    <th className="p-2">Flow</th>
+                    <th className="p-2">Health</th>
                     <th className="p-2">Created</th>
                     <th className="p-2" />
                   </tr>
@@ -201,7 +232,7 @@ export default function AdminPage() {
                             void loadJobLogs(job.id);
                           }}
                         >
-                          View logs
+                          Inspect logs
                         </button>
                       </td>
                     </tr>
@@ -226,13 +257,13 @@ export default function AdminPage() {
             ) : null}
           </div>
         ) : (
-          <p className="text-sm text-slate-300">No jobs found.</p>
+          <p className="text-sm text-slate-300">No jobs found. Trigger provisioning or maintenance actions to populate this feed.</p>
         )}
       </div>
 
       <div className="rounded-xl border border-slate-700 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Tenant controls</h2>
+          <h2 className="text-lg font-semibold">Tenant intervention panel</h2>
           <button
             className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
             onClick={() => {
@@ -250,8 +281,8 @@ export default function AdminPage() {
             <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
               <tr>
                 <th className="p-2">Company</th>
-                <th className="p-2">Plan/App</th>
-                <th className="p-2">Status</th>
+                <th className="p-2">Plan/focus</th>
+                <th className="p-2">Health</th>
                 <th className="p-2">Provider</th>
                 <th className="p-2">Created</th>
                 <th className="p-2">Actions</th>
@@ -319,7 +350,7 @@ export default function AdminPage() {
 
       <div className="rounded-xl border border-slate-700 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Dead-letter queue</h2>
+          <h2 className="text-lg font-semibold">Recovery queue (dead-letter)</h2>
           <button
             className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
             onClick={() => {
@@ -340,7 +371,7 @@ export default function AdminPage() {
               <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
                 <tr>
                   <th className="p-2">ID</th>
-                  <th className="p-2">Function</th>
+                  <th className="p-2">Worker function</th>
                   <th className="p-2">Queued</th>
                   <th className="p-2">Args</th>
                 </tr>

@@ -5,8 +5,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "ERP SaaS",
-  description: "ERPNext SaaS Provisioning Portal",
+  title: "Business Operations Cloud",
+  description: "Launch faster with clearer cashflow, inventory, and branch operations in one place.",
 };
 
 type SessionPayload = {
@@ -55,20 +55,23 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(56,189,248,0.18),transparent_40%),radial-gradient(circle_at_80%_0%,rgba(99,102,241,0.15),transparent_30%)]" />
 
           <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur">
+            <div className="border-b border-slate-800/70 bg-slate-900/80 px-6 py-1.5 text-center text-[11px] text-slate-300">
+              TZS-friendly pricing guidance • Mobile-money compatible checkout providers • Support hours in EAT
+            </div>
             <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
               <div className="flex items-center gap-4">
                 <Link href="/" className="text-lg font-semibold tracking-tight text-white">
-                  ERP SaaS
+                  Biashara Cloud
                 </Link>
                 <nav className="hidden items-center gap-1 md:flex">
                   <Link href="/#features" className={navLinkClass}>
-                    Features
+                    Outcomes
                   </Link>
                   <Link href="/#pricing" className={navLinkClass}>
                     Pricing
                   </Link>
                   <Link href="/#how-it-works" className={navLinkClass}>
-                    How it works
+                    Go-live flow
                   </Link>
                 </nav>
               </div>
@@ -100,13 +103,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                 ) : (
                   <>
                     <Link href="/login" className={navLinkClass}>
-                      Login
+                      Sign in
                     </Link>
                     <Link
                       href="/signup"
                       className="rounded-md bg-sky-500 px-3 py-2 text-sm font-medium text-slate-950 transition hover:bg-sky-400"
                     >
-                      Get Started
+                      Start now
                     </Link>
                   </>
                 )}

@@ -24,6 +24,13 @@ type TenantCreateResponse = {
 };
 
 const flow = ["details", "plan", "payment", "waiting", "success"] as const;
+const flowLabels: Record<OnboardingStep, string> = {
+  details: "1. Business details",
+  plan: "2. Choose operating level",
+  payment: "3. Confirm payment",
+  waiting: "4. Provisioning",
+  success: "5. Go live",
+};
 
 function sanitizeSubdomain(input: string): string {
   return input
@@ -59,7 +66,7 @@ function statusLabel(status: string): string {
     case "provisioning":
       return "Provisioning in progress";
     case "active":
-      return "ERP instance is ready";
+      return "Workspace is ready";
     case "failed":
       return "Provisioning failed";
     default:
@@ -96,7 +103,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (searchParams.get("welcome") === "1") {
-      setNotice("Welcome! Let’s configure your first ERP tenant.");
+      setNotice("Welcome! Let’s configure your first workspace.");
     }
   }, [searchParams]);
 
@@ -203,15 +210,15 @@ export default function OnboardingPage() {
   const activeIndex = flow.indexOf(step);
 
   return (
-    <section className="mx-auto max-w-5xl space-y-6 rounded-2xl border border-slate-800 bg-slate-900/60 p-8">
+    <section className="mx-auto max-w-5xl space-y-5 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:p-6 lg:p-8">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold text-white">Tenant onboarding</h1>
+        <h1 className="text-2xl font-semibold text-white sm:text-3xl">Get your team live faster</h1>
         <p className="text-sm text-slate-300">
-          Move from tenant reservation to payment and live provisioning with clear operational visibility.
+          Set up once, then run daily sales, stock, and finance operations from office or mobile across Tanzania.
         </p>
       </header>
 
-      <ol className="grid gap-2 text-xs uppercase tracking-wide text-slate-400 md:grid-cols-5">
+      <ol className="grid gap-2 text-[11px] uppercase tracking-wide text-slate-400 md:grid-cols-5">
         {flow.map((item, index) => (
           <li
             key={item}
@@ -219,7 +226,7 @@ export default function OnboardingPage() {
               index <= activeIndex ? "border-sky-400/60 bg-sky-500/10 text-sky-200" : "border-slate-800 bg-slate-950/40"
             }`}
           >
-            {item.replace("_", " ")}
+            {flowLabels[item]}
           </li>
         ))}
       </ol>
@@ -234,13 +241,16 @@ export default function OnboardingPage() {
         <div className="space-y-5 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
           {step === "details" ? (
             <div className="space-y-4">
+              <div className="rounded-md border border-slate-700 bg-slate-900/60 p-3 text-xs text-slate-300">
+                Tell us who this workspace is for so your team can start with the right URL and ownership context.
+              </div>
               <div>
                 <label className="mb-1 block text-sm text-slate-300">Company name</label>
                 <input
                   className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
                   value={companyName}
                   onChange={(event) => setCompanyName(event.target.value)}
-                  placeholder="Acme Manufacturing"
+                  placeholder="Mlimani Traders Ltd"
                   required
                 />
               </div>
@@ -250,7 +260,7 @@ export default function OnboardingPage() {
                   className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
                   value={subdomain}
                   onChange={(event) => setSubdomain(event.target.value)}
-                  placeholder="acme"
+                  placeholder="mlimani"
                   required
                 />
                 <p className="mt-2 text-sm text-slate-400">
@@ -264,7 +274,7 @@ export default function OnboardingPage() {
                   setStep("plan");
                 }}
               >
-                Continue to plan and app setup
+                Continue to package selection
               </button>
             </div>
           ) : null}
@@ -274,10 +284,10 @@ export default function OnboardingPage() {
               <PlanSelector value={plan} onChange={setPlan} chosenApp={chosenApp} onChosenAppChange={setChosenApp} />
 
               <div className="rounded-md border border-slate-700 bg-slate-900/60 p-3 text-xs text-slate-300">
-                Plan: <span className="text-slate-100">{plan}</span>
+                Selected plan: <span className="text-slate-100">{plan}</span>
                 {plan.toLowerCase() === "business" ? (
                   <>
-                    {" · "}App: <span className="text-emerald-200">{selectedBusinessApp?.label ?? chosenApp}</span>
+                    {" · "}Business focus: <span className="text-emerald-200">{selectedBusinessApp?.label ?? chosenApp}</span>
                   </>
                 ) : null}
               </div>
@@ -296,7 +306,7 @@ export default function OnboardingPage() {
                   }}
                   disabled={busy}
                 >
-                  {busy ? "Creating tenant..." : "Create tenant & continue"}
+                  {busy ? "Submitting..." : "Submit and continue"}
                 </button>
               </div>
             </div>
@@ -304,7 +314,7 @@ export default function OnboardingPage() {
 
           {step === "payment" ? (
             <div className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/40 p-5">
-              <h2 className="text-xl font-semibold text-white">Complete secure payment</h2>
+              <h2 className="text-xl font-semibold text-white">Complete payment to unlock provisioning</h2>
               <p className="text-sm text-slate-300">
                 Checkout is ready for <span className="text-sky-200">{tenant?.company_name}</span> on the{" "}
                 <span className="text-sky-200">{plan}</span> plan.
@@ -317,13 +327,13 @@ export default function OnboardingPage() {
                   className="rounded-md bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
                   onClick={launchCheckout}
                 >
-                  Redirect to checkout
+                  Open checkout
                 </button>
                 <button
                   className="rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:border-slate-500"
                   onClick={() => setStep("waiting")}
                 >
-                  I already paid
+                  I already completed payment
                 </button>
               </div>
             </div>
@@ -331,9 +341,9 @@ export default function OnboardingPage() {
 
           {step === "waiting" ? (
             <div className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/40 p-5">
-              <h2 className="text-xl font-semibold text-white">Provisioning in progress</h2>
+              <h2 className="text-xl font-semibold text-white">Workspace setup is in progress</h2>
               <p className="text-sm text-slate-300">
-                {statusLabel((tenant?.status ?? "pending").toLowerCase())}. We&apos;re polling tenant status automatically.
+                {statusLabel((tenant?.status ?? "pending").toLowerCase())}. Status refresh runs automatically every few seconds.
               </p>
               <div className="h-2 overflow-hidden rounded-full bg-slate-800">
                 <div className="h-full rounded-full bg-sky-400 transition-all" style={{ width: `${progress}%` }} />
@@ -344,7 +354,7 @@ export default function OnboardingPage() {
                   className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:border-slate-500"
                   onClick={launchCheckout}
                 >
-                  Re-open payment checkout
+                  Re-open checkout
                 </button>
               ) : null}
             </div>
@@ -352,8 +362,8 @@ export default function OnboardingPage() {
 
           {step === "success" ? (
             <div className="space-y-4 rounded-lg border border-emerald-500/40 bg-emerald-950/20 p-5">
-              <h2 className="text-xl font-semibold text-emerald-100">Your ERP instance is ready 🎉</h2>
-              <p className="text-sm text-emerald-100/90">Use the URL below to open your tenant workspace.</p>
+              <h2 className="text-xl font-semibold text-emerald-100">Workspace ready 🎉</h2>
+              <p className="text-sm text-emerald-100/90">Share this URL with your team and start your first daily operations cycle.</p>
               <div className="rounded-md border border-emerald-500/30 bg-slate-950/70 p-3 text-sm text-sky-200">{erpUrl}</div>
               <div className="flex flex-wrap gap-3">
                 <button
@@ -370,13 +380,13 @@ export default function OnboardingPage() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Open ERP
+                  Open workspace
                 </a>
                 <button
                   className="rounded-md border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:border-slate-400"
                   onClick={() => router.push("/dashboard")}
                 >
-                  Go to dashboard
+                  Go to operations dashboard
                 </button>
               </div>
             </div>
@@ -384,7 +394,7 @@ export default function OnboardingPage() {
         </div>
 
         <aside className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4 text-sm">
-          <h2 className="font-semibold text-white">Deployment brief</h2>
+          <h2 className="font-semibold text-white">Setup snapshot</h2>
           <div className="space-y-2 text-xs text-slate-300">
             <p>
               <span className="text-slate-400">Company:</span> {companyName || "—"}
@@ -403,8 +413,14 @@ export default function OnboardingPage() {
             </p>
           </div>
           <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3 text-xs text-slate-300">
-            <p className="font-medium text-slate-100">Tip</p>
-            <p className="mt-1">If chosen_app is not supported by the backend version, submission automatically retries in compatibility mode.</p>
+            <p className="font-medium text-slate-100">Mobile-first tip</p>
+            <p className="mt-1">
+              Keep this URL accessible in your operations WhatsApp group so branch staff can quickly access the live environment.
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-3 text-xs text-slate-300">
+            <p className="font-medium text-slate-100">Compatibility note</p>
+            <p className="mt-1">If chosen_app is unsupported on the backend version, submission retries in compatibility mode.</p>
           </div>
         </aside>
       </div>

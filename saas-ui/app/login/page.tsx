@@ -68,8 +68,17 @@ export default function LoginPage() {
   return (
     <section className="mx-auto max-w-xl space-y-6 rounded-2xl border border-slate-800 bg-slate-900/50 p-8">
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold text-white">Welcome back</h1>
-        <p className="text-sm text-slate-300">Sign in to continue managing your ERP tenants.</p>
+        <h1 className="text-3xl font-semibold text-white">Welcome back / Karibu tena</h1>
+        <p className="text-sm text-slate-300">Sign in to continue tracking cashflow, inventory, and branch operations.</p>
+      </div>
+
+      <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-300">
+        <p className="font-medium text-slate-200">Built for practical local operations</p>
+        <ul className="mt-2 space-y-1">
+          <li>• Swahili/English-friendly product wording</li>
+          <li>• Clear plan pricing language with optional TZS context</li>
+          <li>• Checkout messaging aligned to card and mobile-money compatible flows</li>
+        </ul>
       </div>
 
       {notice ? (
@@ -98,16 +107,16 @@ export default function LoginPage() {
           className="w-full rounded-md bg-sky-500 px-4 py-2 font-semibold text-slate-950 transition hover:bg-sky-400 disabled:opacity-60"
           disabled={busy}
         >
-          {busy ? "Signing in..." : "Sign in"}
+          {busy ? "Signing in..." : "Access my workspace"}
         </button>
       </form>
 
       {error ? <p className="rounded-md border border-red-500/40 bg-red-950/40 p-3 text-sm text-red-200">{error}</p> : null}
 
       <p className="text-sm text-slate-400">
-        Need an account?{" "}
+        Need an account to get started quickly?{" "}
         <Link href="/signup" className="text-sky-300 hover:text-sky-200">
-          Create one
+          Create account
         </Link>
       </p>
     </section>

@@ -33,6 +33,24 @@ function statusBadgeClass(status: string): string {
   return "bg-sky-500/20 text-sky-300";
 }
 
+function statusHint(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "active") return "Serving daily operations";
+  if (normalized === "pending_payment") return "Waiting for checkout confirmation";
+  if (normalized === "pending" || normalized === "provisioning") return "Setup in progress";
+  if (normalized === "failed") return "Needs operator follow-up";
+  if (normalized === "suspended") return "Access paused by admin";
+  if (normalized === "deleted") return "Archived";
+  return "Status under review";
+}
+
+function rowTone(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "failed") return "bg-red-950/10";
+  if (normalized === "pending" || normalized === "pending_payment" || normalized === "provisioning") return "bg-amber-950/10";
+  return "";
+}
+
 function planBadgeClass(plan: string): string {
   const normalized = plan.toLowerCase();
   if (normalized === "enterprise") return "bg-violet-500/20 text-violet-200";
@@ -66,6 +84,12 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
   const [passwordExpiry, setPasswordExpiry] = useState<number | null>(null);
   const [passwordNow, setPasswordNow] = useState<number>(Date.now());
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const failedCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "failed").length, [tenants]);
+  const setupCount = useMemo(
+    () => tenants.filter((tenant) => ["pending", "pending_payment", "provisioning"].includes(tenant.status.toLowerCase())).length,
+    [tenants]
+  );
+  const liveCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "active").length, [tenants]);
 
   const remainingSeconds = useMemo(() => {
     if (!passwordExpiry) return 0;
@@ -132,10 +156,10 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
     return (
       <div className="rounded border border-dashed border-slate-600 bg-slate-900/40 p-8 text-center">
         <p className="text-3xl">📦</p>
-        <p className="mt-2 text-lg font-semibold">No ERP instances yet</p>
-        <p className="mt-1 text-sm text-slate-300">Create your first ERP instance to start provisioning.</p>
+        <p className="mt-2 text-lg font-semibold">No workspaces yet</p>
+        <p className="mt-1 text-sm text-slate-300">Create your first workspace to start onboarding and daily operations.</p>
         <a href="#create-tenant" className="mt-4 inline-flex rounded bg-blue-600 px-4 py-2 font-medium hover:bg-blue-500">
-          Create your first ERP instance
+          Create first workspace
         </a>
       </div>
     );
@@ -145,7 +169,7 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
     <div className="space-y-4">
       {passwordResult ? (
         <div className="rounded border border-emerald-700 bg-emerald-950/40 p-3 text-sm">
-          <p className="font-semibold">Administrator password reset successful</p>
+          <p className="font-semibold">Administrator password reset complete</p>
           <p>Tenant: {passwordResult.domain}</p>
           <p>User: {passwordResult.administrator_user}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -171,16 +195,28 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
         </div>
       ) : null}
 
+      <div className="grid gap-2 text-xs md:grid-cols-3">
+        <div className="rounded border border-slate-700 bg-slate-900/60 px-3 py-2 text-slate-300">
+          Live environments: <span className="font-semibold text-emerald-200">{liveCount}</span>
+        </div>
+        <div className="rounded border border-slate-700 bg-slate-900/60 px-3 py-2 text-slate-300">
+          In setup flow: <span className="font-semibold text-amber-200">{setupCount}</span>
+        </div>
+        <div className="rounded border border-slate-700 bg-slate-900/60 px-3 py-2 text-slate-300">
+          Need intervention: <span className="font-semibold text-red-200">{failedCount}</span>
+        </div>
+      </div>
+
       <div className="overflow-x-auto rounded-xl border border-slate-700">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
             <tr>
-              <th className="p-2.5">Tenant</th>
-              <th className="p-2.5">Plan / App</th>
-              <th className="p-2.5">Status</th>
+              <th className="p-2.5">Workspace</th>
+              <th className="p-2.5">Package / focus</th>
+              <th className="p-2.5">Health</th>
               <th className="p-2.5">Billing</th>
               <th className="p-2.5">Created</th>
-              <th className="p-2.5">Actions</th>
+              <th className="p-2.5">Quick actions</th>
             </tr>
           </thead>
           <tbody>
@@ -191,7 +227,7 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
 
               return (
                 <Fragment key={tenant.id}>
-                  <tr className="border-t border-slate-700/80 align-top">
+                  <tr className={`border-t border-slate-700/80 align-top ${rowTone(tenant.status)}`}>
                     <td className="space-y-1 p-2.5">
                       <p className="font-medium text-white">{tenant.company_name}</p>
                       <p className="text-xs text-slate-300">{tenant.subdomain}</p>
@@ -210,7 +246,7 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
                           {plan?.label ?? tenant.plan}
                         </span>
                         <p className="text-xs text-slate-300">
-                          App: <span className="text-slate-100">{tenant.chosen_app || "auto"}</span>
+                          Focus: <span className="text-slate-100">{tenant.chosen_app || "auto"}</span>
                         </p>
                         {tenant.payment_provider ? (
                           <p className="text-xs text-slate-400">Provider: {tenant.payment_provider}</p>
@@ -221,7 +257,8 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(tenant.status)}`}>
                         {tenant.status}
                       </span>
-                      {job ? <p className="mt-1 text-xs text-slate-400">Job: {job.status}</p> : null}
+                      <p className="mt-1 text-xs text-slate-400">{statusHint(tenant.status)}</p>
+                      {job ? <p className="mt-1 text-xs text-slate-500">Job: {job.status}</p> : null}
                     </td>
                     <td className="p-2.5 text-xs text-slate-300">{getBillingLabel(tenant)}</td>
                     <td className="p-2.5 text-xs text-slate-300">{formatDate(tenant.created_at)}</td>
@@ -245,7 +282,7 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
                             }
                           }}
                         >
-                          Backup
+                          Backup now
                         </button>
                         <button
                           className="rounded bg-amber-700 px-2 py-1 text-xs hover:bg-amber-600"
@@ -256,7 +293,7 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
                             setConfirmError(null);
                           }}
                         >
-                          Reset admin
+                          Reset admin login
                         </button>
                         <button
                           className="rounded bg-red-700 px-2 py-1 text-xs hover:bg-red-600"
@@ -266,7 +303,7 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
                             setConfirmError(null);
                           }}
                         >
-                          Delete
+                          Delete workspace
                         </button>
                         {job ? (
                           <button
@@ -305,7 +342,7 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-md space-y-3 rounded border border-slate-700 bg-slate-900 p-4 text-sm">
             <h3 className="text-base font-semibold">
-              {confirmAction.type === "delete" ? "Confirm tenant deletion" : "Confirm admin password reset"}
+              {confirmAction.type === "delete" ? "Confirm workspace deletion" : "Confirm admin password reset"}
             </h3>
             <p className="text-slate-300">
               Tenant: <strong>{confirmAction.tenant.company_name}</strong>

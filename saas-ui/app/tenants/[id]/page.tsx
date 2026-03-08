@@ -33,6 +33,16 @@ function resolveBackupDownload(entry: BackupManifestEntry): string | null {
   return null;
 }
 
+function nextActionByStatus(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "active") return "Workspace is live. Confirm users can log in and run first transactions.";
+  if (normalized === "pending_payment") return "Complete payment to continue automatic provisioning.";
+  if (normalized === "pending" || normalized === "provisioning") return "Provisioning is running. Keep this page open for status updates.";
+  if (normalized === "failed") return "Provisioning failed. Review related job logs and retry from dashboard.";
+  if (normalized === "suspended") return "Access is suspended. Coordinate with admin team before reactivation.";
+  return "Review tenant state and choose the next operational action.";
+}
+
 export default function TenantDetailPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
@@ -92,32 +102,47 @@ export default function TenantDetailPage() {
 
   return (
     <section className="space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold">{tenant.company_name}</h1>
-        <p>
-          Status:{" "}
-          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(tenant.status)}`}>
-            {tenant.status}
-          </span>
-        </p>
-        <p>
-          ERP URL:{" "}
-          <a href={`https://${tenant.domain}`} target="_blank" rel="noreferrer" className="text-blue-300 hover:text-blue-200">
-            {tenant.domain}
+      <div className="rounded-xl border border-slate-700 bg-slate-900/50 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-semibold">{tenant.company_name}</h1>
+            <p>
+              Health:{" "}
+              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(tenant.status)}`}>
+                {tenant.status}
+              </span>
+            </p>
+            <p>
+              Workspace URL:{" "}
+              <a href={`https://${tenant.domain}`} target="_blank" rel="noreferrer" className="text-blue-300 hover:text-blue-200">
+                {tenant.domain}
+              </a>
+            </p>
+          </div>
+          <a
+            href={`https://${tenant.domain}`}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded border border-slate-600 px-3 py-1.5 text-xs hover:bg-slate-800"
+          >
+            Open workspace
           </a>
+        </div>
+        <p className="mt-3 rounded border border-slate-700 bg-slate-950/50 p-3 text-xs text-slate-300">
+          Next step: {nextActionByStatus(tenant.status)}
         </p>
       </div>
 
       {jobId ? (
-        <div className="space-y-2">
-          <h2 className="text-lg font-semibold">Realtime Job Progress</h2>
+        <div className="space-y-2 rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+          <h2 className="text-lg font-semibold">Realtime job progress</h2>
           <JobLogPanel jobId={jobId} />
         </div>
       ) : null}
 
-      <div className="space-y-2">
+      <div className="space-y-2 rounded-xl border border-slate-700 bg-slate-900/40 p-4">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Backup history</h2>
+          <h2 className="text-lg font-semibold">Recovery backups</h2>
           <button
             className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
             onClick={() => {
@@ -138,7 +163,7 @@ export default function TenantDetailPage() {
               <thead className="bg-slate-900/60">
                 <tr>
                   <th className="p-2 text-left">Created</th>
-                  <th className="p-2 text-left">File</th>
+                  <th className="p-2 text-left">Backup file</th>
                   <th className="p-2 text-left">Size</th>
                   <th className="p-2 text-left">Expires</th>
                 </tr>
@@ -168,7 +193,7 @@ export default function TenantDetailPage() {
           </div>
         ) : (
           <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
-            No backup records yet.
+            No backup records yet. Trigger a backup from dashboard when you need a restore point.
           </p>
         )}
       </div>

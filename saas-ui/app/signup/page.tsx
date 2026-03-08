@@ -33,8 +33,17 @@ export default function SignupPage() {
   return (
     <section className="mx-auto max-w-xl space-y-6 rounded-2xl border border-slate-800 bg-slate-900/50 p-8">
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold text-white">Create your account</h1>
-        <p className="text-sm text-slate-300">You&apos;ll continue directly to onboarding after signup.</p>
+        <h1 className="text-3xl font-semibold text-white">Create your account / Fungua akaunti</h1>
+        <p className="text-sm text-slate-300">Get your workspace ready faster and continue directly to onboarding.</p>
+      </div>
+
+      <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-300">
+        <p className="font-medium text-slate-200">Before you continue</p>
+        <ul className="mt-2 space-y-1">
+          <li>• Pricing can be communicated with Tanzania-focused context, including TZS estimate wording.</li>
+          <li>• Checkout language is suitable for teams using card or mobile-money compatible payment providers.</li>
+          <li>• Interface copy is intentionally easy to follow for Swahili and English speaking teams.</li>
+        </ul>
       </div>
 
       <form className="space-y-4" onSubmit={submit}>
@@ -59,7 +68,7 @@ export default function SignupPage() {
           className="w-full rounded-md bg-sky-500 px-4 py-2 font-semibold text-slate-950 transition hover:bg-sky-400 disabled:opacity-60"
           disabled={busy}
         >
-          {busy ? "Creating account..." : "Create account"}
+          {busy ? "Creating account..." : "Create account and continue"}
         </button>
       </form>
 
@@ -68,7 +77,7 @@ export default function SignupPage() {
       <p className="text-sm text-slate-400">
         Already have an account?{" "}
         <Link href="/login" className="text-sky-300 hover:text-sky-200">
-          Sign in
+          Sign in now
         </Link>
       </p>
     </section>

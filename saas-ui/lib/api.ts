@@ -4,6 +4,7 @@ import type {
   BackupManifestEntry,
   BillingPortalResponse,
   BillingInvoiceListResponse,
+  MetricsSummary,
   DeadLetterJob,
   Job,
   MessageResponse,
@@ -387,4 +388,6 @@ export const api = {
   getBillingPortal: () => requestOptionalEndpoint<BillingPortalResponse>("/billing/portal"),
 
   listBillingInvoices: () => requestOptionalEndpoint<BillingInvoiceListResponse>("/billing/invoices"),
+
+  getAdminMetrics: () => requestOptionalEndpoint<MetricsSummary>("/admin/metrics"),
 };

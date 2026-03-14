@@ -169,6 +169,18 @@ export type BillingInvoiceListResponse = {
   invoices: BillingInvoice[];
 };
 
+export type MetricsSummary = {
+  total_tenants: number;
+  active_tenants: number;
+  suspended_tenants: number;
+  failed_tenants: number;
+  provisioning_tenants: number;
+  pending_payment_tenants: number;
+  jobs_last_24h: number;
+  provisioning_success_rate_7d: number;
+  dead_letter_count: number;
+};
+
 export type OptionalEndpointResult<T> =
   | { supported: true; data: T }
   | { supported: false; data: null };

@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { JobLogPanel } from "../../components/JobLogPanel";
 import { useNotifications } from "../../components/NotificationsProvider";
 import { api, getApiErrorMessage } from "../../lib/api";
-import type { AuditLogEntry, DeadLetterJob, Job, Tenant } from "../../lib/types";
+import type { AuditLogEntry, DeadLetterJob, Job, MetricsSummary, Tenant } from "../../lib/types";
 
 function statusBadgeClass(status: string): string {
   const normalized = status.toLowerCase();
@@ -79,6 +79,10 @@ export default function AdminPage() {
   const [auditLimit] = useState(50);
   const [auditTotal, setAuditTotal] = useState(0);
   const { addNotification } = useNotifications();
+  const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
+  const [metricsSupported, setMetricsSupported] = useState(true);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const lastMetricsKey = useRef<string | null>(null);
 
   const loadTenants = useCallback(async () => {
     try {
@@ -155,6 +159,41 @@ export default function AdminPage() {
     }
   }, [auditLimit, auditPage]);
 
+  const loadMetrics = useCallback(async () => {
+    try {
+      const result = await api.getAdminMetrics();
+      if (!result.supported) {
+        setMetricsSupported(false);
+        setMetrics(null);
+        return;
+      }
+      setMetricsSupported(true);
+      setMetrics(result.data);
+      setMetricsError(null);
+
+      const key = `${result.data.failed_tenants}-${result.data.dead_letter_count}-${result.data.provisioning_tenants}`;
+      if (lastMetricsKey.current !== key) {
+        lastMetricsKey.current = key;
+        if (result.data.failed_tenants > 0) {
+          addNotification({
+            type: "warning",
+            title: "Provisioning failures detected",
+            body: `${result.data.failed_tenants} tenant(s) are in failed state.`,
+          });
+        }
+        if (result.data.dead_letter_count > 0) {
+          addNotification({
+            type: "warning",
+            title: "Dead-letter queue backlog",
+            body: `${result.data.dead_letter_count} job(s) waiting for requeue.`,
+          });
+        }
+      }
+    } catch (err) {
+      setMetricsError(getApiErrorMessage(err, "Failed to load metrics"));
+    }
+  }, [addNotification]);
+
   const loadJobLogs = useCallback(async (jobId: string) => {
     try {
       const result = await api.getAdminJobLogs(jobId);
@@ -174,7 +213,8 @@ export default function AdminPage() {
     void loadDeadLetters();
     void loadJobs();
     void loadAuditLog();
-  }, [loadAuditLog, loadDeadLetters, loadJobs, loadTenants]);
+    void loadMetrics();
+  }, [loadAuditLog, loadDeadLetters, loadJobs, loadMetrics, loadTenants]);
 
   useEffect(() => {
     setTenantPage(1);
@@ -295,6 +335,44 @@ export default function AdminPage() {
             Dead letters: <span className="font-semibold text-orange-200">{deadLetters.length}</span>
           </p>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-700 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Platform metrics</h2>
+          <button
+            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            onClick={() => {
+              void loadMetrics();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {!metricsSupported ? (
+          <p className="text-sm text-slate-300">Metrics endpoint is not available on this backend.</p>
+        ) : metricsError ? (
+          <p className="text-sm text-red-400">{metricsError}</p>
+        ) : metrics ? (
+          <div className="grid gap-3 md:grid-cols-3">
+            {metricCard("Total tenants", metrics.total_tenants, "All customer environments")}
+            {metricCard("Active tenants", metrics.active_tenants, "Currently operational", "good")}
+            {metricCard("Provisioning queue", metrics.provisioning_tenants, "Pending + provisioning", "warn")}
+            {metricCard("Pending payment", metrics.pending_payment_tenants, "Awaiting payment confirmation", "warn")}
+            {metricCard("Failed tenants", metrics.failed_tenants, "Needs operator action", metrics.failed_tenants ? "warn" : "default")}
+            {metricCard("Dead-letter jobs", metrics.dead_letter_count, "Recovery queue depth", metrics.dead_letter_count ? "warn" : "default")}
+            {metricCard("Jobs 24h", metrics.jobs_last_24h, "Activity in the last 24h")}
+            {metricCard(
+              "Provisioning success (7d)",
+              metrics.provisioning_success_rate_7d,
+              "Percent succeeded",
+              metrics.provisioning_success_rate_7d < 95 ? "warn" : "good"
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-300">Loading metrics...</p>
+        )}
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">

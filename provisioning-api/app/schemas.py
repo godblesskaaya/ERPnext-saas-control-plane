@@ -259,6 +259,18 @@ class PaginatedAuditLogResponse(BaseModel):
     limit: int
 
 
+class MetricsSummary(BaseModel):
+    total_tenants: int
+    active_tenants: int
+    suspended_tenants: int
+    failed_tenants: int
+    provisioning_tenants: int
+    pending_payment_tenants: int
+    jobs_last_24h: int
+    provisioning_success_rate_7d: float
+    dead_letter_count: int
+
+
 class BackupManifestOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

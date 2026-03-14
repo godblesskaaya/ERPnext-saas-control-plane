@@ -48,6 +48,7 @@ export default function DashboardPage() {
   const [billingPortalUrl, setBillingPortalUrl] = useState<string | null>(null);
   const [billingPortalError, setBillingPortalError] = useState<string | null>(null);
   const { addNotification } = useNotifications();
+  const [updatingTenantId, setUpdatingTenantId] = useState<string | null>(null);
 
   const handleError = useCallback(
     (err: unknown, fallback: string) => {
@@ -189,6 +190,27 @@ export default function DashboardPage() {
       setError(getApiErrorMessage(err, "Failed to retry provisioning."));
     } finally {
       setRetryingTenantId(null);
+    }
+  };
+
+  const updateTenantPlan = async (tenantId: string, payload: { plan: string; chosen_app?: string }) => {
+    setUpdatingTenantId(tenantId);
+    try {
+      const result = await api.updateTenant(tenantId, payload);
+      if (!result.supported) {
+        setError("Plan update is not available on this backend.");
+        return;
+      }
+      setTenants((prev) => prev.map((tenant) => (tenant.id === tenantId ? result.data : tenant)));
+      addNotification({
+        type: "success",
+        title: "Plan updated",
+        body: `Workspace ${result.data.domain} is now on ${result.data.plan}.`,
+      });
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Failed to update plan."));
+    } finally {
+      setUpdatingTenantId(null);
     }
   };
 
@@ -455,6 +477,8 @@ export default function DashboardPage() {
         }}
         onRetryProvisioning={retryProvisioning}
         retryingTenantId={retryingTenantId}
+        onUpdatePlan={updateTenantPlan}
+        updatingTenantId={updatingTenantId}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">

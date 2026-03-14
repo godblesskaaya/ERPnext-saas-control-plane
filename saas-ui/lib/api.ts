@@ -14,6 +14,7 @@ import type {
   Tenant,
   TenantCreatePayload,
   TenantCreateResponse,
+  TenantUpdatePayload,
   UserProfile,
 } from "./types";
 
@@ -331,6 +332,9 @@ export const api = {
 
   createTenant: (payload: TenantCreatePayload, idempotencyKey = createIdempotencyKey()) =>
     createTenantWithCompatibility(payload, idempotencyKey),
+
+  updateTenant: (id: string, payload: TenantUpdatePayload) =>
+    requestOptionalEndpoint<Tenant>(`/tenants/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
 
   checkSubdomainAvailability: (subdomain: string) =>
     request<SubdomainAvailability>(`/tenants/check-subdomain?subdomain=${encodeURIComponent(subdomain)}`),

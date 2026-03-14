@@ -11,6 +11,7 @@ from app.bench.validators import ValidationError, domain_from_subdomain, validat
 from app.bench.commands import build_set_admin_password_command
 from app.bench.runner import BenchCommandError, run_bench_command
 from app.db import get_db
+from app.config import get_settings
 from app.deps import get_current_user
 from app.models import Tenant, User
 from app.rate_limits import authenticated_default_rate_limit, tenant_backup_rate_limit, tenant_create_rate_limit
@@ -24,6 +25,7 @@ from app.schemas import (
     TenantCreateRequest,
     TenantCreateResponse,
     TenantOut,
+    TenantUpdateRequest,
 )
 from app.services.backup_service import list_backup_manifests
 from app.services.audit_service import record_audit_event
@@ -312,6 +314,76 @@ def delete_tenant(
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
     job = enqueue_delete(db, tenant, actor=current_user, request=request)
     return JobOut.model_validate(job)
+
+
+@router.patch(
+    "/{tenant_id}",
+    response_model=TenantOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_409_CONFLICT: CONFLICT_409_RESPONSE,
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def update_tenant(
+    request: Request,
+    tenant_id: str,
+    payload: TenantUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TenantOut:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    if payload.plan is None and payload.chosen_app is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No updates supplied")
+
+    settings = get_settings()
+    new_plan = payload.plan.lower().strip() if payload.plan else tenant.plan
+    if new_plan not in settings.allowed_plan_set:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Plan is not allowed")
+
+    new_chosen_app = tenant.chosen_app
+    if new_plan == "business":
+        requested_app = payload.chosen_app or new_chosen_app
+        if not requested_app:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="chosen_app is required for business plan")
+        try:
+            new_chosen_app = validate_app_name(requested_app)
+        except ValidationError as exc:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    else:
+        if payload.chosen_app:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="chosen_app is only valid for business plan")
+        new_chosen_app = None
+
+    old_plan = tenant.plan
+    old_chosen = tenant.chosen_app
+
+    tenant.plan = new_plan
+    tenant.chosen_app = new_chosen_app
+    db.add(tenant)
+    db.commit()
+    db.refresh(tenant)
+
+    record_audit_event(
+        db,
+        action="tenant.plan_updated",
+        resource="tenants",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+        metadata={
+            "old_plan": old_plan,
+            "new_plan": tenant.plan,
+            "old_chosen_app": old_chosen,
+            "new_chosen_app": tenant.chosen_app,
+        },
+    )
+
+    return TenantOut.model_validate(tenant)
 
 
 @router.post(

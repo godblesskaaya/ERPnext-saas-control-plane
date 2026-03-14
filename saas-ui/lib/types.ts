@@ -59,6 +59,11 @@ export type TenantCreatePayload = {
   chosen_app?: string;
 };
 
+export type TenantUpdatePayload = {
+  plan?: TenantPlan;
+  chosen_app?: string;
+};
+
 export type TenantCreateResponse = {
   tenant: Tenant;
   job?: Job | null;

@@ -180,6 +180,20 @@ class TenantCreateRequest(BaseModel):
     )
 
 
+class TenantUpdateRequest(BaseModel):
+    plan: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=30,
+        description="Updated subscription plan. Supported values: starter, business, enterprise.",
+    )
+    chosen_app: str | None = Field(
+        default=None,
+        max_length=50,
+        description="Business-plan app selection when plan is business.",
+    )
+
+
 class TenantOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

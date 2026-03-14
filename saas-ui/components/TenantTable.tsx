@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 
 import type { Job, ResetAdminPasswordResult, Tenant } from "../lib/types";
 import { JobLogPanel } from "./JobLogPanel";
-import { getPlanMeta } from "./PlanSelector";
+import { BUSINESS_APP_OPTIONS, getPlanMeta } from "./PlanSelector";
 
 type Props = {
   tenants: Tenant[];
@@ -15,6 +15,8 @@ type Props = {
   onJobUpdate?: (job: Job) => void;
   onRetryProvisioning?: (id: string) => Promise<void>;
   retryingTenantId?: string | null;
+  onUpdatePlan?: (id: string, payload: { plan: string; chosen_app?: string }) => Promise<void>;
+  updatingTenantId?: string | null;
 };
 
 type ConfirmAction = {
@@ -95,6 +97,11 @@ export function TenantTable({
   const [passwordExpiry, setPasswordExpiry] = useState<number | null>(null);
   const [passwordNow, setPasswordNow] = useState<number>(Date.now());
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [planActionTenant, setPlanActionTenant] = useState<Tenant | null>(null);
+  const [planChoice, setPlanChoice] = useState("starter");
+  const [planAppChoice, setPlanAppChoice] = useState(BUSINESS_APP_OPTIONS[0]?.id ?? "crm");
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [planBusy, setPlanBusy] = useState(false);
   const failedCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "failed").length, [tenants]);
   const setupCount = useMemo(
     () => tenants.filter((tenant) => ["pending", "pending_payment", "provisioning"].includes(tenant.status.toLowerCase())).length,
@@ -139,6 +146,26 @@ export function TenantTable({
     setNewPassword("");
     setConfirmError(null);
     setIsSubmitting(false);
+  };
+
+  const closePlanModal = () => {
+    setPlanActionTenant(null);
+    setPlanError(null);
+    setPlanBusy(false);
+  };
+
+  const submitPlanUpdate = async () => {
+    if (!planActionTenant || !onUpdatePlan) return;
+    setPlanBusy(true);
+    setPlanError(null);
+    try {
+      const payload = planChoice === "business" ? { plan: planChoice, chosen_app: planAppChoice } : { plan: planChoice };
+      await onUpdatePlan(planActionTenant.id, payload);
+      closePlanModal();
+    } catch (err) {
+      setPlanError(err instanceof Error ? err.message : "Plan update failed");
+      setPlanBusy(false);
+    }
   };
 
   const handleConfirm = async () => {
@@ -306,6 +333,18 @@ export function TenantTable({
                         >
                           Reset admin login
                         </button>
+                        {onUpdatePlan ? (
+                          <button
+                            className="rounded-full border border-amber-200 px-2 py-1 text-xs text-slate-700 hover:border-amber-300"
+                            onClick={() => {
+                              setPlanActionTenant(tenant);
+                              setPlanChoice(tenant.plan);
+                              setPlanAppChoice(tenant.chosen_app || BUSINESS_APP_OPTIONS[0]?.id || "crm");
+                            }}
+                          >
+                            Change plan
+                          </button>
+                        ) : null}
                         <button
                           className="rounded-full bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-500"
                           onClick={() => {
@@ -404,6 +443,61 @@ export function TenantTable({
                 }}
               >
                 {isSubmitting ? "Processing..." : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {planActionTenant ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md space-y-3 rounded-2xl border border-amber-200 bg-white p-4 text-sm">
+            <h3 className="text-base font-semibold text-slate-900">Change plan</h3>
+            <p className="text-slate-600">
+              Tenant: <strong>{planActionTenant.company_name}</strong>
+            </p>
+            <div>
+              <label className="mb-1 block text-xs text-slate-500">Plan</label>
+              <select
+                className="w-full rounded-xl border border-amber-200 bg-white p-2 text-sm"
+                value={planChoice}
+                onChange={(event) => setPlanChoice(event.target.value)}
+              >
+                <option value="starter">Starter</option>
+                <option value="business">Business</option>
+                <option value="enterprise">Enterprise</option>
+              </select>
+            </div>
+            {planChoice === "business" ? (
+              <div>
+                <label className="mb-1 block text-xs text-slate-500">Business focus</label>
+                <select
+                  className="w-full rounded-xl border border-amber-200 bg-white p-2 text-sm"
+                  value={planAppChoice}
+                  onChange={(event) => setPlanAppChoice(event.target.value)}
+                >
+                  {BUSINESS_APP_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+            {planError ? <p className="text-red-600">{planError}</p> : null}
+            <div className="flex justify-end gap-2">
+              <button
+                className="rounded-full border border-amber-200 px-3 py-1.5 text-slate-700"
+                onClick={closePlanModal}
+              >
+                Cancel
+              </button>
+              <button
+                className="rounded-full bg-[#0d6a6a] px-3 py-1.5 text-white disabled:opacity-60"
+                disabled={planBusy || updatingTenantId === planActionTenant.id}
+                onClick={() => void submitPlanUpdate()}
+              >
+                {planBusy || updatingTenantId === planActionTenant.id ? "Updating..." : "Confirm change"}
               </button>
             </div>
           </div>

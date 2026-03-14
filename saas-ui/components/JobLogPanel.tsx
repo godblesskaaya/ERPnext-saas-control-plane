@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api, getApiErrorMessage, isSessionExpiredError, jobStreamUrl } from "../lib/api";
 import { getToken } from "../lib/auth";
@@ -40,6 +40,8 @@ export function JobLogPanel({ jobId, logs, status, onJobUpdate }: Props) {
   const [streamState, setStreamState] = useState<"idle" | "connecting" | "live" | "completed" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const pollingDelayRef = useRef(5000);
+  const pollingTimerRef = useRef<number | null>(null);
 
   const isTerminal = useMemo(() => TERMINAL_STATUSES.has(jobStatus.toLowerCase()), [jobStatus]);
 
@@ -67,6 +69,11 @@ export function JobLogPanel({ jobId, logs, status, onJobUpdate }: Props) {
     setJobStatus(status ?? "unknown");
     setStreamState(jobId ? "connecting" : "idle");
     setError(null);
+    pollingDelayRef.current = 5000;
+    if (pollingTimerRef.current) {
+      window.clearTimeout(pollingTimerRef.current);
+      pollingTimerRef.current = null;
+    }
   }, [jobId, logs, status]);
 
   useEffect(() => {
@@ -141,12 +148,31 @@ export function JobLogPanel({ jobId, logs, status, onJobUpdate }: Props) {
   useEffect(() => {
     if (!jobId || isTerminal) return;
 
-    const interval = window.setInterval(() => {
-      void refreshJob().catch(() => undefined);
-    }, 5000);
+    const schedulePoll = () => {
+      pollingTimerRef.current = window.setTimeout(async () => {
+        try {
+          await refreshJob();
+        } catch {
+          // ignore errors; next poll will retry
+        }
+        pollingDelayRef.current = Math.min(pollingDelayRef.current * 2, 30000);
+        if (!TERMINAL_STATUSES.has(jobStatus.toLowerCase()) && streamState !== "live") {
+          schedulePoll();
+        }
+      }, pollingDelayRef.current);
+    };
 
-    return () => window.clearInterval(interval);
-  }, [isTerminal, jobId, refreshJob]);
+    if (streamState !== "live") {
+      schedulePoll();
+    }
+
+    return () => {
+      if (pollingTimerRef.current) {
+        window.clearTimeout(pollingTimerRef.current);
+        pollingTimerRef.current = null;
+      }
+    };
+  }, [isTerminal, jobId, refreshJob, jobStatus, streamState]);
 
   return (
     <div className="space-y-2 rounded-2xl border border-amber-200 bg-white/90 p-3">

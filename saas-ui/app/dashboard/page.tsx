@@ -38,6 +38,10 @@ export default function DashboardPage() {
   const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
   const [resendBusy, setResendBusy] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(20);
+  const [total, setTotal] = useState(0);
+  const [retryingTenantId, setRetryingTenantId] = useState<string | null>(null);
 
   const handleError = useCallback(
     (err: unknown, fallback: string) => {
@@ -54,12 +58,21 @@ export default function DashboardPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.listTenants();
-      setTenants(data);
+      const paged = await api.listTenantsPaged(page, limit);
+      let nextTenants: Tenant[] = [];
+      if (paged.supported) {
+        nextTenants = paged.data.data;
+        setTenants(nextTenants);
+        setTotal(paged.data.total);
+      } else {
+        nextTenants = await api.listTenants();
+        setTenants(nextTenants);
+        setTotal(nextTenants.length);
+      }
       setError(null);
       setLastUpdated(new Date());
       setJobsByTenant((previous) => {
-        const activeTenantIds = new Set(data.map((tenant) => tenant.id));
+        const activeTenantIds = new Set(nextTenants.map((tenant) => tenant.id));
         const next: Record<string, Job | undefined> = {};
         for (const [tenantId, job] of Object.entries(previous)) {
           if (activeTenantIds.has(tenantId)) {
@@ -73,7 +86,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [handleError]);
+  }, [handleError, limit, page]);
 
   const loadCurrentUser = useCallback(async () => {
     try {
@@ -146,6 +159,26 @@ export default function DashboardPage() {
       setResendBusy(false);
     }
   };
+
+  const retryProvisioning = async (tenantId: string) => {
+    setRetryingTenantId(tenantId);
+    try {
+      const result = await api.retryTenant(tenantId);
+      if (!result.supported) {
+        setError("Retry endpoint is not available on this backend.");
+        return;
+      }
+      setTenantJob(tenantId, result.data);
+      await load();
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Failed to retry provisioning."));
+    } finally {
+      setRetryingTenantId(null);
+    }
+  };
+
+  const canCreateTenants = !currentUser || currentUser.email_verified;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
     <section className="space-y-8">
@@ -246,7 +279,7 @@ export default function DashboardPage() {
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-4">
-        {metricCard("Total workspaces", tenants.length, "All customer environments under management")}
+        {metricCard("Total workspaces", total, "All customer environments under management")}
         {metricCard("Healthy", activeTenants, "Ready for daily sales, stock, and finance activity", "good")}
         {metricCard("In setup", provisioningTenants, "Still being provisioned or awaiting payment checks", "warn")}
         {metricCard("Needs rescue", failedTenants, "Provisioning failed and requires operator action", failedTenants > 0 ? "warn" : "default")}
@@ -259,6 +292,9 @@ export default function DashboardPage() {
           }
           await load();
         }}
+        canCreate={canCreateTenants}
+        verificationNotice={verificationNotice}
+        onResendVerification={resendVerification}
       />
 
       {error ? (
@@ -306,7 +342,31 @@ export default function DashboardPage() {
             void load();
           }
         }}
+        onRetryProvisioning={retryProvisioning}
+        retryingTenantId={retryingTenantId}
       />
+
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+        <span>
+          Page {page} of {totalPages} • {total} workspaces
+        </span>
+        <div className="flex gap-2">
+          <button
+            className="rounded-full border border-amber-200 px-3 py-1 text-xs text-slate-700 disabled:opacity-50"
+            disabled={page <= 1}
+            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+          >
+            Previous
+          </button>
+          <button
+            className="rounded-full border border-amber-200 px-3 py-1 text-xs text-slate-700 disabled:opacity-50"
+            disabled={page >= totalPages}
+            onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+          >
+            Next
+          </button>
+        </div>
+      </div>
     </section>
   );
 }

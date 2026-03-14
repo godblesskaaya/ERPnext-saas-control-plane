@@ -57,6 +57,13 @@ def _admin_headers(client, db_session):
     return {"Authorization": f"Bearer {token}"}
 
 
+def _unverified_headers(client):
+    client.post("/auth/signup", json={"email": "unverified@example.com", "password": "Secret123!"})
+    login = client.post("/auth/login", json={"email": "unverified@example.com", "password": "Secret123!"})
+    token = login.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 @patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
 def test_create_and_list_tenant_returns_checkout(_, client, db_session):
     headers = _auth_headers(client, db_session)
@@ -102,6 +109,18 @@ def test_create_and_list_tenant_returns_checkout(_, client, db_session):
     actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
     assert "tenant.create" in actions
     assert actions.count("tenant.reset_admin_password") == 2
+
+
+@patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
+def test_unverified_user_cannot_create_tenant(_, client, db_session):
+    headers = _unverified_headers(client)
+    create = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "blocked", "company_name": "Blocked Ltd", "plan": "starter"},
+    )
+    assert create.status_code == 403
+    assert "verify" in create.json()["detail"].lower()
 
 
 @patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())

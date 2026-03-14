@@ -8,6 +8,9 @@ import { BUSINESS_APP_OPTIONS, PlanSelector } from "./PlanSelector";
 
 type Props = {
   onCreated: (result: TenantCreateResponse) => void | Promise<void>;
+  canCreate?: boolean;
+  verificationNotice?: string | null;
+  onResendVerification?: () => Promise<void>;
 };
 
 const DOMAIN_SUFFIX = (process.env.NEXT_PUBLIC_TENANT_DOMAIN_SUFFIX ?? "erp.blenkotechnologies.co.tz").trim();
@@ -21,7 +24,7 @@ function normalizeSubdomain(input: string): string {
     .replace(/^-|-$/g, "");
 }
 
-export function TenantCreateForm({ onCreated }: Props) {
+export function TenantCreateForm({ onCreated, canCreate = true, verificationNotice, onResendVerification }: Props) {
   const [subdomain, setSubdomain] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [plan, setPlan] = useState("starter");
@@ -41,6 +44,10 @@ export function TenantCreateForm({ onCreated }: Props) {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!canCreate) {
+      setError("Verify your email before creating a workspace.");
+      return;
+    }
     setBusy(true);
     setError(null);
 
@@ -93,6 +100,23 @@ export function TenantCreateForm({ onCreated }: Props) {
           Reserve tenant identity, choose operating level, and continue to payment when needed.
         </p>
       </div>
+
+      {!canCreate ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          <p className="font-semibold">Email verification required</p>
+          <p className="mt-1">Please verify your email before creating a workspace.</p>
+          {verificationNotice ? <p className="mt-2 text-amber-900">{verificationNotice}</p> : null}
+          {onResendVerification ? (
+            <button
+              type="button"
+              className="mt-2 rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-semibold text-amber-800 hover:border-amber-400"
+              onClick={() => void onResendVerification()}
+            >
+              Resend verification email
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-2">
@@ -153,7 +177,7 @@ export function TenantCreateForm({ onCreated }: Props) {
 
       <div className="flex flex-wrap items-center gap-3">
         <button
-          disabled={busy}
+          disabled={busy || !canCreate}
           type="submit"
           className="rounded-full bg-[#0d6a6a] px-5 py-2 font-semibold text-white hover:bg-[#0b5a5a] disabled:cursor-not-allowed disabled:opacity-60"
         >

@@ -16,6 +16,7 @@ from app.rate_limits import authenticated_default_rate_limit, tenant_backup_rate
 from app.schemas import (
     BackupManifestOut,
     JobOut,
+    PaginatedTenantResponse,
     ResetAdminPasswordRequest,
     ResetAdminPasswordResponse,
     SubdomainAvailabilityResponse,
@@ -29,8 +30,10 @@ from app.services.tenant_service import (
     create_tenant_and_start_checkout,
     enqueue_backup,
     enqueue_delete,
+    enqueue_provisioning_for_paid_tenant,
     enforce_backup_plan_limit,
 )
+from app.services.tenant_state import transition_tenant_status
 from app.token_store import get_token_store
 
 
@@ -73,6 +76,9 @@ def create_tenant(
     current_user: User = Depends(get_current_user),
     token_store=Depends(get_token_store),
 ) -> TenantCreateResponse:
+    if not current_user.email_verified:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email verification required before tenant creation")
+
     idempotency_key = request.headers.get("X-Idempotency-Key")
     cache_key = f"idempotency:{current_user.id}:{idempotency_key}" if idempotency_key else None
     if cache_key:
@@ -169,6 +175,44 @@ def list_tenants(request: Request, db: Session = Depends(get_db), current_user: 
 
 
 @router.get(
+    "/paged",
+    response_model=PaginatedTenantResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def list_tenants_paginated(
+    request: Request,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=200),
+    status_filter: str | None = Query(default=None, alias="status"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PaginatedTenantResponse:
+    del request
+    query = db.query(Tenant)
+    if current_user.role != "admin":
+        query = query.filter(Tenant.owner_id == current_user.id)
+    if status_filter:
+        query = query.filter(Tenant.status == status_filter)
+    total = query.count()
+    tenants = (
+        query.order_by(Tenant.created_at.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
+        .all()
+    )
+    return PaginatedTenantResponse(
+        data=[TenantOut.model_validate(item) for item in tenants],
+        total=total,
+        page=page,
+        limit=limit,
+    )
+
+
+@router.get(
     "/{tenant_id}",
     response_model=TenantOut,
     dependencies=[Depends(authenticated_default_rate_limit)],
@@ -256,6 +300,47 @@ def delete_tenant(
 ) -> JobOut:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
     job = enqueue_delete(db, tenant, actor=current_user, request=request)
+    return JobOut.model_validate(job)
+
+
+@router.post(
+    "/{tenant_id}/retry",
+    response_model=JobOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_409_CONFLICT: CONFLICT_409_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def retry_tenant_provisioning(
+    request: Request,
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> JobOut:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    if tenant.status != "failed":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tenant is not in failed state")
+    if tenant.billing_status != "paid":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tenant payment is not confirmed")
+
+    transition_tenant_status(tenant, "pending")
+    db.add(tenant)
+    db.commit()
+    db.refresh(tenant)
+
+    job, _created = enqueue_provisioning_for_paid_tenant(db, tenant, current_user.email)
+    record_audit_event(
+        db,
+        action="tenant.retry_provisioning",
+        resource="tenants",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+    )
     return JobOut.model_validate(job)
 
 

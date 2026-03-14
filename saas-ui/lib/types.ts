@@ -66,12 +66,32 @@ export type TenantCreateResponse = {
   checkout_session_id?: string | null;
 };
 
+export type PaginatedResult<T> = {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
 export type UserProfile = {
   id: string;
   email: string;
   role: string;
   email_verified: boolean;
   email_verified_at?: string | null;
+  created_at: string;
+};
+
+export type AuditLogEntry = {
+  id: string;
+  actor_id?: string | null;
+  actor_role: string;
+  actor_email?: string | null;
+  action: string;
+  resource: string;
+  resource_id?: string | null;
+  ip_address?: string | null;
+  metadata?: Record<string, unknown>;
   created_at: string;
 };
 

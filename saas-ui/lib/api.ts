@@ -1,10 +1,12 @@
 import { clearToken, getToken } from "./auth";
 import type {
+  AuditLogEntry,
   BackupManifestEntry,
   DeadLetterJob,
   Job,
   MessageResponse,
   OptionalEndpointResult,
+  PaginatedResult,
   ResetAdminPasswordResult,
   SubdomainAvailability,
   Tenant,
@@ -312,7 +314,15 @@ export const api = {
       body: JSON.stringify({ token, new_password: newPassword }),
     }),
 
+  refreshToken: () => request<{ access_token: string; token_type: string }>("/auth/refresh", { method: "POST" }),
+
   listTenants: () => request<Tenant[]>("/tenants"),
+
+  listTenantsPaged: (page = 1, limit = 20, status?: string) => {
+    const query = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (status) query.set("status", status);
+    return requestOptionalEndpoint<PaginatedResult<Tenant>>(`/tenants/paged?${query.toString()}`);
+  },
 
   getTenant: (id: string) => request<Tenant>(`/tenants/${id}`),
 
@@ -326,6 +336,8 @@ export const api = {
 
   deleteTenant: (id: string) => request<Job>(`/tenants/${id}`, { method: "DELETE" }),
 
+  retryTenant: (id: string) => requestOptionalEndpoint<Job>(`/tenants/${id}/retry`, { method: "POST" }),
+
   resetAdminPassword: (id: string, newPassword?: string) =>
     request<ResetAdminPasswordResult>(`/tenants/${id}/reset-admin-password`, {
       method: "POST",
@@ -336,7 +348,18 @@ export const api = {
 
   listAllTenants: () => request<Tenant[]>("/admin/tenants"),
 
+  listAllTenantsPaged: (page = 1, limit = 50, status?: string) => {
+    const query = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (status) query.set("status", status);
+    return requestOptionalEndpoint<PaginatedResult<Tenant>>(`/admin/tenants/paged?${query.toString()}`);
+  },
+
   listDeadLetterJobs: () => requestOptionalEndpoint<DeadLetterJob[]>("/admin/jobs/dead-letter"),
+
+  requeueDeadLetterJob: (jobId: string) =>
+    requestOptionalEndpoint<MessageResponse>(`/admin/jobs/dead-letter/${encodeURIComponent(jobId)}/requeue`, {
+      method: "POST",
+    }),
 
   suspendTenant: (tenantId: string) =>
     requestOptionalEndpoint<MessageResponse>(`/admin/tenants/${tenantId}/suspend`, { method: "POST" }),
@@ -349,4 +372,7 @@ export const api = {
   listAdminJobs: (limit = 50) => requestOptionalEndpoint<Job[]>(`/admin/jobs?limit=${encodeURIComponent(String(limit))}`),
 
   getAdminJobLogs: (jobId: string) => requestOptionalEndpoint<Job>(`/admin/jobs/${encodeURIComponent(jobId)}/logs`),
+
+  listAuditLog: (page = 1, limit = 50) =>
+    requestOptionalEndpoint<PaginatedResult<AuditLogEntry>>(`/admin/audit-log?page=${page}&limit=${limit}`),
 };

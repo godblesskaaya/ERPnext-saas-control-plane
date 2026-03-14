@@ -53,6 +53,7 @@ export default function TenantDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [backups, setBackups] = useState<BackupManifestEntry[]>([]);
   const [backupsSupported, setBackupsSupported] = useState(true);
+  const [retrying, setRetrying] = useState(false);
 
   const loadTenant = useCallback(async () => {
     if (!id) return;
@@ -69,6 +70,23 @@ export default function TenantDetailPage() {
       setTenant(null);
     }
   }, [id]);
+
+  const retryProvisioning = useCallback(async () => {
+    if (!id) return;
+    setRetrying(true);
+    try {
+      const result = await api.retryTenant(id);
+      if (!result.supported) {
+        setError("Retry endpoint is not available on this backend.");
+        return;
+      }
+      await loadTenant();
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Failed to retry provisioning"));
+    } finally {
+      setRetrying(false);
+    }
+  }, [id, loadTenant]);
 
   const loadBackups = useCallback(async () => {
     if (!id) return;
@@ -127,6 +145,15 @@ export default function TenantDetailPage() {
           >
             Open workspace
           </a>
+          {tenant.status.toLowerCase() === "failed" ? (
+            <button
+              className="rounded border border-amber-500 px-3 py-1.5 text-xs text-amber-200 hover:bg-amber-500/20 disabled:opacity-60"
+              disabled={retrying}
+              onClick={() => void retryProvisioning()}
+            >
+              {retrying ? "Retrying..." : "Retry provisioning"}
+            </button>
+          ) : null}
         </div>
         <p className="mt-3 rounded border border-slate-700 bg-slate-950/50 p-3 text-xs text-slate-300">
           Next step: {nextActionByStatus(tenant.status)}

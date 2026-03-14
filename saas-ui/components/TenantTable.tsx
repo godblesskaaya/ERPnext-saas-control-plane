@@ -13,6 +13,8 @@ type Props = {
   onDelete: (id: string) => Promise<void>;
   onResetAdminPassword: (id: string, newPassword?: string) => Promise<ResetAdminPasswordResult>;
   onJobUpdate?: (job: Job) => void;
+  onRetryProvisioning?: (id: string) => Promise<void>;
+  retryingTenantId?: string | null;
 };
 
 type ConfirmAction = {
@@ -72,7 +74,16 @@ function getBillingLabel(tenant: Tenant): string {
   return "n/a";
 }
 
-export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onResetAdminPassword, onJobUpdate }: Props) {
+export function TenantTable({
+  tenants,
+  jobsByTenant,
+  onBackup,
+  onDelete,
+  onResetAdminPassword,
+  onJobUpdate,
+  onRetryProvisioning,
+  retryingTenantId,
+}: Props) {
   const [expandedTenantId, setExpandedTenantId] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [confirmInput, setConfirmInput] = useState("");
@@ -305,6 +316,17 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
                         >
                           Delete workspace
                         </button>
+                        {tenant.status.toLowerCase() === "failed" && onRetryProvisioning ? (
+                          <button
+                            className="rounded-full border border-amber-200 px-2 py-1 text-xs text-slate-700 hover:border-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={retryingTenantId === tenant.id}
+                            onClick={() => {
+                              void onRetryProvisioning(tenant.id);
+                            }}
+                          >
+                            {retryingTenantId === tenant.id ? "Retrying..." : "Retry provisioning"}
+                          </button>
+                        ) : null}
                         {job ? (
                           <button
                             className="rounded-full border border-amber-200 px-2 py-1 text-xs text-slate-700 hover:border-amber-300"

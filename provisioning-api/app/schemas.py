@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -109,6 +110,21 @@ class UserOut(BaseModel):
     created_at: datetime
 
 
+class AuditLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    id: str
+    actor_id: str | None
+    actor_role: str
+    actor_email: EmailStr | None = None
+    action: str
+    resource: str
+    resource_id: str | None
+    ip_address: str | None
+    metadata: dict[str, Any] = Field(default_factory=dict, alias="metadata_json")
+    created_at: datetime
+
+
 class TenantCreateRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
@@ -169,6 +185,13 @@ class TenantOut(BaseModel):
     updated_at: datetime
 
 
+class PaginatedTenantResponse(BaseModel):
+    data: list[TenantOut]
+    total: int
+    page: int
+    limit: int
+
+
 class SubdomainAvailabilityResponse(BaseModel):
     subdomain: str = Field(description="Normalized requested subdomain.")
     domain: str | None = Field(default=None, description="Full domain when the subdomain syntax is valid.")
@@ -194,6 +217,13 @@ class JobOut(BaseModel):
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+
+
+class PaginatedAuditLogResponse(BaseModel):
+    data: list[AuditLogOut]
+    total: int
+    page: int
+    limit: int
 
 
 class BackupManifestOut(BaseModel):

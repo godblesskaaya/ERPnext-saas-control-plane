@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { JobLogPanel } from "../../components/JobLogPanel";
 import { api, getApiErrorMessage } from "../../lib/api";
-import type { DeadLetterJob, Job, Tenant } from "../../lib/types";
+import type { AuditLogEntry, DeadLetterJob, Job, Tenant } from "../../lib/types";
 
 function statusBadgeClass(status: string): string {
   const normalized = status.toLowerCase();
@@ -54,6 +54,10 @@ export default function AdminPage() {
   const [busyTenantId, setBusyTenantId] = useState<string | null>(null);
   const [tenantAction, setTenantAction] = useState<TenantAdminAction | null>(null);
   const [tenantActionInput, setTenantActionInput] = useState("");
+  const [tenantPage, setTenantPage] = useState(1);
+  const [tenantLimit] = useState(50);
+  const [tenantTotal, setTenantTotal] = useState(0);
+  const [requeueJobId, setRequeueJobId] = useState<string | null>(null);
 
   const [deadLetters, setDeadLetters] = useState<DeadLetterJob[]>([]);
   const [deadLetterSupported, setDeadLetterSupported] = useState(true);
@@ -65,16 +69,30 @@ export default function AdminPage() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [selectedJobSupported, setSelectedJobSupported] = useState(true);
 
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
+  const [auditSupported, setAuditSupported] = useState(true);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditLimit] = useState(50);
+  const [auditTotal, setAuditTotal] = useState(0);
+
   const loadTenants = useCallback(async () => {
     try {
-      const data = await api.listAllTenants();
-      setTenants(data);
+      const paged = await api.listAllTenantsPaged(tenantPage, tenantLimit);
+      if (paged.supported) {
+        setTenants(paged.data.data);
+        setTenantTotal(paged.data.total);
+      } else {
+        const data = await api.listAllTenants();
+        setTenants(data);
+        setTenantTotal(data.length);
+      }
       setTenantsError(null);
     } catch (err) {
       setTenantsError(getApiErrorMessage(err, "Failed to load admin tenants"));
       setTenants([]);
     }
-  }, []);
+  }, [tenantLimit, tenantPage]);
 
   const loadDeadLetters = useCallback(async () => {
     try {
@@ -110,6 +128,24 @@ export default function AdminPage() {
     }
   }, []);
 
+  const loadAuditLog = useCallback(async () => {
+    try {
+      const result = await api.listAuditLog(auditPage, auditLimit);
+      if (!result.supported) {
+        setAuditSupported(false);
+        setAuditLog([]);
+        setAuditError(null);
+        return;
+      }
+      setAuditSupported(true);
+      setAuditLog(result.data.data);
+      setAuditTotal(result.data.total);
+      setAuditError(null);
+    } catch (err) {
+      setAuditError(getApiErrorMessage(err, "Failed to load audit log"));
+    }
+  }, [auditLimit, auditPage]);
+
   const loadJobLogs = useCallback(async (jobId: string) => {
     try {
       const result = await api.getAdminJobLogs(jobId);
@@ -128,7 +164,8 @@ export default function AdminPage() {
     void loadTenants();
     void loadDeadLetters();
     void loadJobs();
-  }, [loadDeadLetters, loadJobs, loadTenants]);
+    void loadAuditLog();
+  }, [loadAuditLog, loadDeadLetters, loadJobs, loadTenants]);
 
   const suspendedCount = useMemo(
     () => tenants.filter((tenant) => tenant.status.toLowerCase() === "suspended").length,
@@ -140,6 +177,26 @@ export default function AdminPage() {
   );
   const failedCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "failed").length, [tenants]);
   const activeCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "active").length, [tenants]);
+
+  const tenantTotalPages = Math.max(1, Math.ceil(tenantTotal / tenantLimit));
+  const auditTotalPages = Math.max(1, Math.ceil(auditTotal / auditLimit));
+
+  const requeueDeadLetter = async (jobId: string) => {
+    setRequeueJobId(jobId);
+    try {
+      const result = await api.requeueDeadLetterJob(jobId);
+      if (!result.supported) {
+        setDeadLetterError("Requeue endpoint is not available on this backend.");
+        return;
+      }
+      await loadDeadLetters();
+      setDeadLetterError(null);
+    } catch (err) {
+      setDeadLetterError(getApiErrorMessage(err, "Failed to requeue dead-letter job"));
+    } finally {
+      setRequeueJobId(null);
+    }
+  };
 
   const submitTenantAction = async () => {
     if (!tenantAction) return;
@@ -223,7 +280,7 @@ export default function AdminPage() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
-        {metricCard("Total tenants", tenants.length, "All managed customer environments")}
+        {metricCard("Total tenants", tenantTotal, "All managed customer environments")}
         {metricCard("Suspended", suspendedCount, "Access paused pending review", suspendedCount ? "warn" : "default")}
         {metricCard("Provisioning", provisioningCount, "Still onboarding or awaiting payment", provisioningCount ? "warn" : "default")}
         {metricCard("Failed", failedCount, "Requires immediate operator follow-up", failedCount ? "warn" : "good")}
@@ -399,6 +456,102 @@ export default function AdminPage() {
         </div>
 
         {!tenants.length && !tenantsError ? <p className="mt-3 text-sm text-slate-300">No tenants found.</p> : null}
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+          <span>
+            Page {tenantPage} of {tenantTotalPages} • {tenantTotal} tenants
+          </span>
+          <div className="flex gap-2">
+            <button
+              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+              disabled={tenantPage <= 1}
+              onClick={() => setTenantPage((prev) => Math.max(1, prev - 1))}
+            >
+              Previous
+            </button>
+            <button
+              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+              disabled={tenantPage >= tenantTotalPages}
+              onClick={() => setTenantPage((prev) => Math.min(tenantTotalPages, prev + 1))}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-700 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Admin audit log</h2>
+          <button
+            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            onClick={() => {
+              void loadAuditLog();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {!auditSupported ? (
+          <p className="text-sm text-slate-300">Audit log endpoint is not available on this backend.</p>
+        ) : auditError ? (
+          <p className="text-sm text-red-400">{auditError}</p>
+        ) : auditLog.length ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
+                <tr>
+                  <th className="p-2">Time</th>
+                  <th className="p-2">Actor</th>
+                  <th className="p-2">Action</th>
+                  <th className="p-2">Resource</th>
+                  <th className="p-2">IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLog.map((entry) => (
+                  <tr key={entry.id} className="border-t border-slate-700">
+                    <td className="p-2 text-xs text-slate-300">{formatDate(entry.created_at)}</td>
+                    <td className="p-2 text-xs text-slate-300">
+                      {entry.actor_email || entry.actor_id || entry.actor_role}
+                    </td>
+                    <td className="p-2 text-xs">{entry.action}</td>
+                    <td className="p-2 text-xs text-slate-300">
+                      {entry.resource}
+                      {entry.resource_id ? ` (${entry.resource_id.slice(0, 6)}...)` : ""}
+                    </td>
+                    <td className="p-2 text-xs text-slate-400">{entry.ip_address || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-300">No audit entries yet.</p>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+          <span>
+            Page {auditPage} of {auditTotalPages} • {auditTotal} events
+          </span>
+          <div className="flex gap-2">
+            <button
+              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+              disabled={auditPage <= 1}
+              onClick={() => setAuditPage((prev) => Math.max(1, prev - 1))}
+            >
+              Previous
+            </button>
+            <button
+              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+              disabled={auditPage >= auditTotalPages}
+              onClick={() => setAuditPage((prev) => Math.min(auditTotalPages, prev + 1))}
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="rounded-xl border border-slate-700 p-4">
@@ -427,6 +580,7 @@ export default function AdminPage() {
                   <th className="p-2">Worker function</th>
                   <th className="p-2">Queued</th>
                   <th className="p-2">Args</th>
+                  <th className="p-2">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -437,6 +591,17 @@ export default function AdminPage() {
                     <td className="p-2 text-xs text-slate-300">{formatDate(job.enqueued_at)}</td>
                     <td className="p-2 text-xs text-slate-300">
                       <code>{JSON.stringify(job.args).slice(0, 120)}</code>
+                    </td>
+                    <td className="p-2 text-xs">
+                      <button
+                        className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+                        disabled={requeueJobId === job.id}
+                        onClick={() => {
+                          void requeueDeadLetter(job.id);
+                        }}
+                      >
+                        {requeueJobId === job.id ? "Requeueing..." : "Requeue"}
+                      </button>
                     </td>
                   </tr>
                 ))}

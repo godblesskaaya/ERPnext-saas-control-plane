@@ -342,6 +342,10 @@ export default function OnboardingPage() {
   }, [router, step, tenant?.id]);
 
   const submitTenant = async () => {
+    if (emailVerificationRequired) {
+      setVerificationNotice("Please verify your email before creating a workspace.");
+      return;
+    }
     if (!cleanSubdomain || cleanSubdomain.length < 3) {
       setError("Please choose a valid subdomain (at least 3 characters).");
       return;

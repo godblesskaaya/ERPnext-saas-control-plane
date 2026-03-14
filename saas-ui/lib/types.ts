@@ -140,6 +140,15 @@ export type BillingPortalResponse = {
   url: string;
 };
 
+export type NotificationItem = {
+  id: string;
+  type: "success" | "warning" | "error" | "info";
+  title: string;
+  body: string;
+  created_at: string;
+  read: boolean;
+};
+
 export type OptionalEndpointResult<T> =
   | { supported: true; data: T }
   | { supported: false; data: null };

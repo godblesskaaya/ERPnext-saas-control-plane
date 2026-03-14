@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { JobLogPanel } from "../../components/JobLogPanel";
+import { useNotifications } from "../../components/NotificationsProvider";
 import { api, getApiErrorMessage } from "../../lib/api";
 import type { AuditLogEntry, DeadLetterJob, Job, Tenant } from "../../lib/types";
 
@@ -77,6 +78,7 @@ export default function AdminPage() {
   const [auditPage, setAuditPage] = useState(1);
   const [auditLimit] = useState(50);
   const [auditTotal, setAuditTotal] = useState(0);
+  const { addNotification } = useNotifications();
 
   const loadTenants = useCallback(async () => {
     try {
@@ -202,6 +204,11 @@ export default function AdminPage() {
       }
       await loadDeadLetters();
       setDeadLetterError(null);
+      addNotification({
+        type: "success",
+        title: "Dead-letter requeued",
+        body: `Job ${jobId.slice(0, 8)} queued for retry.`,
+      });
     } catch (err) {
       setDeadLetterError(getApiErrorMessage(err, "Failed to requeue dead-letter job"));
     } finally {

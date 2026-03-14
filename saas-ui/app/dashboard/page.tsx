@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { TenantCreateForm } from "../../components/TenantCreateForm";
 import { TenantTable } from "../../components/TenantTable";
 import { api, getApiErrorMessage, isSessionExpiredError, onSessionExpired } from "../../lib/api";
+import { useNotifications } from "../../components/NotificationsProvider";
 import type { Job, Tenant, TenantCreateResponse, UserProfile } from "../../lib/types";
 
 const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed", "deleted", "canceled", "cancelled"]);
@@ -46,6 +47,7 @@ export default function DashboardPage() {
   const [search, setSearch] = useState("");
   const [billingPortalUrl, setBillingPortalUrl] = useState<string | null>(null);
   const [billingPortalError, setBillingPortalError] = useState<string | null>(null);
+  const { addNotification } = useNotifications();
 
   const handleError = useCallback(
     (err: unknown, fallback: string) => {
@@ -177,6 +179,11 @@ export default function DashboardPage() {
         return;
       }
       setTenantJob(tenantId, result.data);
+      addNotification({
+        type: "success",
+        title: "Provisioning retried",
+        body: "A new provisioning job has been queued.",
+      });
       await load();
     } catch (err) {
       setError(getApiErrorMessage(err, "Failed to retry provisioning."));
@@ -198,6 +205,11 @@ export default function DashboardPage() {
         return;
       }
       setBillingPortalUrl(result.data.url);
+      addNotification({
+        type: "info",
+        title: "Billing portal ready",
+        body: "A billing portal link is ready to open in a new tab.",
+      });
     } catch (err) {
       setBillingPortalError(getApiErrorMessage(err, "Unable to open billing portal."));
     }
@@ -369,6 +381,11 @@ export default function DashboardPage() {
           if (result.job) {
             setTenantJob(result.tenant.id, result.job);
           }
+          addNotification({
+            type: "success",
+            title: "Workspace requested",
+            body: `Workspace ${result.tenant.domain} is queued for setup.`,
+          });
           await load();
         }}
         canCreate={canCreateTenants}
@@ -388,6 +405,11 @@ export default function DashboardPage() {
             const job = await api.backupTenant(id);
             setTenantJob(id, job);
             setError(null);
+            addNotification({
+              type: "info",
+              title: "Backup started",
+              body: "A backup job was queued for this workspace.",
+            });
             await load();
           } catch (err) {
             handleError(err, "Failed to trigger backup");
@@ -398,6 +420,11 @@ export default function DashboardPage() {
           try {
             const result = await api.resetAdminPassword(id, newPassword);
             setError(null);
+            addNotification({
+              type: "warning",
+              title: "Admin password reset",
+              body: `Credentials reset for ${result.domain}. Share securely with the owner.`,
+            });
             return result;
           } catch (err) {
             handleError(err, "Failed to reset admin password");
@@ -409,6 +436,11 @@ export default function DashboardPage() {
             const job = await api.deleteTenant(id);
             setTenantJob(id, job);
             setError(null);
+            addNotification({
+              type: "warning",
+              title: "Workspace deletion queued",
+              body: "Deletion has been scheduled. Monitor job logs for completion.",
+            });
             await load();
           } catch (err) {
             handleError(err, "Failed to delete tenant");

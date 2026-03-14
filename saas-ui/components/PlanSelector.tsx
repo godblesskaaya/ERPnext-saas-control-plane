@@ -109,8 +109,8 @@ export function PlanSelector({ value, onChange, chosenApp, onChosenAppChange }: 
     <div className="space-y-4">
       <div className="space-y-2">
         <div className="space-y-1">
-          <p className="text-sm font-medium text-slate-100">Choose rollout level</p>
-          <p className="text-xs text-slate-400">
+          <p className="text-sm font-medium text-slate-900">Choose rollout level</p>
+          <p className="text-xs text-slate-500">
             Pick the control depth your team needs now, then scale without changing workflows.
           </p>
         </div>
@@ -122,23 +122,23 @@ export function PlanSelector({ value, onChange, chosenApp, onChosenAppChange }: 
                 key={plan.id}
                 type="button"
                 onClick={() => onChange(plan.id)}
-                className={`rounded-xl border p-4 text-left transition ${
+                className={`rounded-2xl border p-4 text-left transition ${
                   active
-                    ? "border-sky-400 bg-sky-500/10 shadow-[0_0_0_1px_rgba(56,189,248,0.45)]"
-                    : "border-slate-700 bg-slate-900/80 hover:border-slate-500"
+                    ? "border-emerald-200 bg-emerald-50 shadow-[0_0_0_1px_rgba(13,106,106,0.2)]"
+                    : "border-amber-200 bg-white/80 hover:border-amber-300"
                 }`}
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="font-semibold text-white">{plan.label}</span>
+                  <span className="font-semibold text-slate-900">{plan.label}</span>
                   {plan.highlight ? (
-                    <span className="rounded-full border border-sky-400/40 bg-sky-500/20 px-2 py-0.5 text-[10px] uppercase tracking-wide text-sky-200">
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-800">
                       {plan.highlight}
                     </span>
                   ) : null}
                 </div>
-                <p className="text-base font-semibold text-sky-200">{plan.price}</p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-300">{plan.description}</p>
-                <div className="mt-3 space-y-1 text-[11px] text-slate-400">
+                <p className="text-base font-semibold text-[#0d6a6a]">{plan.price}</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600">{plan.description}</p>
+                <div className="mt-3 space-y-1 text-[11px] text-slate-500">
                   <p>{plan.backupRetention}</p>
                   <p>{plan.controlTag}</p>
                 </div>
@@ -149,15 +149,15 @@ export function PlanSelector({ value, onChange, chosenApp, onChosenAppChange }: 
       </div>
 
       {isBusinessSelected ? (
-        <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-4">
+        <div className="rounded-2xl border border-amber-200 bg-white/80 p-4">
           <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
             <div>
-              <p className="text-sm font-medium text-white">Business focus area</p>
-              <p className="text-xs text-slate-400">
+              <p className="text-sm font-medium text-slate-900">Business focus area</p>
+              <p className="text-xs text-slate-500">
                 Choose the first workflow your team needs most (sales, people, support, or finance).
               </p>
             </div>
-            <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[11px] text-emerald-200">Required</span>
+            <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] text-emerald-800">Required</span>
           </div>
           <div className="grid gap-2 md:grid-cols-2">
             {BUSINESS_APP_OPTIONS.map((option) => {
@@ -167,20 +167,20 @@ export function PlanSelector({ value, onChange, chosenApp, onChosenAppChange }: 
                   key={option.id}
                   type="button"
                   onClick={() => onChosenAppChange?.(option.id)}
-                  className={`rounded-lg border p-3 text-left transition ${
-                    active ? "border-emerald-400 bg-emerald-500/10" : "border-slate-700 bg-slate-950/50 hover:border-slate-500"
+                  className={`rounded-2xl border p-3 text-left transition ${
+                    active ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-white/80 hover:border-amber-300"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-white">{option.label}</span>
-                    <span className="text-[10px] uppercase tracking-wide text-slate-400">{option.profile}</span>
+                    <span className="text-sm font-semibold text-slate-900">{option.label}</span>
+                    <span className="text-[10px] uppercase tracking-wide text-slate-500">{option.profile}</span>
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-300">{option.description}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">{option.description}</p>
                 </button>
               );
             })}
           </div>
-          <p className="mt-3 text-xs text-slate-400">
+          <p className="mt-3 text-xs text-slate-500">
             Useful for Tanzania-based teams running branch and field activity primarily from mobile devices.
           </p>
         </div>

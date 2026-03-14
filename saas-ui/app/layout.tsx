@@ -5,8 +5,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Business Operations Cloud",
-  description: "Launch faster with clearer cashflow, inventory, and branch operations in one place.",
+  title: "Biashara Cloud",
+  description: "Run cashflow, stock, and branch operations in one clear control room for Tanzania teams.",
 };
 
 type SessionPayload = {
@@ -38,7 +38,7 @@ function isExpired(payload: SessionPayload | null): boolean {
 }
 
 const navLinkClass =
-  "rounded-md px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white";
+  "rounded-full px-3 py-1.5 text-sm text-slate-700 transition hover:bg-white/70 hover:text-slate-900";
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies();
@@ -50,19 +50,24 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
 
   return (
     <html lang="en">
-      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased">
-        <div className="relative min-h-screen">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(56,189,248,0.18),transparent_40%),radial-gradient(circle_at_80%_0%,rgba(99,102,241,0.15),transparent_30%)]" />
+      <body className="min-h-screen bg-[#f5f1e8] text-slate-900 antialiased">
+        <div className="relative min-h-screen overflow-hidden">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(13,106,106,0.18),transparent_45%),radial-gradient(circle_at_85%_5%,rgba(242,161,72,0.22),transparent_35%),linear-gradient(120deg,rgba(255,255,255,0.8),rgba(255,255,255,0.1))]" />
+          <div className="pointer-events-none absolute -left-24 top-24 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(16,185,129,0.25),transparent_70%)] blur-2xl animate-drift" />
+          <div className="pointer-events-none absolute -right-32 top-10 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(249,115,22,0.25),transparent_65%)] blur-2xl animate-drift" />
 
-          <header className="sticky top-0 z-20 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur">
-            <div className="border-b border-slate-800/70 bg-slate-900/80 px-6 py-1.5 text-center text-[11px] text-slate-300">
-              TZS-friendly pricing guidance • Mobile-money compatible checkout providers • Support hours in EAT
+          <header className="sticky top-0 z-20 border-b border-amber-100/70 bg-[#f7f2e9]/80 backdrop-blur">
+            <div className="border-b border-amber-100/70 bg-white/70 px-6 py-1.5 text-center text-[11px] text-slate-600">
+              TZS-first billing guidance • Mobile money friendly checkout • Support hours aligned to EAT
             </div>
             <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
               <div className="flex items-center gap-4">
-                <Link href="/" className="text-lg font-semibold tracking-tight text-white">
+                <Link href="/" className="text-lg font-semibold tracking-tight text-slate-900">
                   Biashara Cloud
                 </Link>
+                <span className="hidden rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-medium text-amber-800 md:inline-flex">
+                  Tanzania operations control room
+                </span>
                 <nav className="hidden items-center gap-1 md:flex">
                   <Link href="/#features" className={navLinkClass}>
                     Outcomes
@@ -90,12 +95,12 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                         Admin
                       </Link>
                     ) : null}
-                    <span className="hidden rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300 md:inline-flex">
+                    <span className="hidden rounded-full border border-amber-200 bg-white/80 px-3 py-1 text-xs text-slate-600 md:inline-flex">
                       {userLabel ? `${userLabel}${role ? ` (${role})` : ""}` : "Signed in"}
                     </span>
                     <Link
                       href="/login?logout=1"
-                      className="rounded-md border border-slate-700 px-3 py-2 text-sm text-slate-200 transition hover:border-slate-500 hover:text-white"
+                      className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
                     >
                       Logout
                     </Link>
@@ -107,7 +112,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                     </Link>
                     <Link
                       href="/signup"
-                      className="rounded-md bg-sky-500 px-3 py-2 text-sm font-medium text-slate-950 transition hover:bg-sky-400"
+                      className="rounded-full bg-[#0d6a6a] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#0b5a5a]"
                     >
                       Start now
                     </Link>

@@ -2,141 +2,203 @@ import Link from "next/link";
 
 const outcomeHighlights = [
   {
-    title: "Cashflow visibility every day",
-    description: "See what is selling, what is due, and what needs follow-up before it hurts your month-end.",
+    title: "Daily cashflow clarity",
+    description: "Know what sold, what is due, and where money is stuck before the week closes.",
   },
   {
-    title: "Inventory you can trust",
-    description: "Track stock movement across stores and warehouses so purchasing decisions stay proactive.",
+    title: "Stock you can trust",
+    description: "Track movement by branch and warehouse so buyers reorder on time, not late.",
   },
   {
-    title: "Branch operations in sync",
-    description: "Keep branch teams aligned with one operational rhythm across sales, stock, and approvals.",
+    title: "Branches in one rhythm",
+    description: "Align approvals, pricing, and stock rules across locations without extra admin.",
+  },
+];
+
+const sectorFocus = [
+  {
+    title: "Retail & FMCG",
+    detail: "Fast SKU tracking, reorder signals, and branch restock discipline.",
+  },
+  {
+    title: "Wholesale & distribution",
+    detail: "Better control of credit, price lists, and dispatch reliability.",
+  },
+  {
+    title: "Services & projects",
+    detail: "Track billable work, payables, and approvals with fewer delays.",
   },
 ];
 
 const goLiveSteps = [
   {
-    headline: "1) Start in minutes",
-    points: ["Create your workspace", "Set business details", "Invite key team members"],
+    headline: "1) Set your control room",
+    points: ["Name your workspace", "Confirm business basics", "Invite your first operator"],
   },
   {
-    headline: "2) Configure with confidence",
-    points: ["Choose your plan", "Review pricing clearly", "Continue with guided onboarding"],
+    headline: "2) Choose your operating level",
+    points: ["Select a plan", "Pick your business focus", "Review TZS-first pricing guidance"],
   },
   {
-    headline: "3) Go live faster",
-    points: ["Activate core workflows", "Monitor setup progress", "Launch daily operations quickly"],
+    headline: "3) Go live with guardrails",
+    points: ["Launch core workflows", "Track setup milestones", "Monitor daily performance"],
   },
 ];
 
 const trustSignals = [
   {
-    role: "TZS-friendly pricing context",
-    detail: "Plan cards can be presented with Tanzania-focused language and optional TZS estimate guidance at checkout.",
+    role: "Local-first guidance",
+    detail: "TZS-first billing language, EAT-aligned support windows, and clear VAT-ready statements.",
   },
   {
-    role: "Mobile-money compatible wording",
-    detail: "Checkout messaging supports teams that collect with cards, bank transfer, or mobile-money compatible providers.",
+    role: "Mobile money friendly",
+    detail: "Checkout messaging supports card, bank transfer, and mobile money flows.",
   },
   {
-    role: "Swahili/English friendly copy",
-    detail: "Product language is simple, direct, and easy to use for mixed-language business teams.",
+    role: "Swahili-ready teams",
+    detail: "Direct, simple copy designed for mixed-language ops teams.",
+  },
+];
+
+const signalCards = [
+  {
+    title: "Cashflow radar",
+    value: "Know what is due today",
+    detail: "Spot late payers early and keep collections tight.",
+  },
+  {
+    title: "Stock pulse",
+    value: "Track fast movers",
+    detail: "Stay ahead of stock-outs with branch-level visibility.",
+  },
+  {
+    title: "Branch control",
+    value: "One policy, every branch",
+    detail: "Keep pricing and approvals consistent at scale.",
   },
 ];
 
 export default function LandingPage() {
   return (
-    <div className="space-y-16 pb-10">
-      <section className="grid gap-10 rounded-2xl border border-slate-800 bg-slate-900/60 p-8 shadow-2xl shadow-sky-950/20 lg:grid-cols-[1.25fr_1fr] lg:p-12">
-        <div className="space-y-6">
-          <span className="inline-flex rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs font-medium uppercase tracking-wide text-sky-200">
-            Built for Tanzania growth teams
+    <div className="space-y-24 pb-12">
+      <section className="grid gap-10 rounded-[32px] border border-amber-200/70 bg-white/80 p-8 shadow-[0_30px_80px_rgba(13,106,106,0.15)] lg:grid-cols-[1.2fr_0.8fr] lg:p-12">
+        <div className="space-y-6 animate-rise">
+          <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-800">
+            Built for Tanzania operating teams
           </span>
-          <h1 className="text-4xl font-semibold leading-tight text-white md:text-5xl">
-            Better cashflow control, tighter inventory, and smoother branch operations.
+          <h1 className="font-display text-4xl leading-tight text-slate-900 md:text-5xl">
+            Run cashflow, stock, and branches from one control room.
           </h1>
-          <p className="max-w-2xl text-lg text-slate-300">
-            Give your team a faster go-live path with clear business visibility from day one. Designed for practical operations, not technical overhead.
+          <p className="max-w-2xl text-lg text-slate-600">
+            Biashara Cloud is the calm, reliable layer above the daily noise. Your team sees what matters today,
+            fixes issues faster, and keeps branches aligned without extra admin overhead.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link
               href="/signup"
-              className="rounded-md bg-sky-500 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-sky-400"
+              className="rounded-full bg-[#0d6a6a] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#0b5a5a]"
             >
-              Start your setup
+              Start your control room
             </Link>
             <Link
               href="/#pricing"
-              className="rounded-md border border-slate-700 px-5 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-500"
+              className="rounded-full border border-amber-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-amber-300"
             >
-              View plans
+              View pricing
             </Link>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+            <span className="rounded-full bg-slate-100 px-3 py-1">TZS-first guidance</span>
+            <span className="rounded-full bg-slate-100 px-3 py-1">Mobile money ready</span>
+            <span className="rounded-full bg-slate-100 px-3 py-1">EAT support hours</span>
           </div>
         </div>
 
-        <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/80 p-6">
-          <p className="text-sm font-medium text-slate-200">What improves in week one</p>
-          {[
-            ["Daily cash position", "Clearer view"],
-            ["Stock status by location", "Fewer surprises"],
-            ["Branch coordination", "Faster decisions"],
-            ["Time to operational go-live", "Shorter setup"],
-          ].map(([label, value]) => (
-            <div key={label} className="flex items-center justify-between rounded border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm">
-              <span className="text-slate-300">{label}</span>
-              <span className="text-emerald-300">{value}</span>
+        <div className="space-y-4 rounded-2xl border border-amber-200/80 bg-[#fdf7ee] p-6 shadow-inner">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Control room signals</p>
+          {signalCards.map((card) => (
+            <div key={card.title} className="rounded-xl border border-amber-200/70 bg-white px-4 py-3">
+              <p className="text-sm font-semibold text-slate-900">{card.title}</p>
+              <p className="text-sm text-[#0d6a6a]">{card.value}</p>
+              <p className="text-xs text-slate-500">{card.detail}</p>
             </div>
           ))}
-          <p className="pt-2 text-xs text-slate-400">Simple onboarding flow built to help teams move from setup to daily use quickly.</p>
+          <div className="rounded-xl border border-dashed border-amber-200/80 bg-white/80 px-4 py-3 text-xs text-slate-500">
+            Setup guidance included. Your ops lead can follow a 3-minute checklist to get the first branch online.
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 rounded-3xl border border-amber-200/70 bg-white/70 p-6 lg:grid-cols-3">
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ready in days</p>
+          <p className="text-2xl font-semibold text-slate-900">Launch faster, reduce chaos, keep cash moving.</p>
+        </div>
+        <div className="rounded-2xl border border-amber-200/70 bg-[#fff7ed] p-4 text-sm text-slate-600">
+          <p className="font-semibold text-slate-900">3-minute setup checklist</p>
+          <p className="mt-1">Name your workspace, confirm business basics, invite key operators.</p>
+        </div>
+        <div className="rounded-2xl border border-amber-200/70 bg-[#f7fbf9] p-4 text-sm text-slate-600">
+          <p className="font-semibold text-slate-900">Switch without disruption</p>
+          <p className="mt-1">Keep branches running while you onboard in parallel.</p>
         </div>
       </section>
 
       <section id="features" className="space-y-6">
-        <h2 className="text-3xl font-semibold text-white">Outcomes your team can feel quickly</h2>
+        <h2 className="font-display text-3xl text-slate-900">Outcomes your team feels quickly</h2>
         <div className="grid gap-4 md:grid-cols-3">
           {outcomeHighlights.map((item) => (
-            <article key={item.title} className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-              <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-              <p className="mt-2 text-sm text-slate-300">{item.description}</p>
+            <article key={item.title} className="rounded-2xl border border-amber-200/70 bg-white/80 p-5 shadow-sm">
+              <h3 className="text-lg font-semibold text-slate-900">{item.title}</h3>
+              <p className="mt-2 text-sm text-slate-600">{item.description}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <section id="pricing" className="space-y-6 rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-        <h2 className="text-3xl font-semibold text-white">Clear pricing for growing businesses</h2>
-        <p className="max-w-3xl text-sm text-slate-300">
-          Use your preferred checkout method with clear billing language and practical TZS guidance.
+      <section className="grid gap-4 md:grid-cols-3">
+        {sectorFocus.map((item) => (
+          <article key={item.title} className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Built for</p>
+            <h3 className="mt-1 text-lg font-semibold text-slate-900">{item.title}</h3>
+            <p className="mt-2 text-sm text-slate-600">{item.detail}</p>
+          </article>
+        ))}
+      </section>
+
+      <section id="pricing" className="space-y-6 rounded-3xl border border-amber-200/80 bg-white/80 p-8">
+        <h2 className="font-display text-3xl text-slate-900">Pricing that makes sense locally</h2>
+        <p className="max-w-3xl text-sm text-slate-600">
+          Transparent monthly pricing, with TZS guidance and mobile money-friendly checkout messaging.
         </p>
         <div className="grid gap-4 md:grid-cols-3">
-          <article className="rounded-xl border border-slate-800 bg-slate-950/70 p-5">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Starter</p>
-            <p className="mt-1 text-2xl font-bold text-sky-300">$49/mo</p>
-            <p className="text-xs text-slate-400">About TZS 125,000/month</p>
-            <p className="mt-2 text-sm text-slate-300">Great for new teams moving from spreadsheets to structured daily operations.</p>
+          <article className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] p-5">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Starter</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">$49/mo</p>
+            <p className="text-xs text-slate-500">About TZS 125,000/month</p>
+            <p className="mt-2 text-sm text-slate-600">For teams moving from spreadsheets to daily ops discipline.</p>
           </article>
-          <article className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-5">
-            <p className="text-xs uppercase tracking-wide text-sky-200">Business · Most selected</p>
-            <p className="mt-1 text-2xl font-bold text-sky-100">$149/mo</p>
-            <p className="text-xs text-sky-200/80">About TZS 380,000/month</p>
-            <p className="mt-2 text-sm text-sky-100/90">For multi-branch teams that need tighter stock control and stronger reporting rhythm.</p>
+          <article className="rounded-2xl border border-[#0d6a6a]/30 bg-[#0d6a6a] p-5 text-white shadow-lg">
+            <p className="text-xs uppercase tracking-wide text-white/80">Business · Most selected</p>
+            <p className="mt-1 text-2xl font-bold">$149/mo</p>
+            <p className="text-xs text-white/80">About TZS 380,000/month</p>
+            <p className="mt-2 text-sm text-white/90">For multi-branch teams that need tighter stock and approval control.</p>
           </article>
-          <article className="rounded-xl border border-slate-800 bg-slate-950/70 p-5">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Enterprise</p>
-            <p className="mt-1 text-2xl font-bold text-violet-200">Custom</p>
-            <p className="mt-2 text-sm text-slate-300">Tailored rollout support for complex operations and advanced governance needs.</p>
+          <article className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] p-5">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Enterprise</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">Custom</p>
+            <p className="mt-2 text-sm text-slate-600">Designed for complex rollouts with governance and onboarding support.</p>
           </article>
         </div>
       </section>
 
       <section id="how-it-works" className="space-y-6">
-        <h2 className="text-3xl font-semibold text-white">A faster go-live flow</h2>
+        <h2 className="font-display text-3xl text-slate-900">A go-live flow built for operators</h2>
         <div className="grid gap-4 md:grid-cols-3">
           {goLiveSteps.map((pillar) => (
-            <article key={pillar.headline} className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-              <h3 className="text-lg font-semibold text-white">{pillar.headline}</h3>
-              <ul className="mt-3 space-y-1 text-sm text-slate-300">
+            <article key={pillar.headline} className="rounded-2xl border border-amber-200/70 bg-white/80 p-5">
+              <h3 className="text-lg font-semibold text-slate-900">{pillar.headline}</h3>
+              <ul className="mt-3 space-y-2 text-sm text-slate-600">
                 {pillar.points.map((point) => (
                   <li key={point}>• {point}</li>
                 ))}
@@ -146,20 +208,20 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-        <h2 className="text-2xl font-semibold text-white">Local trust and practical language</h2>
+      <section className="space-y-4 rounded-3xl border border-amber-200/80 bg-white/80 p-6">
+        <h2 className="font-display text-2xl text-slate-900">Local trust and practical language</h2>
         <div className="grid gap-3 md:grid-cols-3">
           {trustSignals.map((item) => (
-            <article key={item.role} className="rounded-lg border border-slate-800 bg-slate-950/70 p-4">
-              <p className="text-sm font-semibold text-sky-200">{item.role}</p>
-              <p className="mt-2 text-sm text-slate-300">{item.detail}</p>
+            <article key={item.role} className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] p-4">
+              <p className="text-sm font-semibold text-[#0d6a6a]">{item.role}</p>
+              <p className="mt-2 text-sm text-slate-600">{item.detail}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <footer className="border-t border-slate-800 pt-8 text-sm text-slate-400">
-        <p>© {new Date().getFullYear()} Biashara Cloud. Built to help teams in Tanzania launch faster and run cleaner operations.</p>
+      <footer className="border-t border-amber-200/70 pt-8 text-sm text-slate-500">
+        <p>© {new Date().getFullYear()} Biashara Cloud. Built to help Tanzania teams move faster with less noise.</p>
       </footer>
     </div>
   );

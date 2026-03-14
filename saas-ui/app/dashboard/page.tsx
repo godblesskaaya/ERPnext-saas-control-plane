@@ -13,13 +13,13 @@ const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed", "deleted", "cancel
 function metricCard(label: string, value: number, hint: string, tone: "default" | "good" | "warn" = "default") {
   const toneClass =
     tone === "good"
-      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
       : tone === "warn"
-      ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
-      : "border-slate-700 bg-slate-900/70 text-slate-100";
+      ? "border-amber-200 bg-amber-50 text-amber-900"
+      : "border-slate-200 bg-white text-slate-900";
 
   return (
-    <article className={`rounded-lg border p-3 ${toneClass}`}>
+    <article className={`rounded-2xl border p-4 ${toneClass}`}>
       <p className="text-xs uppercase tracking-wide opacity-80">{label}</p>
       <p className="mt-1 text-2xl font-semibold">{value}</p>
       <p className="mt-1 text-xs opacity-80">{hint}</p>
@@ -37,6 +37,7 @@ export default function DashboardPage() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
   const [resendBusy, setResendBusy] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const handleError = useCallback(
     (err: unknown, fallback: string) => {
@@ -56,6 +57,7 @@ export default function DashboardPage() {
       const data = await api.listTenants();
       setTenants(data);
       setError(null);
+      setLastUpdated(new Date());
       setJobsByTenant((previous) => {
         const activeTenantIds = new Set(data.map((tenant) => tenant.id));
         const next: Record<string, Job | undefined> = {};
@@ -123,6 +125,11 @@ export default function DashboardPage() {
     [tenants]
   );
   const needsAttentionCount = provisioningTenants + failedTenants + activeJobs;
+  const lastUpdatedLabel = lastUpdated ? lastUpdated.toLocaleString() : "Not refreshed yet";
+  const attentionSummary =
+    needsAttentionCount === 0
+      ? "All clear. No provisioning blockers right now."
+      : `${needsAttentionCount} item(s) need attention in your queue.`;
 
   const setTenantJob = (tenantId: string, job: Job) => {
     setJobsByTenant((previous) => ({ ...previous, [tenantId]: job }));
@@ -141,20 +148,21 @@ export default function DashboardPage() {
   };
 
   return (
-    <section className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">Operations dashboard</h1>
-          <p className="text-sm text-slate-300">
+    <section className="space-y-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-amber-200/70 bg-white/80 p-6 shadow-sm">
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Control room</p>
+          <h1 className="text-3xl font-semibold text-slate-900">Operations dashboard</h1>
+          <p className="text-sm text-slate-600">
             Keep onboarding, provisioning, and support actions moving for teams operating across Tanzania.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <a href="#create-tenant" className="rounded border border-slate-600 px-3 py-1.5 text-xs hover:bg-slate-800">
+          <a href="#create-tenant" className="rounded-full bg-[#0d6a6a] px-4 py-2 text-xs font-semibold text-white">
             New workspace
           </a>
           <button
-            className="rounded border border-slate-600 px-3 py-1.5 text-xs hover:bg-slate-800 disabled:opacity-60"
+            className="rounded-full border border-amber-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-amber-300 disabled:opacity-60"
             onClick={() => {
               void load();
             }}
@@ -165,41 +173,66 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-700 bg-slate-900/50 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-medium text-white">Attention lane</p>
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs ${
-              needsAttentionCount ? "bg-amber-500/20 text-amber-200" : "bg-emerald-500/20 text-emerald-200"
-            }`}
-          >
-            {needsAttentionCount ? `${needsAttentionCount} item(s) need review` : "No blockers right now"}
-          </span>
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+        <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-slate-900">Attention queue</p>
+            <span
+              className={`rounded-full px-3 py-1 text-xs ${
+                needsAttentionCount ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"
+              }`}
+            >
+              {needsAttentionCount ? `${needsAttentionCount} item(s) need review` : "No blockers right now"}
+            </span>
+          </div>
+          <p className="mt-2 text-sm text-slate-600">{attentionSummary}</p>
+          <div className="mt-4 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
+            <p className="rounded-xl border border-amber-200/70 bg-[#fff7ed] px-3 py-2">
+              Failed workspaces: <span className="font-semibold text-amber-800">{failedTenants}</span>
+            </p>
+            <p className="rounded-xl border border-amber-200/70 bg-[#fff7ed] px-3 py-2">
+              Provisioning queue: <span className="font-semibold text-amber-800">{provisioningTenants}</span>
+            </p>
+            <p className="rounded-xl border border-amber-200/70 bg-[#f7fbf9] px-3 py-2">
+              Live jobs: <span className="font-semibold text-[#0d6a6a]">{activeJobs}</span>
+            </p>
+          </div>
         </div>
-        <div className="mt-3 grid gap-2 text-xs text-slate-200 md:grid-cols-3">
-          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2">
-            Failed tenants: <span className="font-semibold text-red-200">{failedTenants}</span>
-          </p>
-          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2">
-            Provisioning queue: <span className="font-semibold text-amber-200">{provisioningTenants}</span>
-          </p>
-          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2">
-            Live jobs: <span className="font-semibold text-sky-200">{activeJobs}</span>
-          </p>
+
+        <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+          <p className="text-sm font-semibold text-slate-900">Ops pulse</p>
+          <div className="mt-3 space-y-3 text-sm text-slate-600">
+            <div className="rounded-xl border border-amber-200/70 bg-[#fdf7ee] p-3">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Last refresh</p>
+              <p className="text-sm font-semibold text-slate-900">{lastUpdatedLabel}</p>
+            </div>
+            <div className="rounded-xl border border-amber-200/70 bg-white p-3">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Coverage note</p>
+              <p className="text-sm text-slate-600">
+                Designed for branch teams running on laptop + phone across Tanzania.
+              </p>
+            </div>
+            <div className="rounded-xl border border-amber-200/70 bg-[#f7fbf9] p-3">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Next best action</p>
+              <p className="text-sm text-slate-700">
+                {needsAttentionCount > 0 ? "Review failed or provisioning workspaces first." : "Create a new workspace or audit active tenants."}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
       {currentUser && !currentUser.email_verified ? (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 p-4">
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-amber-100">Email verification required</p>
-              <p className="text-xs text-amber-200/90">
+              <p className="text-sm font-semibold text-amber-900">Email verification required</p>
+              <p className="text-xs text-amber-800">
                 Verify {currentUser.email} before creating a workspace. Check your inbox for the verification link.
               </p>
             </div>
             <button
-              className="rounded border border-amber-300/40 px-3 py-1.5 text-xs text-amber-100 hover:border-amber-200 disabled:opacity-60"
+              className="rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:border-amber-400 disabled:opacity-60"
               disabled={resendBusy}
               onClick={() => {
                 void resendVerification();
@@ -208,7 +241,7 @@ export default function DashboardPage() {
               {resendBusy ? "Sending..." : "Resend verification"}
             </button>
           </div>
-          {verificationNotice ? <p className="mt-2 text-xs text-amber-100">{verificationNotice}</p> : null}
+          {verificationNotice ? <p className="mt-2 text-xs text-amber-800">{verificationNotice}</p> : null}
         </div>
       ) : null}
 
@@ -228,7 +261,9 @@ export default function DashboardPage() {
         }}
       />
 
-      {error ? <p className="rounded border border-red-800 bg-red-950/30 p-3 text-sm text-red-300">{error}</p> : null}
+      {error ? (
+        <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
+      ) : null}
 
       <TenantTable
         tenants={tenants}

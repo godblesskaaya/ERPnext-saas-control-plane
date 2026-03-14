@@ -17,12 +17,12 @@ const TERMINAL_STATUSES = new Set(["succeeded", "failed", "deleted", "canceled",
 
 function statusBadgeClass(status: string): string {
   const normalized = status.toLowerCase();
-  if (normalized === "succeeded" || normalized === "active") return "bg-emerald-500/20 text-emerald-300";
-  if (normalized === "failed") return "bg-red-500/20 text-red-300";
+  if (normalized === "succeeded" || normalized === "active") return "bg-emerald-100 text-emerald-800";
+  if (normalized === "failed") return "bg-red-100 text-red-700";
   if (normalized === "running" || normalized === "provisioning" || normalized === "queued" || normalized === "deleting") {
-    return "bg-amber-500/20 text-amber-300";
+    return "bg-amber-100 text-amber-800";
   }
-  return "bg-slate-600/30 text-slate-200";
+  return "bg-slate-100 text-slate-600";
 }
 
 function splitLogs(logs?: string): string[] {
@@ -149,18 +149,18 @@ export function JobLogPanel({ jobId, logs, status, onJobUpdate }: Props) {
   }, [isTerminal, jobId, refreshJob]);
 
   return (
-    <div className="space-y-2 rounded-lg border border-slate-700 bg-slate-900/70 p-3">
+    <div className="space-y-2 rounded-2xl border border-amber-200 bg-white/90 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex flex-wrap items-center gap-2">
           <span className={`rounded px-2 py-0.5 font-medium ${statusBadgeClass(jobStatus)}`}>{jobStatus}</span>
-          {jobId ? <span className="text-slate-400">Job {jobId.slice(0, 8)}...</span> : null}
+          {jobId ? <span className="text-slate-500">Job {jobId.slice(0, 8)}...</span> : null}
           {jobId ? <span className="text-slate-500">Stream: {streamState}</span> : null}
           <span className="text-slate-500">Lines: {logLines.length}</span>
         </div>
         <div className="flex items-center gap-1">
           <button
             type="button"
-            className="rounded border border-slate-600 px-2 py-1 hover:bg-slate-800"
+            className="rounded-full border border-amber-200 px-2 py-1 text-slate-700 hover:border-amber-300"
             onClick={() => {
               void refreshJob().catch(() => undefined);
             }}
@@ -169,7 +169,7 @@ export function JobLogPanel({ jobId, logs, status, onJobUpdate }: Props) {
           </button>
           <button
             type="button"
-            className="rounded border border-slate-600 px-2 py-1 hover:bg-slate-800"
+            className="rounded-full border border-amber-200 px-2 py-1 text-slate-700 hover:border-amber-300"
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(logLines.join("\n"));
@@ -185,11 +185,11 @@ export function JobLogPanel({ jobId, logs, status, onJobUpdate }: Props) {
         </div>
       </div>
 
-      <pre className="max-h-72 overflow-auto rounded border border-slate-700 bg-slate-950 p-3 text-xs">
+      <pre className="max-h-72 overflow-auto rounded-xl border border-slate-800 bg-slate-900 p-3 text-xs text-amber-50">
         {logLines.length ? logLines.join("\n") : "No logs yet."}
       </pre>
 
-      {error ? <p className="text-xs text-amber-300">{error}</p> : null}
+      {error ? <p className="text-xs text-amber-700">{error}</p> : null}
     </div>
   );
 }

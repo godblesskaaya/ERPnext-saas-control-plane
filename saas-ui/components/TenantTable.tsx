@@ -23,14 +23,14 @@ type ConfirmAction = {
 
 function statusBadgeClass(status: string): string {
   const normalized = status.toLowerCase();
-  if (normalized === "active") return "bg-emerald-500/20 text-emerald-300";
+  if (normalized === "active") return "bg-emerald-100 text-emerald-800";
   if (normalized === "provisioning" || normalized === "pending" || normalized === "deleting") {
-    return "bg-amber-500/20 text-amber-300";
+    return "bg-amber-100 text-amber-800";
   }
-  if (normalized === "failed") return "bg-red-500/20 text-red-300";
-  if (normalized === "deleted") return "bg-slate-500/20 text-slate-300";
-  if (normalized === "suspended") return "bg-orange-500/20 text-orange-300";
-  return "bg-sky-500/20 text-sky-300";
+  if (normalized === "failed") return "bg-red-100 text-red-700";
+  if (normalized === "deleted") return "bg-slate-100 text-slate-500";
+  if (normalized === "suspended") return "bg-orange-100 text-orange-800";
+  return "bg-sky-100 text-sky-800";
 }
 
 function statusHint(status: string): string {
@@ -46,16 +46,16 @@ function statusHint(status: string): string {
 
 function rowTone(status: string): string {
   const normalized = status.toLowerCase();
-  if (normalized === "failed") return "bg-red-950/10";
-  if (normalized === "pending" || normalized === "pending_payment" || normalized === "provisioning") return "bg-amber-950/10";
+  if (normalized === "failed") return "bg-red-50";
+  if (normalized === "pending" || normalized === "pending_payment" || normalized === "provisioning") return "bg-amber-50/60";
   return "";
 }
 
 function planBadgeClass(plan: string): string {
   const normalized = plan.toLowerCase();
-  if (normalized === "enterprise") return "bg-violet-500/20 text-violet-200";
-  if (normalized === "business") return "bg-blue-500/20 text-blue-200";
-  return "bg-slate-600/30 text-slate-200";
+  if (normalized === "enterprise") return "bg-slate-200 text-slate-700";
+  if (normalized === "business") return "bg-[#0d6a6a]/15 text-[#0d6a6a]";
+  return "bg-amber-100 text-amber-800";
 }
 
 function formatDate(value?: string | null): string {
@@ -154,11 +154,11 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
 
   if (!tenants.length) {
     return (
-      <div className="rounded border border-dashed border-slate-600 bg-slate-900/40 p-8 text-center">
+      <div className="rounded-3xl border border-dashed border-amber-200 bg-white/80 p-8 text-center">
         <p className="text-3xl">📦</p>
-        <p className="mt-2 text-lg font-semibold">No workspaces yet</p>
-        <p className="mt-1 text-sm text-slate-300">Create your first workspace to start onboarding and daily operations.</p>
-        <a href="#create-tenant" className="mt-4 inline-flex rounded bg-blue-600 px-4 py-2 font-medium hover:bg-blue-500">
+        <p className="mt-2 text-lg font-semibold text-slate-900">No workspaces yet</p>
+        <p className="mt-1 text-sm text-slate-600">Create your first workspace to start onboarding and daily operations.</p>
+        <a href="#create-tenant" className="mt-4 inline-flex rounded-full bg-[#0d6a6a] px-4 py-2 font-medium text-white hover:bg-[#0b5a5a]">
           Create first workspace
         </a>
       </div>
@@ -168,15 +168,15 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
   return (
     <div className="space-y-4">
       {passwordResult ? (
-        <div className="rounded border border-emerald-700 bg-emerald-950/40 p-3 text-sm">
-          <p className="font-semibold">Administrator password reset complete</p>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm">
+          <p className="font-semibold text-emerald-900">Administrator password reset complete</p>
           <p>Tenant: {passwordResult.domain}</p>
           <p>User: {passwordResult.administrator_user}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <code className="rounded bg-black/30 px-2 py-1 text-emerald-200">{passwordResult.admin_password}</code>
+            <code className="rounded bg-black/10 px-2 py-1 text-emerald-900">{passwordResult.admin_password}</code>
             <button
               type="button"
-              className="rounded border border-emerald-500 px-2 py-1 text-xs hover:bg-emerald-900/60"
+              className="rounded border border-emerald-300 px-2 py-1 text-xs text-emerald-900 hover:bg-emerald-100"
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(passwordResult.admin_password);
@@ -188,28 +188,28 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
             >
               Copy
             </button>
-            {copyState === "copied" ? <span className="text-xs text-emerald-200">Copied</span> : null}
-            {copyState === "error" ? <span className="text-xs text-red-300">Copy failed</span> : null}
+            {copyState === "copied" ? <span className="text-xs text-emerald-700">Copied</span> : null}
+            {copyState === "error" ? <span className="text-xs text-red-600">Copy failed</span> : null}
           </div>
-          <p className="mt-1 text-xs text-emerald-300">Auto-dismisses in {remainingSeconds}s.</p>
+          <p className="mt-1 text-xs text-emerald-700">Auto-dismisses in {remainingSeconds}s.</p>
         </div>
       ) : null}
 
       <div className="grid gap-2 text-xs md:grid-cols-3">
-        <div className="rounded border border-slate-700 bg-slate-900/60 px-3 py-2 text-slate-300">
-          Live environments: <span className="font-semibold text-emerald-200">{liveCount}</span>
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-900">
+          Live environments: <span className="font-semibold">{liveCount}</span>
         </div>
-        <div className="rounded border border-slate-700 bg-slate-900/60 px-3 py-2 text-slate-300">
-          In setup flow: <span className="font-semibold text-amber-200">{setupCount}</span>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+          In setup flow: <span className="font-semibold">{setupCount}</span>
         </div>
-        <div className="rounded border border-slate-700 bg-slate-900/60 px-3 py-2 text-slate-300">
-          Need intervention: <span className="font-semibold text-red-200">{failedCount}</span>
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-red-700">
+          Need intervention: <span className="font-semibold">{failedCount}</span>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-700">
+      <div className="overflow-x-auto rounded-3xl border border-amber-200/70 bg-white/90">
         <table className="min-w-full text-sm">
-          <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
+          <thead className="bg-[#fff7ed] text-left text-xs uppercase tracking-wide text-slate-600">
             <tr>
               <th className="p-2.5">Workspace</th>
               <th className="p-2.5">Package / focus</th>
@@ -227,15 +227,15 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
 
               return (
                 <Fragment key={tenant.id}>
-                  <tr className={`border-t border-slate-700/80 align-top ${rowTone(tenant.status)}`}>
+                  <tr className={`border-t border-amber-200/60 align-top ${rowTone(tenant.status)}`}>
                     <td className="space-y-1 p-2.5">
-                      <p className="font-medium text-white">{tenant.company_name}</p>
-                      <p className="text-xs text-slate-300">{tenant.subdomain}</p>
+                      <p className="font-medium text-slate-900">{tenant.company_name}</p>
+                      <p className="text-xs text-slate-500">{tenant.subdomain}</p>
                       <a
                         href={`https://${tenant.domain}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-xs text-blue-300 hover:text-blue-200"
+                        className="text-xs text-[#0d6a6a] hover:text-[#0b5a5a]"
                       >
                         {tenant.domain}
                       </a>
@@ -245,11 +245,11 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${planBadgeClass(tenant.plan)}`}>
                           {plan?.label ?? tenant.plan}
                         </span>
-                        <p className="text-xs text-slate-300">
-                          Focus: <span className="text-slate-100">{tenant.chosen_app || "auto"}</span>
+                        <p className="text-xs text-slate-500">
+                          Focus: <span className="text-slate-900">{tenant.chosen_app || "auto"}</span>
                         </p>
                         {tenant.payment_provider ? (
-                          <p className="text-xs text-slate-400">Provider: {tenant.payment_provider}</p>
+                          <p className="text-xs text-slate-500">Provider: {tenant.payment_provider}</p>
                         ) : null}
                       </div>
                     </td>
@@ -257,21 +257,21 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(tenant.status)}`}>
                         {tenant.status}
                       </span>
-                      <p className="mt-1 text-xs text-slate-400">{statusHint(tenant.status)}</p>
+                      <p className="mt-1 text-xs text-slate-500">{statusHint(tenant.status)}</p>
                       {job ? <p className="mt-1 text-xs text-slate-500">Job: {job.status}</p> : null}
                     </td>
-                    <td className="p-2.5 text-xs text-slate-300">{getBillingLabel(tenant)}</td>
-                    <td className="p-2.5 text-xs text-slate-300">{formatDate(tenant.created_at)}</td>
+                    <td className="p-2.5 text-xs text-slate-600">{getBillingLabel(tenant)}</td>
+                    <td className="p-2.5 text-xs text-slate-600">{formatDate(tenant.created_at)}</td>
                     <td className="p-2.5">
                       <div className="flex flex-wrap gap-1.5">
                         <a
                           href={`/tenants/${tenant.id}`}
-                          className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+                          className="rounded-full border border-amber-200 px-2 py-1 text-xs text-slate-700 hover:border-amber-300"
                         >
                           Details
                         </a>
                         <button
-                          className="rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="rounded-full bg-slate-900 px-2 py-1 text-xs text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                           disabled={busyTenantId === tenant.id}
                           onClick={async () => {
                             setBusyTenantId(tenant.id);
@@ -285,7 +285,7 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
                           Backup now
                         </button>
                         <button
-                          className="rounded bg-amber-700 px-2 py-1 text-xs hover:bg-amber-600"
+                          className="rounded-full bg-amber-500 px-2 py-1 text-xs text-white hover:bg-amber-400"
                           onClick={() => {
                             setConfirmAction({ type: "reset", tenant, phrase: confirmationPhrase });
                             setConfirmInput("");
@@ -296,7 +296,7 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
                           Reset admin login
                         </button>
                         <button
-                          className="rounded bg-red-700 px-2 py-1 text-xs hover:bg-red-600"
+                          className="rounded-full bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-500"
                           onClick={() => {
                             setConfirmAction({ type: "delete", tenant, phrase: confirmationPhrase });
                             setConfirmInput("");
@@ -307,7 +307,7 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
                         </button>
                         {job ? (
                           <button
-                            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+                            className="rounded-full border border-amber-200 px-2 py-1 text-xs text-slate-700 hover:border-amber-300"
                             onClick={() => setExpandedTenantId((current) => (current === tenant.id ? null : tenant.id))}
                           >
                             {expandedTenantId === tenant.id ? "Hide logs" : "Show logs"}
@@ -318,7 +318,7 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
                   </tr>
 
                   {job && expandedTenantId === tenant.id ? (
-                    <tr className="border-t border-slate-700/80 bg-slate-900/30">
+                    <tr className="border-t border-amber-200/60 bg-[#fffaf4]">
                       <td className="p-3" colSpan={6}>
                         <JobLogPanel
                           jobId={job.id}
@@ -339,19 +339,19 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
       </div>
 
       {confirmAction ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md space-y-3 rounded border border-slate-700 bg-slate-900 p-4 text-sm">
-            <h3 className="text-base font-semibold">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md space-y-3 rounded-2xl border border-amber-200 bg-white p-4 text-sm">
+            <h3 className="text-base font-semibold text-slate-900">
               {confirmAction.type === "delete" ? "Confirm workspace deletion" : "Confirm admin password reset"}
             </h3>
-            <p className="text-slate-300">
+            <p className="text-slate-600">
               Tenant: <strong>{confirmAction.tenant.company_name}</strong>
             </p>
-            <p className="text-slate-300">
-              Type <code className="rounded bg-black/40 px-1">{confirmAction.phrase}</code> to continue.
+            <p className="text-slate-600">
+              Type <code className="rounded bg-black/10 px-1">{confirmAction.phrase}</code> to continue.
             </p>
             <input
-              className="w-full rounded border border-slate-600 bg-slate-950 p-2"
+              className="w-full rounded-xl border border-amber-200 bg-white p-2"
               value={confirmInput}
               onChange={(event) => setConfirmInput(event.target.value.toUpperCase())}
               placeholder="Type confirmation text"
@@ -359,19 +359,23 @@ export function TenantTable({ tenants, jobsByTenant, onBackup, onDelete, onReset
             {confirmAction.type === "reset" ? (
               <input
                 type="password"
-                className="w-full rounded border border-slate-600 bg-slate-950 p-2"
+                className="w-full rounded-xl border border-amber-200 bg-white p-2"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
                 placeholder="Optional: set a specific new password"
               />
             ) : null}
-            {confirmError ? <p className="text-red-400">{confirmError}</p> : null}
+            {confirmError ? <p className="text-red-600">{confirmError}</p> : null}
             <div className="flex justify-end gap-2">
-              <button className="rounded border border-slate-600 px-3 py-1.5" disabled={isSubmitting} onClick={closeConfirm}>
+              <button
+                className="rounded-full border border-amber-200 px-3 py-1.5 text-slate-700"
+                disabled={isSubmitting}
+                onClick={closeConfirm}
+              >
                 Cancel
               </button>
               <button
-                className="rounded bg-red-700 px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full bg-red-600 px-3 py-1.5 text-white disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isSubmitting || confirmInput !== confirmAction.phrase}
                 onClick={() => {
                   void handleConfirm();

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -68,12 +69,22 @@ def list_all_tenants_paginated(
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=50, ge=1, le=200),
     status_filter: str | None = Query(default=None, alias="status"),
+    search: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ) -> PaginatedTenantResponse:
     query = db.query(Tenant)
     if status_filter:
         query = query.filter(Tenant.status == status_filter)
+    if search:
+        term = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                Tenant.company_name.ilike(term),
+                Tenant.subdomain.ilike(term),
+                Tenant.domain.ilike(term),
+            )
+        )
     total = query.count()
     tenants = (
         query.order_by(Tenant.created_at.desc())

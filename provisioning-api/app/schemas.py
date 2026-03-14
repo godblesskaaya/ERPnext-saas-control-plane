@@ -10,6 +10,10 @@ class MessageResponse(BaseModel):
     message: str = Field(description="Human-readable status message.", examples=["processed"])
 
 
+class BillingPortalResponse(BaseModel):
+    url: str = Field(description="Billing portal URL for self-service subscription management.")
+
+
 class DeadLetterJobOut(BaseModel):
     id: str
     func_name: str

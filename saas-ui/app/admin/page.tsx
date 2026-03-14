@@ -58,6 +58,8 @@ export default function AdminPage() {
   const [tenantLimit] = useState(50);
   const [tenantTotal, setTenantTotal] = useState(0);
   const [requeueJobId, setRequeueJobId] = useState<string | null>(null);
+  const [tenantSearch, setTenantSearch] = useState("");
+  const [tenantStatusFilter, setTenantStatusFilter] = useState("all");
 
   const [deadLetters, setDeadLetters] = useState<DeadLetterJob[]>([]);
   const [deadLetterSupported, setDeadLetterSupported] = useState(true);
@@ -78,7 +80,12 @@ export default function AdminPage() {
 
   const loadTenants = useCallback(async () => {
     try {
-      const paged = await api.listAllTenantsPaged(tenantPage, tenantLimit);
+      const paged = await api.listAllTenantsPaged(
+        tenantPage,
+        tenantLimit,
+        tenantStatusFilter === "all" ? undefined : tenantStatusFilter,
+        tenantSearch.trim()
+      );
       if (paged.supported) {
         setTenants(paged.data.data);
         setTenantTotal(paged.data.total);
@@ -92,7 +99,7 @@ export default function AdminPage() {
       setTenantsError(getApiErrorMessage(err, "Failed to load admin tenants"));
       setTenants([]);
     }
-  }, [tenantLimit, tenantPage]);
+  }, [tenantLimit, tenantPage, tenantSearch, tenantStatusFilter]);
 
   const loadDeadLetters = useCallback(async () => {
     try {
@@ -166,6 +173,10 @@ export default function AdminPage() {
     void loadJobs();
     void loadAuditLog();
   }, [loadAuditLog, loadDeadLetters, loadJobs, loadTenants]);
+
+  useEffect(() => {
+    setTenantPage(1);
+  }, [tenantSearch, tenantStatusFilter]);
 
   const suspendedCount = useMemo(
     () => tenants.filter((tenant) => tenant.status.toLowerCase() === "suspended").length,
@@ -375,6 +386,28 @@ export default function AdminPage() {
         </div>
 
         {tenantsError ? <p className="mb-2 text-sm text-red-400">{tenantsError}</p> : null}
+
+        <div className="mb-3 grid gap-2 md:grid-cols-[1.4fr_1fr]">
+          <input
+            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+            placeholder="Search by company, subdomain, or domain"
+            value={tenantSearch}
+            onChange={(event) => setTenantSearch(event.target.value)}
+          />
+          <select
+            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+            value={tenantStatusFilter}
+            onChange={(event) => setTenantStatusFilter(event.target.value)}
+          >
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="pending_payment">Pending payment</option>
+            <option value="pending">Pending</option>
+            <option value="provisioning">Provisioning</option>
+            <option value="failed">Failed</option>
+            <option value="suspended">Suspended</option>
+          </select>
+        </div>
 
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">

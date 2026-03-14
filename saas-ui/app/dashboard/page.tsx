@@ -42,6 +42,10 @@ export default function DashboardPage() {
   const [limit] = useState(20);
   const [total, setTotal] = useState(0);
   const [retryingTenantId, setRetryingTenantId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [billingPortalUrl, setBillingPortalUrl] = useState<string | null>(null);
+  const [billingPortalError, setBillingPortalError] = useState<string | null>(null);
 
   const handleError = useCallback(
     (err: unknown, fallback: string) => {
@@ -58,7 +62,7 @@ export default function DashboardPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const paged = await api.listTenantsPaged(page, limit);
+      const paged = await api.listTenantsPaged(page, limit, statusFilter === "all" ? undefined : statusFilter, search.trim());
       let nextTenants: Tenant[] = [];
       if (paged.supported) {
         nextTenants = paged.data.data;
@@ -86,7 +90,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [handleError, limit, page]);
+  }, [handleError, limit, page, search, statusFilter]);
 
   const loadCurrentUser = useCallback(async () => {
     try {
@@ -104,6 +108,10 @@ export default function DashboardPage() {
     void load();
     void loadCurrentUser();
   }, [load, loadCurrentUser]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter]);
 
   useEffect(() => {
     if (searchParams.get("verifyEmail") === "1") {
@@ -179,6 +187,21 @@ export default function DashboardPage() {
 
   const canCreateTenants = !currentUser || currentUser.email_verified;
   const totalPages = Math.max(1, Math.ceil(total / limit));
+  const failedBillingTenants = tenants.filter((tenant) => tenant.billing_status?.toLowerCase() === "failed").length;
+
+  const loadBillingPortal = async () => {
+    setBillingPortalError(null);
+    try {
+      const result = await api.getBillingPortal();
+      if (!result.supported) {
+        setBillingPortalError("Billing portal is not available on this backend.");
+        return;
+      }
+      setBillingPortalUrl(result.data.url);
+    } catch (err) {
+      setBillingPortalError(getApiErrorMessage(err, "Unable to open billing portal."));
+    }
+  };
 
   return (
     <section className="space-y-8">
@@ -283,6 +306,62 @@ export default function DashboardPage() {
         {metricCard("Healthy", activeTenants, "Ready for daily sales, stock, and finance activity", "good")}
         {metricCard("In setup", provisioningTenants, "Still being provisioned or awaiting payment checks", "warn")}
         {metricCard("Needs rescue", failedTenants, "Provisioning failed and requires operator action", failedTenants > 0 ? "warn" : "default")}
+      </div>
+
+      {failedBillingTenants > 0 ? (
+        <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <p className="font-semibold">Payment issue detected</p>
+          <p className="mt-1">
+            {failedBillingTenants} workspace(s) have failed payments. Ask the owner to update billing details.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              className="rounded-full border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-800 hover:border-red-400"
+              onClick={() => void loadBillingPortal()}
+            >
+              Open billing portal
+            </button>
+            {billingPortalUrl ? (
+              <a
+                href={billingPortalUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500"
+              >
+                Continue in portal
+              </a>
+            ) : null}
+          </div>
+          {billingPortalError ? <p className="mt-2 text-xs text-red-700">{billingPortalError}</p> : null}
+        </div>
+      ) : null}
+
+      <div className="grid gap-3 md:grid-cols-[1.4fr_1fr]">
+        <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Filter workspaces</p>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <input
+              className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900"
+              placeholder="Search by company, subdomain, or domain"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            <select
+              className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900"
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+            >
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="pending_payment">Pending payment</option>
+              <option value="pending">Pending</option>
+              <option value="provisioning">Provisioning</option>
+              <option value="failed">Failed</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </div>
+        </div>
+        <div />
       </div>
 
       <TenantCreateForm

@@ -2,6 +2,7 @@ import { clearToken, getToken } from "./auth";
 import type {
   AuditLogEntry,
   BackupManifestEntry,
+  BillingPortalResponse,
   DeadLetterJob,
   Job,
   MessageResponse,
@@ -318,9 +319,10 @@ export const api = {
 
   listTenants: () => request<Tenant[]>("/tenants"),
 
-  listTenantsPaged: (page = 1, limit = 20, status?: string) => {
+  listTenantsPaged: (page = 1, limit = 20, status?: string, search?: string) => {
     const query = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (status) query.set("status", status);
+    if (search) query.set("search", search);
     return requestOptionalEndpoint<PaginatedResult<Tenant>>(`/tenants/paged?${query.toString()}`);
   },
 
@@ -348,9 +350,10 @@ export const api = {
 
   listAllTenants: () => request<Tenant[]>("/admin/tenants"),
 
-  listAllTenantsPaged: (page = 1, limit = 50, status?: string) => {
+  listAllTenantsPaged: (page = 1, limit = 50, status?: string, search?: string) => {
     const query = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (status) query.set("status", status);
+    if (search) query.set("search", search);
     return requestOptionalEndpoint<PaginatedResult<Tenant>>(`/admin/tenants/paged?${query.toString()}`);
   },
 
@@ -375,4 +378,6 @@ export const api = {
 
   listAuditLog: (page = 1, limit = 50) =>
     requestOptionalEndpoint<PaginatedResult<AuditLogEntry>>(`/admin/audit-log?page=${page}&limit=${limit}`),
+
+  getBillingPortal: () => requestOptionalEndpoint<BillingPortalResponse>("/billing/portal"),
 };

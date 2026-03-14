@@ -4,6 +4,7 @@ import json
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.bench.validators import ValidationError, domain_from_subdomain, validate_subdomain
@@ -188,6 +189,7 @@ def list_tenants_paginated(
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=200),
     status_filter: str | None = Query(default=None, alias="status"),
+    search: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> PaginatedTenantResponse:
@@ -197,6 +199,15 @@ def list_tenants_paginated(
         query = query.filter(Tenant.owner_id == current_user.id)
     if status_filter:
         query = query.filter(Tenant.status == status_filter)
+    if search:
+        term = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                Tenant.company_name.ilike(term),
+                Tenant.subdomain.ilike(term),
+                Tenant.domain.ilike(term),
+            )
+        )
     total = query.count()
     tenants = (
         query.order_by(Tenant.created_at.desc())

@@ -136,6 +136,10 @@ export type MessageResponse = {
   message: string;
 };
 
+export type BillingPortalResponse = {
+  url: string;
+};
+
 export type OptionalEndpointResult<T> =
   | { supported: true; data: T }
   | { supported: false; data: null };

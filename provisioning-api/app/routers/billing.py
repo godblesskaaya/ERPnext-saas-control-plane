@@ -5,19 +5,23 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
+from app.deps import get_current_user
 from app.models import Tenant, User
-from app.schemas import MessageResponse
+from app.schemas import BillingPortalResponse, MessageResponse
 from app.services.audit_service import record_audit_event
 from app.services.notifications import notification_service
 from app.services.payment.factory import get_payment_gateway
+from app.services.payment.stripe_gateway import StripeGateway
 from app.services.tenant_service import enqueue_provisioning_for_paid_tenant
 from app.services.tenant_state import InvalidTenantStatusTransition, transition_tenant_status
+from app.rate_limits import authenticated_default_rate_limit
 
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
 BAD_REQUEST_400_RESPONSE = {"description": "Bad request: provider mismatch or invalid provider route."}
 INTERNAL_500_RESPONSE = {"description": "Internal processing error while parsing or handling webhook event."}
+NOT_IMPLEMENTED_501_RESPONSE = {"description": "Billing portal is not supported for the active provider."}
 
 BILLING_WEBHOOK_REQUEST_BODY = {
     "content": {
@@ -186,6 +190,54 @@ def _process_event(
         return MessageResponse(message="processed:subscription.cancelled")
 
     return MessageResponse(message="ignored")
+
+
+@router.get(
+    "/portal",
+    response_model=BillingPortalResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_400_BAD_REQUEST: {"description": "Billing portal cannot be created for this user."},
+        status.HTTP_401_UNAUTHORIZED: {"description": "Unauthorized."},
+        status.HTTP_501_NOT_IMPLEMENTED: NOT_IMPLEMENTED_501_RESPONSE,
+    },
+)
+def create_billing_portal(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BillingPortalResponse:
+    gateway = get_payment_gateway()
+    settings = get_settings()
+
+    if gateway.provider_name != "stripe":
+        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Billing portal not supported for provider")
+
+    stripe_gateway = StripeGateway()
+    if stripe_gateway.mock_mode:
+        return BillingPortalResponse(url="https://mock-billing.local/portal")
+
+    stripe = stripe_gateway._import_stripe()
+    if stripe is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Stripe SDK not available")
+
+    if not current_user.stripe_customer_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No billing customer is associated with this account")
+
+    stripe.api_key = settings.stripe_secret_key
+    session = stripe.billing_portal.Session.create(
+        customer=current_user.stripe_customer_id,
+        return_url=settings.billing_portal_return_url,
+    )
+    record_audit_event(
+        db,
+        action="billing.portal_opened",
+        resource="users",
+        actor=current_user,
+        resource_id=current_user.id,
+        request=request,
+    )
+    return BillingPortalResponse(url=session["url"])
 
 
 @router.post(

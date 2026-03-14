@@ -80,6 +80,7 @@ class Settings(BaseSettings):
     dpo_api_url: str = "https://secure.3gdirectpay.com/API/v6/"
     billing_checkout_success_url: str = "http://localhost:3000/onboarding?payment=success"
     billing_checkout_cancel_url: str = "http://localhost:3000/onboarding?payment=cancelled"
+    billing_portal_return_url: str = "http://localhost:3000/dashboard?billing=return"
 
     sentry_dsn: str = ""
     sentry_traces_sample_rate: float = 0.2

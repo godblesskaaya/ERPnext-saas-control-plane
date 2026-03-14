@@ -4,7 +4,7 @@ from datetime import datetime
 
 from app.db import SessionLocal
 from app.logging_config import get_logger
-from app.services.backup_service import cleanup_expired_backups
+from app.domains.tenants.backup_service import cleanup_expired_backups
 
 
 log = get_logger(__name__)

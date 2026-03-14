@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 
 from app.models import BackupManifest, Job, Tenant, User
-from app.services import backup_service
-from app.services.backup_service import cleanup_expired_backups, parse_backup_artifact, persist_backup_manifest
+from app.domains.tenants import backup_service
+from app.domains.tenants.backup_service import cleanup_expired_backups, parse_backup_artifact, persist_backup_manifest
 
 
 @pytest.fixture(autouse=True)

@@ -52,7 +52,7 @@ def test_signup_login_refresh_and_logout_revokes_access_token(client, db_session
     assert actions == ["auth.signup", "auth.login", "auth.logout"]
 
 
-@patch("app.routers.auth.secrets.token_urlsafe", side_effect=["email-verify-token-1234567890"])
+@patch("app.domains.iam.router.secrets.token_urlsafe", side_effect=["email-verify-token-1234567890"])
 def test_verify_email_and_me_endpoint(mock_token, client):
     del mock_token
     signup = client.post("/auth/signup", json={"email": "verify@example.com", "password": "Secret123!"})
@@ -82,7 +82,7 @@ def test_verify_email_and_me_endpoint(mock_token, client):
 
 
 @patch(
-    "app.routers.auth.secrets.token_urlsafe",
+    "app.domains.iam.router.secrets.token_urlsafe",
     side_effect=["signup-verify-token-123456789", "resend-verify-token-123456789"],
 )
 def test_resend_verification_flow(mock_token, client, db_session):
@@ -124,7 +124,7 @@ def test_login_invalid_password_records_audit_log(client, db_session):
     assert actions == ["auth.signup", "auth.login_failed"]
 
 
-@patch("app.routers.auth.secrets.token_urlsafe", return_value="reset-token-for-tests")
+@patch("app.domains.iam.router.secrets.token_urlsafe", return_value="reset-token-for-tests")
 def test_forgot_and_reset_password_single_use(mock_token, client, db_session):
     del mock_token
     signup = client.post(

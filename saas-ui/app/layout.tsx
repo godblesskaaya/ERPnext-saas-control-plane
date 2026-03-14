@@ -3,9 +3,9 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { SessionManager } from "../components/SessionManager";
-import { NotificationBell } from "../components/NotificationBell";
-import { NotificationsProvider } from "../components/NotificationsProvider";
+import { NotificationBell } from "../domains/shared/components/NotificationBell";
+import { NotificationsProvider } from "../domains/shared/components/NotificationsProvider";
+import { SessionManager } from "../domains/shared/components/SessionManager";
 
 export const metadata: Metadata = {
   title: "Biashara Cloud",

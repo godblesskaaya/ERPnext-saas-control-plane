@@ -1,0 +1,785 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { JobLogPanel } from "../../../domains/shared/components/JobLogPanel";
+import { useNotifications } from "../../../domains/shared/components/NotificationsProvider";
+import { api, getApiErrorMessage } from "../../../domains/shared/lib/api";
+import type { AuditLogEntry, DeadLetterJob, Job, MetricsSummary, Tenant } from "../../../domains/shared/lib/types";
+
+function statusBadgeClass(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "active") return "bg-emerald-500/20 text-emerald-300";
+  if (normalized === "provisioning" || normalized === "pending" || normalized === "deleting") {
+    return "bg-amber-500/20 text-amber-300";
+  }
+  if (normalized === "failed") return "bg-red-500/20 text-red-300";
+  if (normalized === "deleted") return "bg-slate-500/20 text-slate-300";
+  if (normalized === "suspended") return "bg-orange-500/20 text-orange-300";
+  return "bg-sky-500/20 text-sky-300";
+}
+
+function formatDate(value?: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
+type TenantAdminAction = {
+  type: "suspend" | "unsuspend";
+  tenant: Tenant;
+  phrase: string;
+};
+
+function metricCard(label: string, value: number, hint: string, tone: "default" | "good" | "warn" = "default") {
+  const toneClass =
+    tone === "good"
+      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+      : tone === "warn"
+      ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
+      : "border-slate-700 bg-slate-900/70 text-slate-100";
+
+  return (
+    <article className={`rounded-lg border p-3 ${toneClass}`}>
+      <p className="text-xs uppercase tracking-wide opacity-80">{label}</p>
+      <p className="mt-1 text-2xl font-semibold">{value}</p>
+      <p className="mt-1 text-xs opacity-80">{hint}</p>
+    </article>
+  );
+}
+
+export default function AdminPage() {
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [tenantsError, setTenantsError] = useState<string | null>(null);
+  const [busyTenantId, setBusyTenantId] = useState<string | null>(null);
+  const [tenantAction, setTenantAction] = useState<TenantAdminAction | null>(null);
+  const [tenantActionInput, setTenantActionInput] = useState("");
+  const [tenantPage, setTenantPage] = useState(1);
+  const [tenantLimit] = useState(50);
+  const [tenantTotal, setTenantTotal] = useState(0);
+  const [requeueJobId, setRequeueJobId] = useState<string | null>(null);
+  const [tenantSearch, setTenantSearch] = useState("");
+  const [tenantStatusFilter, setTenantStatusFilter] = useState("all");
+
+  const [deadLetters, setDeadLetters] = useState<DeadLetterJob[]>([]);
+  const [deadLetterSupported, setDeadLetterSupported] = useState(true);
+  const [deadLetterError, setDeadLetterError] = useState<string | null>(null);
+
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobsSupported, setJobsSupported] = useState(true);
+  const [jobsError, setJobsError] = useState<string | null>(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [selectedJobSupported, setSelectedJobSupported] = useState(true);
+
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
+  const [auditSupported, setAuditSupported] = useState(true);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditLimit] = useState(50);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const { addNotification } = useNotifications();
+  const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
+  const [metricsSupported, setMetricsSupported] = useState(true);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const lastMetricsKey = useRef<string | null>(null);
+
+  const loadTenants = useCallback(async () => {
+    try {
+      const paged = await api.listAllTenantsPaged(
+        tenantPage,
+        tenantLimit,
+        tenantStatusFilter === "all" ? undefined : tenantStatusFilter,
+        tenantSearch.trim()
+      );
+      if (paged.supported) {
+        setTenants(paged.data.data);
+        setTenantTotal(paged.data.total);
+      } else {
+        const data = await api.listAllTenants();
+        setTenants(data);
+        setTenantTotal(data.length);
+      }
+      setTenantsError(null);
+    } catch (err) {
+      setTenantsError(getApiErrorMessage(err, "Failed to load admin tenants"));
+      setTenants([]);
+    }
+  }, [tenantLimit, tenantPage, tenantSearch, tenantStatusFilter]);
+
+  const loadDeadLetters = useCallback(async () => {
+    try {
+      const result = await api.listDeadLetterJobs();
+      if (!result.supported) {
+        setDeadLetterSupported(false);
+        setDeadLetters([]);
+        setDeadLetterError(null);
+        return;
+      }
+      setDeadLetterSupported(true);
+      setDeadLetters(result.data);
+      setDeadLetterError(null);
+    } catch (err) {
+      setDeadLetterError(getApiErrorMessage(err, "Failed to load dead-letter queue"));
+    }
+  }, []);
+
+  const loadJobs = useCallback(async () => {
+    try {
+      const result = await api.listAdminJobs(100);
+      if (!result.supported) {
+        setJobsSupported(false);
+        setJobs([]);
+        setJobsError(null);
+        return;
+      }
+      setJobsSupported(true);
+      setJobs(result.data);
+      setJobsError(null);
+    } catch (err) {
+      setJobsError(getApiErrorMessage(err, "Failed to load jobs"));
+    }
+  }, []);
+
+  const loadAuditLog = useCallback(async () => {
+    try {
+      const result = await api.listAuditLog(auditPage, auditLimit);
+      if (!result.supported) {
+        setAuditSupported(false);
+        setAuditLog([]);
+        setAuditError(null);
+        return;
+      }
+      setAuditSupported(true);
+      setAuditLog(result.data.data);
+      setAuditTotal(result.data.total);
+      setAuditError(null);
+    } catch (err) {
+      setAuditError(getApiErrorMessage(err, "Failed to load audit log"));
+    }
+  }, [auditLimit, auditPage]);
+
+  const loadMetrics = useCallback(async () => {
+    try {
+      const result = await api.getAdminMetrics();
+      if (!result.supported) {
+        setMetricsSupported(false);
+        setMetrics(null);
+        return;
+      }
+      setMetricsSupported(true);
+      setMetrics(result.data);
+      setMetricsError(null);
+
+      const key = `${result.data.failed_tenants}-${result.data.dead_letter_count}-${result.data.provisioning_tenants}`;
+      if (lastMetricsKey.current !== key) {
+        lastMetricsKey.current = key;
+        if (result.data.failed_tenants > 0) {
+          addNotification({
+            type: "warning",
+            title: "Provisioning failures detected",
+            body: `${result.data.failed_tenants} tenant(s) are in failed state.`,
+          });
+        }
+        if (result.data.dead_letter_count > 0) {
+          addNotification({
+            type: "warning",
+            title: "Dead-letter queue backlog",
+            body: `${result.data.dead_letter_count} job(s) waiting for requeue.`,
+          });
+        }
+      }
+    } catch (err) {
+      setMetricsError(getApiErrorMessage(err, "Failed to load metrics"));
+    }
+  }, [addNotification]);
+
+  const loadJobLogs = useCallback(async (jobId: string) => {
+    try {
+      const result = await api.getAdminJobLogs(jobId);
+      if (!result.supported) {
+        setSelectedJobSupported(false);
+        return;
+      }
+      setSelectedJobSupported(true);
+      setSelectedJob(result.data);
+    } catch (err) {
+      setJobsError(getApiErrorMessage(err, "Failed to load job logs"));
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadTenants();
+    void loadDeadLetters();
+    void loadJobs();
+    void loadAuditLog();
+    void loadMetrics();
+  }, [loadAuditLog, loadDeadLetters, loadJobs, loadMetrics, loadTenants]);
+
+  useEffect(() => {
+    setTenantPage(1);
+  }, [tenantSearch, tenantStatusFilter]);
+
+  const suspendedCount = useMemo(
+    () => tenants.filter((tenant) => tenant.status.toLowerCase() === "suspended").length,
+    [tenants]
+  );
+  const provisioningCount = useMemo(
+    () => tenants.filter((tenant) => ["pending", "pending_payment", "provisioning"].includes(tenant.status.toLowerCase())).length,
+    [tenants]
+  );
+  const failedCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "failed").length, [tenants]);
+  const activeCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "active").length, [tenants]);
+
+  const tenantTotalPages = Math.max(1, Math.ceil(tenantTotal / tenantLimit));
+  const auditTotalPages = Math.max(1, Math.ceil(auditTotal / auditLimit));
+
+  const requeueDeadLetter = async (jobId: string) => {
+    setRequeueJobId(jobId);
+    try {
+      const result = await api.requeueDeadLetterJob(jobId);
+      if (!result.supported) {
+        setDeadLetterError("Requeue endpoint is not available on this backend.");
+        return;
+      }
+      await loadDeadLetters();
+      setDeadLetterError(null);
+      addNotification({
+        type: "success",
+        title: "Dead-letter requeued",
+        body: `Job ${jobId.slice(0, 8)} queued for retry.`,
+      });
+    } catch (err) {
+      setDeadLetterError(getApiErrorMessage(err, "Failed to requeue dead-letter job"));
+    } finally {
+      setRequeueJobId(null);
+    }
+  };
+
+  const submitTenantAction = async () => {
+    if (!tenantAction) return;
+    if (tenantActionInput !== tenantAction.phrase) {
+      setTenantsError("Confirmation phrase does not match.");
+      return;
+    }
+
+    setBusyTenantId(tenantAction.tenant.id);
+    setTenantsError(null);
+    try {
+      if (tenantAction.type === "suspend") {
+        const result = await api.suspendTenant(tenantAction.tenant.id);
+        if (!result.supported) {
+          setTenantsError("Suspend endpoint is not available on this backend.");
+          return;
+        }
+      } else {
+        const result = await api.unsuspendTenant(tenantAction.tenant.id);
+        if (!result.supported) {
+          setTenantsError("Unsuspend endpoint is not available on this backend.");
+          return;
+        }
+      }
+      await loadTenants();
+      setTenantAction(null);
+      setTenantActionInput("");
+    } catch (err) {
+      setTenantsError(
+        getApiErrorMessage(err, tenantAction.type === "suspend" ? "Failed to suspend tenant" : "Failed to unsuspend tenant")
+      );
+    } finally {
+      setBusyTenantId(null);
+    }
+  };
+
+  return (
+    <section className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold">Admin Control Center</h1>
+          <p className="text-sm text-slate-300">
+            Keep tenant reliability high with fast attention routing for setup delays, failures, and governance tasks.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button className="rounded border border-slate-600 px-3 py-1.5 text-xs hover:bg-slate-800" onClick={() => void loadTenants()}>
+            Refresh tenants
+          </button>
+          <button className="rounded border border-slate-600 px-3 py-1.5 text-xs hover:bg-slate-800" onClick={() => void loadJobs()}>
+            Refresh jobs
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-700 bg-slate-900/50 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-medium text-white">Attention lane</p>
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs ${
+              failedCount || suspendedCount || deadLetters.length ? "bg-amber-500/20 text-amber-200" : "bg-emerald-500/20 text-emerald-200"
+            }`}
+          >
+            {failedCount || suspendedCount || deadLetters.length ? "Intervention recommended" : "Platform healthy"}
+          </span>
+        </div>
+        <div className="mt-3 grid gap-2 text-xs md:grid-cols-4">
+          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
+            Active tenants: <span className="font-semibold text-emerald-200">{activeCount}</span>
+          </p>
+          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
+            Setup queue: <span className="font-semibold text-amber-200">{provisioningCount}</span>
+          </p>
+          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
+            Failed: <span className="font-semibold text-red-200">{failedCount}</span>
+          </p>
+          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
+            Dead letters: <span className="font-semibold text-orange-200">{deadLetters.length}</span>
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-700 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Platform metrics</h2>
+          <button
+            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            onClick={() => {
+              void loadMetrics();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {!metricsSupported ? (
+          <p className="text-sm text-slate-300">Metrics endpoint is not available on this backend.</p>
+        ) : metricsError ? (
+          <p className="text-sm text-red-400">{metricsError}</p>
+        ) : metrics ? (
+          <div className="grid gap-3 md:grid-cols-3">
+            {metricCard("Total tenants", metrics.total_tenants, "All customer environments")}
+            {metricCard("Active tenants", metrics.active_tenants, "Currently operational", "good")}
+            {metricCard("Provisioning queue", metrics.provisioning_tenants, "Pending + provisioning", "warn")}
+            {metricCard("Pending payment", metrics.pending_payment_tenants, "Awaiting payment confirmation", "warn")}
+            {metricCard("Failed tenants", metrics.failed_tenants, "Needs operator action", metrics.failed_tenants ? "warn" : "default")}
+            {metricCard("Dead-letter jobs", metrics.dead_letter_count, "Recovery queue depth", metrics.dead_letter_count ? "warn" : "default")}
+            {metricCard("Jobs 24h", metrics.jobs_last_24h, "Activity in the last 24h")}
+            {metricCard(
+              "Provisioning success (7d)",
+              metrics.provisioning_success_rate_7d,
+              "Percent succeeded",
+              metrics.provisioning_success_rate_7d < 95 ? "warn" : "good"
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-300">Loading metrics...</p>
+        )}
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-4">
+        {metricCard("Total tenants", tenantTotal, "All managed customer environments")}
+        {metricCard("Suspended", suspendedCount, "Access paused pending review", suspendedCount ? "warn" : "default")}
+        {metricCard("Provisioning", provisioningCount, "Still onboarding or awaiting payment", provisioningCount ? "warn" : "default")}
+        {metricCard("Failed", failedCount, "Requires immediate operator follow-up", failedCount ? "warn" : "good")}
+      </div>
+
+      <div className="rounded-xl border border-slate-700 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Execution monitor</h2>
+          <button
+            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            onClick={() => {
+              void loadJobs();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {!jobsSupported ? (
+          <p className="text-sm text-slate-300">Admin jobs endpoint is not available on this backend.</p>
+        ) : jobsError ? (
+          <p className="text-sm text-red-400">{jobsError}</p>
+        ) : jobs.length ? (
+          <div className="space-y-3">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
+                  <tr>
+                    <th className="p-2">Job ID</th>
+                    <th className="p-2">Tenant ID</th>
+                    <th className="p-2">Flow</th>
+                    <th className="p-2">Health</th>
+                    <th className="p-2">Created</th>
+                    <th className="p-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {jobs.map((job) => (
+                    <tr key={job.id} className="border-t border-slate-700">
+                      <td className="p-2 font-mono text-xs">{job.id}</td>
+                      <td className="p-2 font-mono text-xs">{job.tenant_id}</td>
+                      <td className="p-2 text-xs">{job.type}</td>
+                      <td className="p-2 text-xs">{job.status}</td>
+                      <td className="p-2 text-xs text-slate-300">{formatDate(job.created_at)}</td>
+                      <td className="p-2 text-right">
+                        <button
+                          className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+                          onClick={() => {
+                            void loadJobLogs(job.id);
+                          }}
+                        >
+                          Inspect logs
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {selectedJob ? (
+              <div className="space-y-2">
+                <p className="text-xs text-slate-300">
+                  Showing logs for job <span className="font-mono">{selectedJob.id}</span>
+                </p>
+                {selectedJobSupported ? (
+                  <JobLogPanel jobId={selectedJob.id} logs={selectedJob.logs} status={selectedJob.status} />
+                ) : (
+                  <pre className="max-h-72 overflow-auto rounded border border-slate-700 bg-slate-950 p-3 text-xs">
+                    {selectedJob.logs || "No logs available."}
+                  </pre>
+                )}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-300">No jobs found. Trigger provisioning or maintenance actions to populate this feed.</p>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-slate-700 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Tenant intervention panel</h2>
+          <button
+            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            onClick={() => {
+              void loadTenants();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {tenantsError ? <p className="mb-2 text-sm text-red-400">{tenantsError}</p> : null}
+
+        <div className="mb-3 grid gap-2 md:grid-cols-[1.4fr_1fr]">
+          <input
+            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+            placeholder="Search by company, subdomain, or domain"
+            value={tenantSearch}
+            onChange={(event) => setTenantSearch(event.target.value)}
+          />
+          <select
+            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+            value={tenantStatusFilter}
+            onChange={(event) => setTenantStatusFilter(event.target.value)}
+          >
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="pending_payment">Pending payment</option>
+            <option value="pending">Pending</option>
+            <option value="provisioning">Provisioning</option>
+            <option value="failed">Failed</option>
+            <option value="suspended">Suspended</option>
+          </select>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
+              <tr>
+                <th className="p-2">Company</th>
+                <th className="p-2">Plan/focus</th>
+                <th className="p-2">Health</th>
+                <th className="p-2">Provider</th>
+                <th className="p-2">Created</th>
+                <th className="p-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tenants.map((tenant) => (
+                <tr key={tenant.id} className="border-t border-slate-700/80">
+                  <td className="space-y-1 p-2">
+                    <p className="font-medium text-white">{tenant.company_name}</p>
+                    <p className="text-xs text-slate-300">{tenant.domain}</p>
+                    <p className="font-mono text-[11px] text-slate-500">{tenant.id}</p>
+                  </td>
+                  <td className="p-2 text-xs text-slate-200">
+                    <p>{tenant.plan}</p>
+                    <p className="text-slate-400">{tenant.chosen_app || "auto"}</p>
+                  </td>
+                  <td className="p-2">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(tenant.status)}`}>
+                      {tenant.status}
+                    </span>
+                  </td>
+                  <td className="p-2 text-xs text-slate-300">{tenant.payment_provider || "n/a"}</td>
+                  <td className="p-2 text-xs text-slate-300">{formatDate(tenant.created_at)}</td>
+                  <td className="p-2">
+                    <div className="flex flex-wrap gap-2">
+                      <a href={`/tenants/${tenant.id}`} className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800">
+                        Details
+                      </a>
+                      {tenant.status.toLowerCase() === "suspended" ? (
+                        <button
+                          type="button"
+                          disabled={busyTenantId === tenant.id}
+                          className="rounded bg-emerald-700 px-2 py-1 text-xs hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() => {
+                            setTenantAction({
+                              type: "unsuspend",
+                              tenant,
+                              phrase: tenant.subdomain.toUpperCase(),
+                            });
+                            setTenantActionInput("");
+                            setTenantsError(null);
+                          }}
+                        >
+                          {busyTenantId === tenant.id ? "Reactivating..." : "Unsuspend"}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busyTenantId === tenant.id}
+                          className="rounded bg-amber-700 px-2 py-1 text-xs hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() => {
+                            setTenantAction({
+                              type: "suspend",
+                              tenant,
+                              phrase: tenant.subdomain.toUpperCase(),
+                            });
+                            setTenantActionInput("");
+                            setTenantsError(null);
+                          }}
+                        >
+                          {busyTenantId === tenant.id ? "Suspending..." : "Suspend"}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {!tenants.length && !tenantsError ? <p className="mt-3 text-sm text-slate-300">No tenants found.</p> : null}
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+          <span>
+            Page {tenantPage} of {tenantTotalPages} • {tenantTotal} tenants
+          </span>
+          <div className="flex gap-2">
+            <button
+              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+              disabled={tenantPage <= 1}
+              onClick={() => setTenantPage((prev) => Math.max(1, prev - 1))}
+            >
+              Previous
+            </button>
+            <button
+              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+              disabled={tenantPage >= tenantTotalPages}
+              onClick={() => setTenantPage((prev) => Math.min(tenantTotalPages, prev + 1))}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-700 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Admin audit log</h2>
+          <button
+            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            onClick={() => {
+              void loadAuditLog();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {!auditSupported ? (
+          <p className="text-sm text-slate-300">Audit log endpoint is not available on this backend.</p>
+        ) : auditError ? (
+          <p className="text-sm text-red-400">{auditError}</p>
+        ) : auditLog.length ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
+                <tr>
+                  <th className="p-2">Time</th>
+                  <th className="p-2">Actor</th>
+                  <th className="p-2">Action</th>
+                  <th className="p-2">Resource</th>
+                  <th className="p-2">IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLog.map((entry) => (
+                  <tr key={entry.id} className="border-t border-slate-700">
+                    <td className="p-2 text-xs text-slate-300">{formatDate(entry.created_at)}</td>
+                    <td className="p-2 text-xs text-slate-300">
+                      {entry.actor_email || entry.actor_id || entry.actor_role}
+                    </td>
+                    <td className="p-2 text-xs">{entry.action}</td>
+                    <td className="p-2 text-xs text-slate-300">
+                      {entry.resource}
+                      {entry.resource_id ? ` (${entry.resource_id.slice(0, 6)}...)` : ""}
+                    </td>
+                    <td className="p-2 text-xs text-slate-400">{entry.ip_address || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-300">No audit entries yet.</p>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+          <span>
+            Page {auditPage} of {auditTotalPages} • {auditTotal} events
+          </span>
+          <div className="flex gap-2">
+            <button
+              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+              disabled={auditPage <= 1}
+              onClick={() => setAuditPage((prev) => Math.max(1, prev - 1))}
+            >
+              Previous
+            </button>
+            <button
+              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+              disabled={auditPage >= auditTotalPages}
+              onClick={() => setAuditPage((prev) => Math.min(auditTotalPages, prev + 1))}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-700 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Recovery queue (dead-letter)</h2>
+          <button
+            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            onClick={() => {
+              void loadDeadLetters();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {!deadLetterSupported ? (
+          <p className="text-sm text-slate-300">Dead-letter endpoint is not available on this backend.</p>
+        ) : deadLetterError ? (
+          <p className="text-sm text-red-400">{deadLetterError}</p>
+        ) : deadLetters.length ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
+                <tr>
+                  <th className="p-2">ID</th>
+                  <th className="p-2">Worker function</th>
+                  <th className="p-2">Queued</th>
+                  <th className="p-2">Args</th>
+                  <th className="p-2">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deadLetters.map((job) => (
+                  <tr key={job.id} className="border-t border-slate-700">
+                    <td className="p-2 font-mono text-xs">{job.id}</td>
+                    <td className="p-2 text-xs">{job.func_name}</td>
+                    <td className="p-2 text-xs text-slate-300">{formatDate(job.enqueued_at)}</td>
+                    <td className="p-2 text-xs text-slate-300">
+                      <code>{JSON.stringify(job.args).slice(0, 120)}</code>
+                    </td>
+                    <td className="p-2 text-xs">
+                      <button
+                        className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+                        disabled={requeueJobId === job.id}
+                        onClick={() => {
+                          void requeueDeadLetter(job.id);
+                        }}
+                      >
+                        {requeueJobId === job.id ? "Requeueing..." : "Requeue"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-300">No dead-letter jobs.</p>
+        )}
+      </div>
+
+      {tenantAction ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-white">
+              {tenantAction.type === "suspend" ? "Suspend tenant" : "Unsuspend tenant"}
+            </h3>
+            <p className="mt-2 text-sm text-slate-300">
+              To confirm, type <span className="font-mono text-sky-200">{tenantAction.phrase}</span>.
+            </p>
+            <p className="mt-1 text-xs text-slate-400">{tenantAction.tenant.company_name}</p>
+
+            <input
+              className="mt-4 w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+              value={tenantActionInput}
+              onChange={(event) => setTenantActionInput(event.target.value)}
+              placeholder={tenantAction.phrase}
+            />
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded border border-slate-600 px-3 py-1.5 text-xs hover:bg-slate-800"
+                onClick={() => {
+                  setTenantAction(null);
+                  setTenantActionInput("");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-500 disabled:opacity-60"
+                disabled={busyTenantId === tenantAction.tenant.id || tenantActionInput !== tenantAction.phrase}
+                onClick={() => {
+                  void submitTenantAction();
+                }}
+              >
+                {busyTenantId === tenantAction.tenant.id
+                  ? tenantAction.type === "suspend"
+                    ? "Suspending..."
+                    : "Reactivating..."
+                  : tenantAction.type === "suspend"
+                    ? "Confirm suspend"
+                    : "Confirm unsuspend"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}

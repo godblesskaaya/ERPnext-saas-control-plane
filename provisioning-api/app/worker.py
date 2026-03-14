@@ -1,6 +1,6 @@
 from rq import Worker
 
-from app.observability import init_sentry
+from app.domains.observability import init_sentry
 from app.queue.redis import get_redis_connection
 from app.workers.dlq import on_job_failure
 

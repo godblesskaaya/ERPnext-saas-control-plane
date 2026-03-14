@@ -40,7 +40,7 @@ class FakeRedis:
         return FakePubSub()
 
 
-@patch("app.routers.ws.get_redis_connection", return_value=FakeRedis())
+@patch("app.domains.support.ws_router.get_redis_connection", return_value=FakeRedis())
 def test_ws_job_stream_for_authorized_user(_, client, db_session):
     user = User(email="ws@example.com", password_hash="hash", role="user")
     db_session.add(user)

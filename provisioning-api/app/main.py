@@ -16,10 +16,13 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.middleware.security import SecurityHeadersMiddleware
-from app.observability import init_metrics, init_sentry
+from app.domains.billing import router as billing_router
+from app.domains.iam import router as auth_router
+from app.domains.observability import init_metrics, init_sentry
+from app.domains.support import admin_router, jobs_router, ws_router
+from app.domains.tenants import router as tenants_router
 from app.queue.redis import get_redis_connection
 from app.rate_limits import limiter
-from app.routers import admin, auth, billing, jobs, tenants, ws
 
 
 settings = get_settings()
@@ -43,6 +46,7 @@ app.add_middleware(
 )
 APP_ROOT = Path(__file__).resolve().parents[1]
 init_metrics(app, enabled=settings.metrics_enabled)
+API_PREFIX = f"/{settings.api_prefix.strip('/')}" if settings.api_prefix.strip("/") else ""
 
 
 def _detect_legacy_schema_revision(database_url: str) -> str | None:
@@ -128,9 +132,9 @@ def health(db: Session = Depends(get_db), redis: Redis = Depends(get_redis_conne
     )
 
 
-app.include_router(auth.router)
-app.include_router(tenants.router)
-app.include_router(jobs.router)
-app.include_router(admin.router)
-app.include_router(billing.router)
-app.include_router(ws.router)
+app.include_router(auth_router.router, prefix=API_PREFIX)
+app.include_router(tenants_router.router, prefix=API_PREFIX)
+app.include_router(jobs_router.router, prefix=API_PREFIX)
+app.include_router(admin_router.router, prefix=API_PREFIX)
+app.include_router(billing_router.router, prefix=API_PREFIX)
+app.include_router(ws_router.router, prefix=API_PREFIX)

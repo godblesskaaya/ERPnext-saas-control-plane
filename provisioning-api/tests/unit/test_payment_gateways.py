@@ -5,9 +5,9 @@ import json
 import pytest
 
 from app.config import get_settings
-from app.services.payment.dpo_gateway import DPOGateway
-from app.services.payment.factory import get_payment_gateway
-from app.services.payment.stripe_gateway import StripeGateway
+from app.domains.billing.payment.dpo_gateway import DPOGateway
+from app.domains.billing.payment.factory import get_payment_gateway
+from app.domains.billing.payment.stripe_gateway import StripeGateway
 
 
 def test_factory_returns_stripe_by_default(monkeypatch):

@@ -14,7 +14,7 @@ def fake_enqueue(*args, **kwargs):
     return DummyRQJob()
 
 
-@patch("app.services.tenant_service.get_queue")
+@patch("app.domains.tenants.service.get_queue")
 def test_checkout_completed_webhook_enqueues_provisioning_once(mock_get_queue, client, db_session):
     mock_get_queue.return_value.enqueue = fake_enqueue
 

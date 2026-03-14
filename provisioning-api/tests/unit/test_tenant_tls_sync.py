@@ -3,7 +3,7 @@ from __future__ import annotations
 import subprocess
 
 from app.config import get_settings
-from app.services.tenant_tls_sync import sync_tenant_tls_routes
+from app.domains.tenants.tls_sync import sync_tenant_tls_routes
 
 
 def test_tls_sync_returns_disabled_when_feature_is_off(monkeypatch):
@@ -40,7 +40,7 @@ def test_tls_sync_executes_script(monkeypatch, tmp_path):
         captured["command"] = command
         return subprocess.CompletedProcess(command, 0, stdout="Updated", stderr="")
 
-    monkeypatch.setattr("app.services.tenant_tls_sync.subprocess.run", _fake_run)
+    monkeypatch.setattr("app.domains.tenants.tls_sync.subprocess.run", _fake_run)
 
     monkeypatch.setenv("TENANT_TLS_SYNC_ENABLED", "true")
     monkeypatch.setenv("TENANT_TLS_SYNC_SCRIPT_PATH", str(script_path))

@@ -149,6 +149,21 @@ export type NotificationItem = {
   read: boolean;
 };
 
+export type BillingInvoice = {
+  id: string;
+  status?: string | null;
+  amount_due?: number | null;
+  amount_paid?: number | null;
+  currency?: string | null;
+  hosted_invoice_url?: string | null;
+  invoice_pdf?: string | null;
+  created_at?: string | null;
+};
+
+export type BillingInvoiceListResponse = {
+  invoices: BillingInvoice[];
+};
+
 export type OptionalEndpointResult<T> =
   | { supported: true; data: T }
   | { supported: false; data: null };

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import Tenant, User
-from app.schemas import BillingPortalResponse, MessageResponse
+from app.schemas import BillingInvoiceListResponse, BillingInvoiceOut, BillingPortalResponse, MessageResponse
 from app.services.audit_service import record_audit_event
 from app.services.notifications import notification_service
 from app.services.payment.factory import get_payment_gateway
@@ -238,6 +239,55 @@ def create_billing_portal(
         request=request,
     )
     return BillingPortalResponse(url=session["url"])
+
+
+@router.get(
+    "/invoices",
+    response_model=BillingInvoiceListResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_400_BAD_REQUEST: {"description": "Billing invoices cannot be fetched for this user."},
+        status.HTTP_401_UNAUTHORIZED: {"description": "Unauthorized."},
+        status.HTTP_501_NOT_IMPLEMENTED: NOT_IMPLEMENTED_501_RESPONSE,
+    },
+)
+def list_billing_invoices(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BillingInvoiceListResponse:
+    del request, db
+    gateway = get_payment_gateway()
+    if gateway.provider_name != "stripe":
+        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Invoice history not supported for provider")
+
+    stripe_gateway = StripeGateway()
+    if stripe_gateway.mock_mode:
+        return BillingInvoiceListResponse(invoices=[])
+
+    stripe = stripe_gateway._import_stripe()
+    if stripe is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Stripe SDK not available")
+
+    if not current_user.stripe_customer_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No billing customer is associated with this account")
+
+    stripe.api_key = get_settings().stripe_secret_key
+    items = stripe.Invoice.list(customer=current_user.stripe_customer_id, limit=20).get("data", [])
+    invoices = [
+        BillingInvoiceOut(
+            id=str(item.get("id")),
+            status=item.get("status"),
+            amount_due=item.get("amount_due"),
+            amount_paid=item.get("amount_paid"),
+            currency=item.get("currency"),
+            hosted_invoice_url=item.get("hosted_invoice_url"),
+            invoice_pdf=item.get("invoice_pdf"),
+            created_at=datetime.utcfromtimestamp(item.get("created")) if item.get("created") else None,
+        )
+        for item in items
+    ]
+    return BillingInvoiceListResponse(invoices=invoices)
 
 
 @router.post(

@@ -95,6 +95,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                     <Link href="/dashboard" className={navLinkClass}>
                       Dashboard
                     </Link>
+                    <Link href="/billing" className={navLinkClass}>
+                      Billing
+                    </Link>
                     {role === "admin" ? (
                       <Link href="/admin" className={navLinkClass}>
                         Admin

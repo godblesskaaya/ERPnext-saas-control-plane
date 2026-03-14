@@ -3,6 +3,7 @@ import type {
   AuditLogEntry,
   BackupManifestEntry,
   BillingPortalResponse,
+  BillingInvoiceListResponse,
   DeadLetterJob,
   Job,
   MessageResponse,
@@ -380,4 +381,6 @@ export const api = {
     requestOptionalEndpoint<PaginatedResult<AuditLogEntry>>(`/admin/audit-log?page=${page}&limit=${limit}`),
 
   getBillingPortal: () => requestOptionalEndpoint<BillingPortalResponse>("/billing/portal"),
+
+  listBillingInvoices: () => requestOptionalEndpoint<BillingInvoiceListResponse>("/billing/invoices"),
 };

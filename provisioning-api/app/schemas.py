@@ -14,6 +14,21 @@ class BillingPortalResponse(BaseModel):
     url: str = Field(description="Billing portal URL for self-service subscription management.")
 
 
+class BillingInvoiceOut(BaseModel):
+    id: str
+    status: str | None = None
+    amount_due: int | None = None
+    amount_paid: int | None = None
+    currency: str | None = None
+    hosted_invoice_url: str | None = None
+    invoice_pdf: str | None = None
+    created_at: datetime | None = None
+
+
+class BillingInvoiceListResponse(BaseModel):
+    invoices: list[BillingInvoiceOut]
+
+
 class DeadLetterJobOut(BaseModel):
     id: str
     func_name: str

@@ -12,17 +12,20 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
 
     try {
       await api.signup(email, password);
       const token = await api.login(email, password);
       saveToken(token.access_token);
-      router.push("/onboarding?welcome=1");
+      setNotice("Account created. Please verify your email from your inbox before creating a workspace.");
+      router.push("/dashboard?verifyEmail=1");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create your account");
     } finally {
@@ -34,7 +37,7 @@ export default function SignupPage() {
     <section className="mx-auto max-w-xl space-y-6 rounded-2xl border border-slate-800 bg-slate-900/50 p-8">
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold text-white">Create your account / Fungua akaunti</h1>
-        <p className="text-sm text-slate-300">Get your workspace ready faster and continue directly to onboarding.</p>
+        <p className="text-sm text-slate-300">Create your account, verify your email, then continue onboarding.</p>
       </div>
 
       <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-300">
@@ -72,6 +75,9 @@ export default function SignupPage() {
         </button>
       </form>
 
+      {notice ? (
+        <p className="rounded-md border border-emerald-500/40 bg-emerald-950/30 p-3 text-sm text-emerald-100">{notice}</p>
+      ) : null}
       {error ? <p className="rounded-md border border-red-500/40 bg-red-950/40 p-3 text-sm text-red-200">{error}</p> : null}
 
       <p className="text-sm text-slate-400">

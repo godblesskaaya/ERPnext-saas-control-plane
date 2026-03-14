@@ -82,6 +82,24 @@ class NotificationService:
             )
         )
 
+    def send_email_verification(self, email: str, verification_token: str, verification_url: str | None = None) -> bool:
+        verification_instructions = (
+            f"Open this link to verify your email:\n{verification_url}"
+            if verification_url
+            else f"Use this one-time verification token:\n{verification_token}"
+        )
+        return self.send(
+            NotificationMessage(
+                to_email=email,
+                subject="Verify your ERP SaaS email",
+                text=(
+                    "Please verify your email before creating a workspace.\n\n"
+                    f"{verification_instructions}\n\n"
+                    "If you did not create this account, you can safely ignore this email."
+                ),
+            )
+        )
+
     def send_password_reset_requested(self, email: str, reset_token: str, reset_url: str | None = None) -> bool:
         instructions = (
             f"Open this link to reset your password:\n{reset_url}"

@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { TenantCreateForm } from "../../components/TenantCreateForm";
 import { TenantTable } from "../../components/TenantTable";
 import { api, getApiErrorMessage, isSessionExpiredError, onSessionExpired } from "../../lib/api";
-import type { Job, Tenant, TenantCreateResponse } from "../../lib/types";
+import type { Job, Tenant, TenantCreateResponse, UserProfile } from "../../lib/types";
 
 const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed", "deleted", "canceled", "cancelled"]);
 
@@ -29,10 +29,14 @@ function metricCard(label: string, value: number, hint: string, tone: "default" 
 
 export default function DashboardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [jobsByTenant, setJobsByTenant] = useState<Record<string, Job | undefined>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
+  const [resendBusy, setResendBusy] = useState(false);
 
   const handleError = useCallback(
     (err: unknown, fallback: string) => {
@@ -69,9 +73,28 @@ export default function DashboardPage() {
     }
   }, [handleError]);
 
+  const loadCurrentUser = useCallback(async () => {
+    try {
+      const user = await api.getCurrentUser();
+      setCurrentUser(user);
+      if (user.email_verified) {
+        setVerificationNotice(null);
+      }
+    } catch (err) {
+      handleError(err, "Failed to load profile");
+    }
+  }, [handleError]);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadCurrentUser();
+  }, [load, loadCurrentUser]);
+
+  useEffect(() => {
+    if (searchParams.get("verifyEmail") === "1") {
+      setVerificationNotice("Please verify your email to unlock tenant creation.");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     return onSessionExpired(() => {
@@ -103,6 +126,18 @@ export default function DashboardPage() {
 
   const setTenantJob = (tenantId: string, job: Job) => {
     setJobsByTenant((previous) => ({ ...previous, [tenantId]: job }));
+  };
+
+  const resendVerification = async () => {
+    setResendBusy(true);
+    try {
+      const result = await api.resendVerification();
+      setVerificationNotice(result.message || "Verification email sent. Check your inbox.");
+    } catch (err) {
+      setVerificationNotice(getApiErrorMessage(err, "Failed to resend verification email."));
+    } finally {
+      setResendBusy(false);
+    }
   };
 
   return (
@@ -153,6 +188,29 @@ export default function DashboardPage() {
           </p>
         </div>
       </div>
+
+      {currentUser && !currentUser.email_verified ? (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-amber-100">Email verification required</p>
+              <p className="text-xs text-amber-200/90">
+                Verify {currentUser.email} before creating a workspace. Check your inbox for the verification link.
+              </p>
+            </div>
+            <button
+              className="rounded border border-amber-300/40 px-3 py-1.5 text-xs text-amber-100 hover:border-amber-200 disabled:opacity-60"
+              disabled={resendBusy}
+              onClick={() => {
+                void resendVerification();
+              }}
+            >
+              {resendBusy ? "Sending..." : "Resend verification"}
+            </button>
+          </div>
+          {verificationNotice ? <p className="mt-2 text-xs text-amber-100">{verificationNotice}</p> : null}
+        </div>
+      ) : null}
 
       <div className="grid gap-3 md:grid-cols-4">
         {metricCard("Total workspaces", tenants.length, "All customer environments under management")}

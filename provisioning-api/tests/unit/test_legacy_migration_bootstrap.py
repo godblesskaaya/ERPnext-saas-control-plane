@@ -75,3 +75,21 @@ def test_detect_legacy_revision_none_when_alembic_already_initialized(tmp_path: 
     _exec(url, "CREATE TABLE alembic_version (version_num TEXT PRIMARY KEY)")
     assert _detect_legacy_schema_revision(url) is None
 
+
+def test_detect_legacy_revision_with_email_verification_columns(tmp_path: Path):
+    url = _db_url(tmp_path, "email-verification.db")
+    _exec(
+        url,
+        "CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT, password_hash TEXT, role TEXT, created_at TEXT, "
+        "stripe_customer_id TEXT, email_verified INTEGER, email_verified_at TEXT)",
+    )
+    _exec(
+        url,
+        "CREATE TABLE tenants (id TEXT PRIMARY KEY, owner_id TEXT, subdomain TEXT, domain TEXT, site_name TEXT, "
+        "company_name TEXT, plan TEXT, status TEXT, created_at TEXT, updated_at TEXT, billing_status TEXT, "
+        "stripe_checkout_session_id TEXT, stripe_subscription_id TEXT, chosen_app TEXT, payment_provider TEXT, "
+        "dpo_transaction_token TEXT)",
+    )
+    _exec(url, "CREATE TABLE jobs (id TEXT PRIMARY KEY, tenant_id TEXT, type TEXT, status TEXT, logs TEXT)")
+    _exec(url, "CREATE TABLE audit_logs (id TEXT PRIMARY KEY)")
+    assert _detect_legacy_schema_revision(url) == "20260308_0007"

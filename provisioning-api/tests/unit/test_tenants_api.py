@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from unittest.mock import patch
 
 from app.config import get_settings
@@ -33,8 +34,13 @@ def fake_enqueue(*args, **kwargs):
     return DummyRQJob()
 
 
-def _auth_headers(client):
+def _auth_headers(client, db_session):
     client.post("/auth/signup", json={"email": "owner@example.com", "password": "Secret123!"})
+    owner = db_session.query(User).filter(User.email == "owner@example.com").one()
+    owner.email_verified = True
+    owner.email_verified_at = datetime.utcnow()
+    db_session.add(owner)
+    db_session.commit()
     login = client.post("/auth/login", json={"email": "owner@example.com", "password": "Secret123!"})
     token = login.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
@@ -53,7 +59,7 @@ def _admin_headers(client, db_session):
 
 @patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
 def test_create_and_list_tenant_returns_checkout(_, client, db_session):
-    headers = _auth_headers(client)
+    headers = _auth_headers(client, db_session)
     create = client.post(
         "/tenants",
         headers=headers,
@@ -100,7 +106,7 @@ def test_create_and_list_tenant_returns_checkout(_, client, db_session):
 
 @patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
 def test_create_tenant_idempotency_key_returns_cached_response(_, client, db_session):
-    headers = _auth_headers(client)
+    headers = _auth_headers(client, db_session)
     headers["X-Idempotency-Key"] = "idem-123"
 
     first = client.post(
@@ -124,7 +130,7 @@ def test_create_tenant_idempotency_key_returns_cached_response(_, client, db_ses
 @patch("app.services.tenant_service.get_queue")
 def test_create_tenant_rate_limit_and_backup_limit(mock_get_queue, _, client, db_session):
     mock_get_queue.return_value.enqueue = fake_enqueue
-    headers = _auth_headers(client)
+    headers = _auth_headers(client, db_session)
 
     for index in range(3):
         create = client.post(
@@ -162,7 +168,7 @@ def test_create_tenant_rate_limit_and_backup_limit(mock_get_queue, _, client, db
 @patch("app.services.tenant_service.get_queue")
 def test_backup_plan_daily_limit_enforced(mock_get_queue, _, client, db_session):
     mock_get_queue.return_value.enqueue = fake_enqueue
-    headers = _auth_headers(client)
+    headers = _auth_headers(client, db_session)
 
     create = client.post(
         "/tenants",
@@ -195,8 +201,8 @@ def test_backup_plan_daily_limit_enforced(mock_get_queue, _, client, db_session)
 
 
 @patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
-def test_reserved_subdomain_security_headers_and_cors(_, client):
-    headers = _auth_headers(client)
+def test_reserved_subdomain_security_headers_and_cors(_, client, db_session):
+    headers = _auth_headers(client, db_session)
 
     available = client.get("/tenants/check-subdomain", headers=headers, params={"subdomain": "freshbiz"})
     assert available.status_code == 200
@@ -247,8 +253,8 @@ def test_reserved_subdomain_security_headers_and_cors(_, client):
 
 
 @patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
-def test_business_plan_requires_and_persists_chosen_app(_, client):
-    headers = _auth_headers(client)
+def test_business_plan_requires_and_persists_chosen_app(_, client, db_session):
+    headers = _auth_headers(client, db_session)
 
     missing = client.post(
         "/tenants",
@@ -273,8 +279,8 @@ def test_business_plan_requires_and_persists_chosen_app(_, client):
 
 
 @patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
-def test_business_plan_rejects_non_allowlisted_chosen_app(_, client):
-    headers = _auth_headers(client)
+def test_business_plan_rejects_non_allowlisted_chosen_app(_, client, db_session):
+    headers = _auth_headers(client, db_session)
     response = client.post(
         "/tenants",
         headers=headers,
@@ -290,8 +296,8 @@ def test_business_plan_rejects_non_allowlisted_chosen_app(_, client):
 
 
 @patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
-def test_starter_plan_rejects_chosen_app(_, client):
-    headers = _auth_headers(client)
+def test_starter_plan_rejects_chosen_app(_, client, db_session):
+    headers = _auth_headers(client, db_session)
     response = client.post(
         "/tenants",
         headers=headers,
@@ -307,8 +313,8 @@ def test_starter_plan_rejects_chosen_app(_, client):
 
 
 @patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
-def test_enterprise_plan_allows_null_chosen_app(_, client):
-    headers = _auth_headers(client)
+def test_enterprise_plan_allows_null_chosen_app(_, client, db_session):
+    headers = _auth_headers(client, db_session)
     response = client.post(
         "/tenants",
         headers=headers,
@@ -323,11 +329,51 @@ def test_enterprise_plan_allows_null_chosen_app(_, client):
 
 
 @patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
-def test_mock_billing_checkout_blocked_in_production(_, monkeypatch, client):
+def test_tenant_create_blocked_until_email_verified(_, client, db_session):
+    client.post("/auth/signup", json={"email": "gate@example.com", "password": "Secret123!"})
+    login = client.post("/auth/login", json={"email": "gate@example.com", "password": "Secret123!"})
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    blocked = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "verifygate", "company_name": "Verify Gate Ltd", "plan": "starter"},
+    )
+    assert blocked.status_code == 403
+    assert "verification required" in blocked.json()["detail"].lower()
+
+    owner = db_session.query(User).filter(User.email == "gate@example.com").one()
+    owner.email_verified = True
+    owner.email_verified_at = datetime.utcnow()
+    db_session.add(owner)
+    db_session.commit()
+
+    allowed = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "verifygate", "company_name": "Verify Gate Ltd", "plan": "starter"},
+    )
+    assert allowed.status_code == 202
+
+
+@patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
+def test_admin_can_create_tenant_without_email_verification(_, client, db_session):
+    headers = _admin_headers(client, db_session)
+
+    response = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "admin-bypass", "company_name": "Admin Bypass", "plan": "starter"},
+    )
+    assert response.status_code == 202
+
+
+@patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
+def test_mock_billing_checkout_blocked_in_production(_, monkeypatch, client, db_session):
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.delenv("ALLOW_MOCK_BILLING", raising=False)
     get_settings.cache_clear()
-    headers = _auth_headers(client)
+    headers = _auth_headers(client, db_session)
 
     response = client.post(
         "/tenants",

@@ -79,6 +79,20 @@ class ResetPasswordRequest(BaseModel):
     new_password: str = Field(min_length=8, max_length=128, description="New password (8-128 chars).")
 
 
+class VerifyEmailRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "token": "email-verification-token",
+                }
+            ]
+        }
+    )
+
+    token: str = Field(min_length=20, max_length=512, description="One-time email-verification token.")
+
+
 class TokenResponse(BaseModel):
     access_token: str = Field(description="JWT access token.")
     token_type: str = Field(default="bearer", description="OAuth2 token type.")
@@ -90,6 +104,8 @@ class UserOut(BaseModel):
     id: str
     email: EmailStr
     role: str
+    email_verified: bool = Field(description="Whether the user has verified their email address.")
+    email_verified_at: datetime | None = Field(default=None, description="Timestamp when email was verified.")
     created_at: datetime
 
 

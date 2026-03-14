@@ -66,6 +66,15 @@ export type TenantCreateResponse = {
   checkout_session_id?: string | null;
 };
 
+export type UserProfile = {
+  id: string;
+  email: string;
+  role: string;
+  email_verified: boolean;
+  email_verified_at?: string | null;
+  created_at: string;
+};
+
 export type SubdomainAvailability = {
   subdomain: string;
   domain?: string | null;

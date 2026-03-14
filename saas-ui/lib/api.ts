@@ -10,6 +10,7 @@ import type {
   Tenant,
   TenantCreatePayload,
   TenantCreateResponse,
+  UserProfile,
 } from "./types";
 
 const SESSION_EXPIRED_EVENT = "erp-saas:session-expired";
@@ -281,13 +282,23 @@ export function onSessionExpired(listener: () => void): () => void {
 
 export const api = {
   signup: (email: string, password: string) =>
-    request<MessageResponse>("/auth/signup", { method: "POST", body: JSON.stringify({ email, password }) }),
+    request<UserProfile>("/auth/signup", { method: "POST", body: JSON.stringify({ email, password }) }),
 
   login: (email: string, password: string) =>
     request<{ access_token: string; token_type: string }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
+
+  getCurrentUser: () => request<UserProfile>("/auth/me"),
+
+  verifyEmail: (token: string) =>
+    request<MessageResponse>("/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
+
+  resendVerification: () => request<MessageResponse>("/auth/resend-verification"),
 
   forgotPassword: (email: string) =>
     request<MessageResponse>("/auth/forgot-password", {

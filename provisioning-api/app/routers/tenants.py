@@ -60,6 +60,7 @@ def _get_accessible_tenant(tenant_id: str, db: Session, current_user: User) -> T
     dependencies=[Depends(tenant_create_rate_limit)],
     responses={
         status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
         status.HTTP_409_CONFLICT: CONFLICT_409_RESPONSE,
         status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
         status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,

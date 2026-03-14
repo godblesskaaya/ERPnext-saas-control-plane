@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 15
     jwt_refresh_token_expire_days: int = 7
     refresh_cookie_name: str = "refresh_token"
+    email_verification_url_base: str = "http://localhost:3000/verify-email"
+    email_verification_token_expire_hours: int = 24
     password_reset_url_base: str = "http://localhost:3000/reset-password"
     password_reset_token_expire_minutes: int = 30
 

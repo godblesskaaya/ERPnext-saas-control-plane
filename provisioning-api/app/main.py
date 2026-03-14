@@ -63,6 +63,10 @@ def _detect_legacy_schema_revision(database_url: str) -> str | None:
             return None
 
         tenant_columns = {column["name"] for column in inspector.get_columns("tenants")} if "tenants" in tables else set()
+        users_columns = {column["name"] for column in inspector.get_columns("users")} if "users" in tables else set()
+        if {"email_verified", "email_verified_at"}.issubset(users_columns):
+            return "20260308_0007"
+
         if {"payment_provider", "dpo_transaction_token"}.issubset(tenant_columns):
             return "20260307_0006"
 
@@ -73,7 +77,6 @@ def _detect_legacy_schema_revision(database_url: str) -> str | None:
             return "20260306_0004"
 
         has_audit = "audit_logs" in tables
-        users_columns = {column["name"] for column in inspector.get_columns("users")}
         has_billing = {
             "billing_status",
             "stripe_checkout_session_id",

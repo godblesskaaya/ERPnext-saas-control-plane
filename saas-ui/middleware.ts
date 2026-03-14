@@ -33,7 +33,7 @@ function isAdminRoute(pathname: string): boolean {
 }
 
 function isPublicAuthRoute(pathname: string): boolean {
-  return ["/login", "/signup", "/forgot-password", "/reset-password"].includes(pathname);
+  return ["/login", "/signup", "/forgot-password", "/reset-password", "/verify-email"].includes(pathname);
 }
 
 function safeRedirectPath(value: string | null): string {
@@ -81,6 +81,10 @@ function forbiddenHtml(): string {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(TOKEN_COOKIE)?.value;
+
+  if (pathname === "/verify-email") {
+    return NextResponse.next();
+  }
 
   if (isPublicAuthRoute(pathname)) {
     if (request.nextUrl.searchParams.get("logout") === "1") {
@@ -148,5 +152,6 @@ export const config = {
     "/signup",
     "/forgot-password",
     "/reset-password",
+    "/verify-email",
   ],
 };

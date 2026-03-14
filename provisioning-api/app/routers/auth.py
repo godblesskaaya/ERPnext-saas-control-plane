@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 import hashlib
 import secrets
 
@@ -12,9 +13,11 @@ from app.db import get_db
 from app.deps import bearer_scheme, get_current_user
 from app.models import User
 from app.rate_limits import (
+    authenticated_default_rate_limit,
     forgot_password_rate_limit,
     login_rate_limit,
     logout_rate_limit,
+    resend_verification_rate_limit,
     reset_password_rate_limit,
     refresh_token_rate_limit,
     signup_rate_limit,
@@ -27,6 +30,7 @@ from app.schemas import (
     SignupRequest,
     TokenResponse,
     UserOut,
+    VerifyEmailRequest,
 )
 from app.security import (
     create_access_token,
@@ -53,6 +57,42 @@ CONFLICT_409_RESPONSE = {"description": "Conflict with existing resource state."
 def _password_reset_token_key(raw_token: str) -> str:
     digest = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
     return f"password-reset:{digest}"
+
+
+def _email_verification_token_key(raw_token: str) -> str:
+    digest = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    return f"email-verify:{digest}"
+
+
+def _consume_single_use_token(token_store, token_key: str) -> str | None:
+    getdel = getattr(token_store, "getdel", None)
+    if callable(getdel):
+        return getdel(token_key)
+
+    value = token_store.get(token_key)
+    if value:
+        token_store.delete(token_key)
+    return value
+
+
+def _queue_email_verification(
+    *,
+    user: User,
+    token_store,
+    background_tasks: BackgroundTasks,
+) -> None:
+    verification_token = secrets.token_urlsafe(32)
+    token_store.setex(
+        _email_verification_token_key(verification_token),
+        settings.email_verification_token_expire_hours * 60 * 60,
+        user.id,
+    )
+    background_tasks.add_task(
+        notification_service.send_email_verification,
+        user.email,
+        verification_token,
+        f"{settings.email_verification_url_base}?token={verification_token}",
+    )
 
 
 def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
@@ -87,6 +127,7 @@ def signup(
     payload: SignupRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    token_store=Depends(get_token_store),
 ) -> UserOut:
     if db.query(User).filter(User.email == payload.email.lower()).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
@@ -102,9 +143,13 @@ def signup(
         actor=user,
         resource_id=user.id,
         request=request,
-        metadata={"email": user.email},
+        metadata={"email": user.email, "email_verified": user.email_verified},
     )
-    background_tasks.add_task(notification_service.send_signup_confirmed, user.email)
+    _queue_email_verification(
+        user=user,
+        token_store=token_store,
+        background_tasks=background_tasks,
+    )
     return UserOut.model_validate(user)
 
 
@@ -145,6 +190,93 @@ def login(request: Request, response: Response, payload: LoginRequest, db: Sessi
         request=request,
     )
     return TokenResponse(access_token=access_token)
+
+
+@router.get(
+    "/me",
+    response_model=UserOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def get_me(current_user: User = Depends(get_current_user)) -> UserOut:
+    return UserOut.model_validate(current_user)
+
+
+@router.post(
+    "/verify-email",
+    response_model=MessageResponse,
+    responses={
+        status.HTTP_400_BAD_REQUEST: {"description": "Invalid, expired, or already-used verification token."},
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+    },
+)
+def verify_email(
+    request: Request,
+    payload: VerifyEmailRequest,
+    db: Session = Depends(get_db),
+    token_store=Depends(get_token_store),
+) -> MessageResponse:
+    user_id = _consume_single_use_token(token_store, _email_verification_token_key(payload.token))
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification token is invalid or expired")
+
+    user = db.get(User, str(user_id))
+    if not user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification token is invalid or expired")
+
+    if not user.email_verified:
+        user.email_verified = True
+        user.email_verified_at = datetime.utcnow()
+        db.add(user)
+        db.commit()
+
+    record_audit_event(
+        db,
+        action="auth.email_verified",
+        resource="users",
+        actor=user,
+        resource_id=user.id,
+        request=request,
+    )
+    return MessageResponse(message="Email verified successfully. You can now create a workspace.")
+
+
+@router.get(
+    "/resend-verification",
+    response_model=MessageResponse,
+    dependencies=[Depends(resend_verification_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def resend_verification(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    token_store=Depends(get_token_store),
+) -> MessageResponse:
+    if current_user.email_verified:
+        return MessageResponse(message="Email is already verified.")
+
+    _queue_email_verification(
+        user=current_user,
+        token_store=token_store,
+        background_tasks=background_tasks,
+    )
+    record_audit_event(
+        db,
+        action="auth.email_verification_resent",
+        resource="users",
+        actor=current_user,
+        resource_id=current_user.id,
+        request=request,
+    )
+    return MessageResponse(message="Verification email sent. Please check your inbox.")
 
 
 @router.post(
@@ -217,14 +349,7 @@ def reset_password(
     token_store=Depends(get_token_store),
 ) -> MessageResponse:
     token_key = _password_reset_token_key(payload.token)
-    getdel = getattr(token_store, "getdel", None)
-    user_id: str | None
-    if callable(getdel):
-        user_id = getdel(token_key)
-    else:
-        user_id = token_store.get(token_key)
-        if user_id:
-            token_store.delete(token_key)
+    user_id: str | None = _consume_single_use_token(token_store, token_key)
 
     if not user_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reset token is invalid or expired")

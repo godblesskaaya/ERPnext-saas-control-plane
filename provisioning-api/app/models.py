@@ -17,6 +17,8 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(20), default="user")
+    email_verified: Mapped[bool] = mapped_column(default=False, index=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     stripe_customer_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 

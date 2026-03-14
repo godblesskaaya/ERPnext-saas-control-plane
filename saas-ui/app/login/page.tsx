@@ -31,6 +31,8 @@ export default function LoginPage() {
   useEffect(() => {
     const sessionExpired = searchParams.get("sessionExpired") === "1";
     const logout = searchParams.get("logout") === "1";
+    const verified = searchParams.get("verified") === "1";
+    const verifyEmail = searchParams.get("verifyEmail") === "1";
 
     if (logout) {
       clearToken();
@@ -42,6 +44,12 @@ export default function LoginPage() {
       clearToken();
       setNotice("Your session expired. Please sign in again.");
       return;
+    }
+
+    if (verified) {
+      setNotice("Email verified successfully. You can continue.");
+    } else if (verifyEmail) {
+      setNotice("Please verify your email before creating a workspace.");
     }
 
     if (getToken()) {

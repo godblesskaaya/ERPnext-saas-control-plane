@@ -45,6 +45,13 @@ def create_tenant_and_start_checkout(
     request: Request,
 ) -> tuple[Tenant, CheckoutResult]:
     request_log = log.bind(actor_user_id=owner.id, subdomain=subdomain, requested_plan=plan)
+    if owner.role != "admin" and not owner.email_verified:
+        request_log.info("tenant.create.blocked_unverified_email", owner_email=owner.email)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email verification required before creating a workspace. Please verify your email and try again.",
+        )
+
     try:
         clean_subdomain = validate_subdomain(subdomain)
         domain = domain_from_subdomain(clean_subdomain)

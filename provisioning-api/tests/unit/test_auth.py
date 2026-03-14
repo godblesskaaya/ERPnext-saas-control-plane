@@ -16,6 +16,8 @@ def test_signup_login_refresh_and_logout_revokes_access_token(client, db_session
         json={"email": "user@example.com", "password": "Secret123!"},
     )
     assert signup.status_code == 201
+    assert signup.json()["email_verified"] is False
+    assert signup.json()["email_verified_at"] is None
 
     login = client.post(
         "/auth/login",
@@ -48,6 +50,68 @@ def test_signup_login_refresh_and_logout_revokes_access_token(client, db_session
 
     actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
     assert actions == ["auth.signup", "auth.login", "auth.logout"]
+
+
+@patch("app.routers.auth.secrets.token_urlsafe", side_effect=["email-verify-token-1234567890"])
+def test_verify_email_and_me_endpoint(mock_token, client):
+    del mock_token
+    signup = client.post("/auth/signup", json={"email": "verify@example.com", "password": "Secret123!"})
+    assert signup.status_code == 201
+
+    verify_key = "email-verify:" + hashlib.sha256("email-verify-token-1234567890".encode("utf-8")).hexdigest()
+    store = get_token_store()
+    assert store.exists(verify_key) == 1
+
+    invalid = client.post("/auth/verify-email", json={"token": "invalid-email-token-value-123"})
+    assert invalid.status_code == 400
+
+    verified = client.post("/auth/verify-email", json={"token": "email-verify-token-1234567890"})
+    assert verified.status_code == 200
+    assert "verified" in verified.json()["message"].lower()
+    assert store.exists(verify_key) == 0
+
+    reused = client.post("/auth/verify-email", json={"token": "email-verify-token-1234567890"})
+    assert reused.status_code == 400
+
+    login = client.post("/auth/login", json={"email": "verify@example.com", "password": "Secret123!"})
+    token = login.json()["access_token"]
+    me = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200
+    assert me.json()["email_verified"] is True
+    assert me.json()["email_verified_at"] is not None
+
+
+@patch(
+    "app.routers.auth.secrets.token_urlsafe",
+    side_effect=["signup-verify-token-123456789", "resend-verify-token-123456789"],
+)
+def test_resend_verification_flow(mock_token, client, db_session):
+    del mock_token
+    signup = client.post("/auth/signup", json={"email": "resend@example.com", "password": "Secret123!"})
+    assert signup.status_code == 201
+
+    login = client.post("/auth/login", json={"email": "resend@example.com", "password": "Secret123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resend = client.get("/auth/resend-verification", headers=headers)
+    assert resend.status_code == 200
+    assert "verification" in resend.json()["message"].lower()
+
+    resend_key = "email-verify:" + hashlib.sha256("resend-verify-token-123456789".encode("utf-8")).hexdigest()
+    store = get_token_store()
+    assert store.exists(resend_key) == 1
+
+    verify = client.post("/auth/verify-email", json={"token": "resend-verify-token-123456789"})
+    assert verify.status_code == 200
+
+    already = client.get("/auth/resend-verification", headers=headers)
+    assert already.status_code == 200
+    assert "already verified" in already.json()["message"].lower()
+
+    actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
+    assert "auth.email_verification_resent" in actions
+    assert "auth.email_verified" in actions
 
 
 def test_login_invalid_password_records_audit_log(client, db_session):

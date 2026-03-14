@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { PlanSelector, BUSINESS_APP_OPTIONS } from "../../components/PlanSelector";
 import { api } from "../../lib/api";
-import type { SubdomainAvailability } from "../../lib/types";
+import type { SubdomainAvailability, UserProfile } from "../../lib/types";
 
 type OnboardingStep = "details" | "plan" | "payment" | "waiting" | "success";
 
@@ -118,6 +118,9 @@ export default function OnboardingPage() {
   const [subdomainAvailability, setSubdomainAvailability] = useState<SubdomainAvailability | null>(null);
   const [subdomainChecking, setSubdomainChecking] = useState(false);
   const [restored, setRestored] = useState(false);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [resendBusy, setResendBusy] = useState(false);
+  const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
 
   const hydratedRef = useRef(false);
 
@@ -125,6 +128,7 @@ export default function OnboardingPage() {
   const previewDomain = `${cleanSubdomain || "your-company"}.erp.your-domain.com`;
   const selectedBusinessApp = BUSINESS_APP_OPTIONS.find((option) => option.id === chosenApp);
   const canUseSubdomain = Boolean(cleanSubdomain.length >= 3 && subdomainAvailability?.available);
+  const emailVerificationRequired = Boolean(currentUser && !currentUser.email_verified);
 
   useEffect(() => {
     if (plan.toLowerCase() !== "business") {
@@ -269,6 +273,23 @@ export default function OnboardingPage() {
   }, [searchParams]);
 
   useEffect(() => {
+    let cancelled = false;
+    const loadUser = async () => {
+      try {
+        const user = await api.getCurrentUser();
+        if (cancelled) return;
+        setCurrentUser(user);
+      } catch {
+        if (cancelled) return;
+      }
+    };
+    void loadUser();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (step !== "waiting" || !tenant?.id) return;
 
     let active = true;
@@ -355,9 +376,25 @@ export default function OnboardingPage() {
       setProgress(progressForStatus((payload.tenant.status ?? "").toLowerCase()));
       setStep(payload.checkout_url ? "payment" : "waiting");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to create tenant");
+      const message = err instanceof Error ? err.message : "Unable to create tenant";
+      setError(message);
+      if (message.toLowerCase().includes("verify") && message.toLowerCase().includes("email")) {
+        setVerificationNotice("Please verify your email first, then retry tenant creation.");
+      }
     } finally {
       setBusy(false);
+    }
+  };
+
+  const resendVerification = async () => {
+    setResendBusy(true);
+    try {
+      const result = await api.resendVerification();
+      setVerificationNotice(result.message || "Verification email sent. Check your inbox.");
+    } catch (err) {
+      setVerificationNotice(err instanceof Error ? err.message : "Unable to resend verification email.");
+    } finally {
+      setResendBusy(false);
     }
   };
 
@@ -410,6 +447,25 @@ export default function OnboardingPage() {
       ) : null}
 
       {error ? <p className="rounded-md border border-red-500/40 bg-red-950/40 p-3 text-sm text-red-200">{error}</p> : null}
+
+      {emailVerificationRequired ? (
+        <div className="rounded-md border border-amber-500/40 bg-amber-950/30 p-3 text-sm text-amber-100">
+          <p className="font-medium">Email verification required before tenant creation.</p>
+          <p className="mt-1 text-xs text-amber-200/90">
+            We sent a verification link to <span className="font-medium">{currentUser?.email}</span>.
+          </p>
+          <button
+            className="mt-3 rounded border border-amber-300/40 px-3 py-1.5 text-xs text-amber-100 hover:border-amber-200 disabled:opacity-60"
+            onClick={() => {
+              void resendVerification();
+            }}
+            disabled={resendBusy}
+          >
+            {resendBusy ? "Sending..." : "Resend verification email"}
+          </button>
+          {verificationNotice ? <p className="mt-2 text-xs text-amber-100">{verificationNotice}</p> : null}
+        </div>
+      ) : null}
 
       <div className="grid gap-5 lg:grid-cols-[1.8fr_1fr]">
         <div className="space-y-5 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
@@ -496,7 +552,7 @@ export default function OnboardingPage() {
                   onClick={() => {
                     void submitTenant();
                   }}
-                  disabled={busy || !canUseSubdomain || subdomainChecking}
+                  disabled={busy || !canUseSubdomain || subdomainChecking || emailVerificationRequired}
                 >
                   {busy ? "Submitting..." : "Submit and continue"}
                 </button>

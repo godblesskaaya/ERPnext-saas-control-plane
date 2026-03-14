@@ -85,6 +85,8 @@ export function TenantTable({
   onJobUpdate,
   onRetryProvisioning,
   retryingTenantId,
+  onUpdatePlan,
+  updatingTenantId,
 }: Props) {
   const [expandedTenantId, setExpandedTenantId] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);

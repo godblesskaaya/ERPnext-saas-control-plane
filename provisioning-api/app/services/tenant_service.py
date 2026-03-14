@@ -7,17 +7,11 @@ from fastapi import HTTPException, Request, status
 from rq import Retry
 from sqlalchemy.orm import Session
 
-from app.bench.validators import (
-    BUSINESS_APPS,
-    ValidationError,
-    domain_from_subdomain,
-    validate_app_name,
-    validate_plan,
-    validate_subdomain,
-)
+from app.bench.validators import ValidationError, domain_from_subdomain, validate_subdomain
 from app.config import get_settings
 from app.logging_config import get_logger
 from app.models import AuditLog, Job, Tenant, User
+from app.policy import PLAN_BACKUP_DAILY_LIMITS, ensure_email_verified, resolve_plan_and_app
 from app.queue.enqueue import get_queue
 from app.services.audit_service import record_audit_event
 from app.services.payment.base import CheckoutResult
@@ -26,13 +20,6 @@ from app.services.tenant_state import InvalidTenantStatusTransition, transition_
 
 
 log = get_logger(__name__)
-
-PLAN_BACKUP_DAILY_LIMITS: dict[str, int | None] = {
-    "starter": 1,
-    "business": 3,
-    "enterprise": None,
-}
-
 
 def create_tenant_and_start_checkout(
     db: Session,
@@ -45,45 +32,19 @@ def create_tenant_and_start_checkout(
     request: Request,
 ) -> tuple[Tenant, CheckoutResult]:
     request_log = log.bind(actor_user_id=owner.id, subdomain=subdomain, requested_plan=plan)
-    if owner.role != "admin" and not owner.email_verified:
+    try:
+        ensure_email_verified(owner)
+    except HTTPException as exc:
         request_log.info("tenant.create.blocked_unverified_email", owner_email=owner.email)
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email verification required before creating a workspace. Please verify your email and try again.",
-        )
+        raise exc
 
     try:
         clean_subdomain = validate_subdomain(subdomain)
         domain = domain_from_subdomain(clean_subdomain)
-        selected_plan = validate_plan(plan)
+        selected_plan, selected_app = resolve_plan_and_app(plan, chosen_app)
     except ValidationError as exc:
         request_log.info("tenant.create.validation_failed", error=str(exc))
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-
-    selected_app: str | None = None
-    if selected_plan == "business":
-        if not chosen_app:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="chosen_app is required for business plan",
-            )
-        try:
-            selected_app = validate_app_name(chosen_app)
-        except ValidationError as exc:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-        if selected_app not in BUSINESS_APPS:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="chosen_app is not allowlisted for business plan",
-            )
-    elif selected_plan == "starter":
-        if chosen_app:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="starter plan does not support chosen_app",
-            )
-    elif selected_plan == "enterprise":
-        selected_app = None
 
     existing = db.query(Tenant).filter(Tenant.domain == domain).first()
     if existing:

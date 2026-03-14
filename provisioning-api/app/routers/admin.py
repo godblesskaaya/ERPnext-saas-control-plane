@@ -214,6 +214,7 @@ def suspend_tenant(
     request: Request,
     tenant_id: str,
     background_tasks: BackgroundTasks,
+    reason: str | None = Query(default=None, max_length=255),
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ) -> MessageResponse:
@@ -235,6 +236,7 @@ def suspend_tenant(
         actor=current_admin,
         resource_id=tenant.id,
         request=request,
+        metadata={"reason": reason} if reason else None,
     )
     owner = db.get(User, tenant.owner_id)
     if owner:
@@ -263,6 +265,7 @@ def unsuspend_tenant(
     request: Request,
     tenant_id: str,
     background_tasks: BackgroundTasks,
+    reason: str | None = Query(default=None, max_length=255),
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ) -> MessageResponse:
@@ -285,6 +288,7 @@ def unsuspend_tenant(
         actor=current_admin,
         resource_id=tenant.id,
         request=request,
+        metadata={"reason": reason} if reason else None,
     )
 
     owner = db.get(User, tenant.owner_id)
@@ -340,6 +344,7 @@ def list_dead_letter_jobs(_: User = Depends(require_admin)) -> list[DeadLetterJo
 def requeue_dead_letter_job(
     request: Request,
     job_id: str,
+    reason: str | None = Query(default=None, max_length=255),
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ) -> MessageResponse:
@@ -356,6 +361,7 @@ def requeue_dead_letter_job(
         actor=current_admin,
         resource_id=job_id,
         request=request,
+        metadata={"reason": reason} if reason else None,
     )
     return MessageResponse(message="Dead-letter job requeued")
 

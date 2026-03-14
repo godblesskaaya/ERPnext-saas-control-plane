@@ -37,6 +37,7 @@ from app.services.tenant_service import (
     enforce_backup_plan_limit,
 )
 from app.services.tenant_state import transition_tenant_status
+from app.policy import validate_plan_change
 from app.token_store import get_token_store
 
 
@@ -79,9 +80,6 @@ def create_tenant(
     current_user: User = Depends(get_current_user),
     token_store=Depends(get_token_store),
 ) -> TenantCreateResponse:
-    if not current_user.email_verified:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Email verification required before tenant creation")
-
     idempotency_key = request.headers.get("X-Idempotency-Key")
     cache_key = f"idempotency:{current_user.id}:{idempotency_key}" if idempotency_key else None
     if cache_key:
@@ -341,23 +339,13 @@ def update_tenant(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No updates supplied")
 
     settings = get_settings()
-    new_plan = payload.plan.lower().strip() if payload.plan else tenant.plan
-    if new_plan not in settings.allowed_plan_set:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Plan is not allowed")
-
-    new_chosen_app = tenant.chosen_app
-    if new_plan == "business":
-        requested_app = payload.chosen_app or new_chosen_app
-        if not requested_app:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="chosen_app is required for business plan")
-        try:
-            new_chosen_app = validate_app_name(requested_app)
-        except ValidationError as exc:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    else:
-        if payload.chosen_app:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="chosen_app is only valid for business plan")
-        new_chosen_app = None
+    new_plan, new_chosen_app = validate_plan_change(
+        current_plan=tenant.plan,
+        current_chosen_app=tenant.chosen_app,
+        requested_plan=payload.plan,
+        requested_chosen_app=payload.chosen_app,
+        allowed_plans=settings.allowed_plan_set,
+    )
 
     old_plan = tenant.plan
     old_chosen = tenant.chosen_app

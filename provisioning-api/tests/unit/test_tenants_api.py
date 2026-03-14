@@ -201,6 +201,60 @@ def test_backup_plan_daily_limit_enforced(mock_get_queue, _, client, db_session)
 
 
 @patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
+@patch("app.services.tenant_service.get_queue")
+def test_backup_records_audit_event(mock_get_queue, _, client, db_session):
+    mock_get_queue.return_value.enqueue = fake_enqueue
+    headers = _auth_headers(client, db_session)
+
+    created = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "auditbackup", "company_name": "Audit Backup Ltd", "plan": "starter"},
+    )
+    assert created.status_code == 202
+    tenant_id = created.json()["tenant"]["id"]
+
+    db_tenant = db_session.get(Tenant, tenant_id)
+    db_tenant.status = "active"
+    db_tenant.billing_status = "paid"
+    db_session.add(db_tenant)
+    db_session.commit()
+
+    backup = client.post(f"/tenants/{tenant_id}/backup", headers=headers)
+    assert backup.status_code == 202
+
+    actions = [
+        row.action
+        for row in db_session.query(AuditLog).filter(AuditLog.resource_id == tenant_id).order_by(AuditLog.created_at.asc()).all()
+    ]
+    assert "tenant.backup_started" in actions
+
+
+@patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
+@patch("app.services.tenant_service.get_queue")
+def test_delete_records_audit_event(mock_get_queue, _, client, db_session):
+    mock_get_queue.return_value.enqueue = fake_enqueue
+    headers = _auth_headers(client, db_session)
+
+    created = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "auditdelete", "company_name": "Audit Delete Ltd", "plan": "starter"},
+    )
+    assert created.status_code == 202
+    tenant_id = created.json()["tenant"]["id"]
+
+    deleted = client.delete(f"/tenants/{tenant_id}", headers=headers)
+    assert deleted.status_code == 202
+
+    actions = [
+        row.action
+        for row in db_session.query(AuditLog).filter(AuditLog.resource_id == tenant_id).order_by(AuditLog.created_at.asc()).all()
+    ]
+    assert "tenant.delete" in actions
+
+
+@patch("app.services.tenant_service.get_payment_gateway", return_value=DummyGateway())
 def test_reserved_subdomain_security_headers_and_cors(_, client, db_session):
     headers = _auth_headers(client, db_session)
 

@@ -26,9 +26,16 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["owner_id"], ["users.id"]),
     )
 
-    op.add_column("tenants", sa.Column("organization_id", sa.String(length=36), nullable=True))
-    op.create_index(op.f("ix_tenants_organization_id"), "tenants", ["organization_id"], unique=False)
-    op.create_foreign_key("fk_tenants_organization_id", "tenants", "organizations", ["organization_id"], ["id"])
+    bind = op.get_bind()
+    if bind.dialect.name == "sqlite":
+        with op.batch_alter_table("tenants", recreate="always") as batch_op:
+            batch_op.add_column(sa.Column("organization_id", sa.String(length=36), nullable=True))
+            batch_op.create_index(op.f("ix_tenants_organization_id"), ["organization_id"], unique=False)
+            batch_op.create_foreign_key("fk_tenants_organization_id", "organizations", ["organization_id"], ["id"])
+    else:
+        op.add_column("tenants", sa.Column("organization_id", sa.String(length=36), nullable=True))
+        op.create_index(op.f("ix_tenants_organization_id"), "tenants", ["organization_id"], unique=False)
+        op.create_foreign_key("fk_tenants_organization_id", "tenants", "organizations", ["organization_id"], ["id"])
 
     op.create_table(
         "tenant_memberships",
@@ -85,7 +92,14 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index(op.f("ix_tenant_memberships_role"), table_name="tenant_memberships")
     op.drop_table("tenant_memberships")
-    op.drop_constraint("fk_tenants_organization_id", "tenants", type_="foreignkey")
-    op.drop_index(op.f("ix_tenants_organization_id"), table_name="tenants")
-    op.drop_column("tenants", "organization_id")
+    bind = op.get_bind()
+    if bind.dialect.name == "sqlite":
+        with op.batch_alter_table("tenants", recreate="always") as batch_op:
+            batch_op.drop_constraint("fk_tenants_organization_id", type_="foreignkey")
+            batch_op.drop_index(op.f("ix_tenants_organization_id"))
+            batch_op.drop_column("organization_id")
+    else:
+        op.drop_constraint("fk_tenants_organization_id", "tenants", type_="foreignkey")
+        op.drop_index(op.f("ix_tenants_organization_id"), table_name="tenants")
+        op.drop_column("tenants", "organization_id")
     op.drop_table("organizations")

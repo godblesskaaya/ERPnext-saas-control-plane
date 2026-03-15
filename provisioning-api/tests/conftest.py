@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 TEST_DB_FILE = Path("/tmp/erp-saas-provisioning-test.db")
 os.environ["ENVIRONMENT"] = "test"
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_FILE}"
+os.environ["API_PREFIX"] = ""
 os.environ["BENCH_EXEC_MODE"] = "mock"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key"
 os.environ["REDIS_URL"] = "redis://localhost:6379/15"
@@ -33,6 +34,10 @@ def _reset_limiter_storage() -> None:
 def reset_db():
     get_settings.cache_clear()
     get_token_store.cache_clear()
+
+    if TEST_DB_FILE.exists():
+        engine.dispose()
+        TEST_DB_FILE.unlink()
 
     config = Config(str(APP_ROOT / "alembic.ini"))
     config.set_main_option("script_location", str(APP_ROOT / "alembic"))

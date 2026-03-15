@@ -211,7 +211,7 @@ def test_support_notes_admin_workflow(_, client, db_session):
     create = client.post(
         "/tenants",
         headers=owner_headers,
-        json={"subdomain": "support", "company_name": "Supportful Co", "plan": "starter"},
+        json={"subdomain": "support-notes", "company_name": "Supportful Co", "plan": "starter"},
     )
     tenant_id = create.json()["tenant"]["id"]
 

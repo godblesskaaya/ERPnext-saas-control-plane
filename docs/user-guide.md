@@ -30,7 +30,26 @@ Your tenant stays in onboarding states (`pending_payment`/`pending`) until payme
 
 ---
 
-## 3) Reset ERPNext Administrator password
+## 3) Manage your tenant team
+
+From the tenant detail page, open **Team** to invite teammates and adjust their roles.
+
+Roles:
+
+- **Owner**: full control over tenant settings and team management.
+- **Admin**: can manage the team and operational settings.
+- **Billing**: can manage plan and billing settings.
+- **Technical**: can run backups, retries, and admin-password resets.
+
+To add a teammate:
+
+1. Enter their email address and select a role.
+2. Click **Invite**.
+3. The invited user receives a password reset link to set their credentials.
+
+---
+
+## 4) Reset ERPNext Administrator password
 
 From dashboard tenant table:
 
@@ -46,7 +65,7 @@ Security notes:
 
 ---
 
-## 4) Trigger a manual backup
+## 5) Trigger a manual backup
 
 From dashboard, click **Backup** for your tenant.
 
@@ -60,7 +79,7 @@ When accepted, a backup job is queued and can be tracked via job status.
 
 ---
 
-## 5) If subscription payment fails
+## 6) If subscription payment fails
 
 When payment webhook reports failure:
 
@@ -76,7 +95,7 @@ What to do:
 
 ---
 
-## 6) Delete your ERP instance and retention policy
+## 7) Delete your ERP instance and retention policy
 
 From dashboard, click **Delete** on the tenant.
 
@@ -91,4 +110,3 @@ Retention policy (current operation mode):
 - Primary site data is removed during successful delete.
 - Recovery is only possible from backups you explicitly created and retained externally.
 - Audit trail records (control-plane metadata) remain available to operators per internal compliance policy.
-

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter, WebSocket
+from fastapi import APIRouter, HTTPException, WebSocket
 from starlette.websockets import WebSocketState
 
 from app.config import get_settings
 from app.db import SessionLocal
 from app.models import Job, Tenant, User
 from app.queue.redis import get_redis_connection
+from app.domains.tenants.membership import ensure_membership
 from app.security import decode_access_token
 
 
@@ -66,7 +67,9 @@ async def job_stream(websocket: WebSocket, job_id: str, token: str | None = None
             await websocket.close(code=4404)
             return
 
-        if user.role != "admin" and tenant.owner_id != user.id:
+        try:
+            ensure_membership(db, tenant=tenant, user=user)
+        except HTTPException:
             await websocket.close(code=4403)
             return
 

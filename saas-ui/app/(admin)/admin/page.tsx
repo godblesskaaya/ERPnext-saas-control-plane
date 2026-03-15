@@ -55,6 +55,7 @@ export default function AdminPage() {
   const [busyTenantId, setBusyTenantId] = useState<string | null>(null);
   const [tenantAction, setTenantAction] = useState<TenantAdminAction | null>(null);
   const [tenantActionInput, setTenantActionInput] = useState("");
+  const [tenantActionReason, setTenantActionReason] = useState("");
   const [tenantPage, setTenantPage] = useState(1);
   const [tenantLimit] = useState(50);
   const [tenantTotal, setTenantTotal] = useState(0);
@@ -266,14 +267,15 @@ export default function AdminPage() {
     setBusyTenantId(tenantAction.tenant.id);
     setTenantsError(null);
     try {
+      const reason = tenantActionReason.trim() || undefined;
       if (tenantAction.type === "suspend") {
-        const result = await api.suspendTenant(tenantAction.tenant.id);
+        const result = await api.suspendTenant(tenantAction.tenant.id, reason);
         if (!result.supported) {
           setTenantsError("Suspend endpoint is not available on this backend.");
           return;
         }
       } else {
-        const result = await api.unsuspendTenant(tenantAction.tenant.id);
+        const result = await api.unsuspendTenant(tenantAction.tenant.id, reason);
         if (!result.supported) {
           setTenantsError("Unsuspend endpoint is not available on this backend.");
           return;
@@ -282,6 +284,7 @@ export default function AdminPage() {
       await loadTenants();
       setTenantAction(null);
       setTenantActionInput("");
+      setTenantActionReason("");
     } catch (err) {
       setTenantsError(
         getApiErrorMessage(err, tenantAction.type === "suspend" ? "Failed to suspend tenant" : "Failed to unsuspend tenant")
@@ -542,6 +545,7 @@ export default function AdminPage() {
                               phrase: tenant.subdomain.toUpperCase(),
                             });
                             setTenantActionInput("");
+                            setTenantActionReason("");
                             setTenantsError(null);
                           }}
                         >
@@ -559,6 +563,7 @@ export default function AdminPage() {
                               phrase: tenant.subdomain.toUpperCase(),
                             });
                             setTenantActionInput("");
+                            setTenantActionReason("");
                             setTenantsError(null);
                           }}
                         >
@@ -748,6 +753,13 @@ export default function AdminPage() {
               onChange={(event) => setTenantActionInput(event.target.value)}
               placeholder={tenantAction.phrase}
             />
+            <textarea
+              className="mt-3 w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+              rows={2}
+              value={tenantActionReason}
+              onChange={(event) => setTenantActionReason(event.target.value)}
+              placeholder="Optional: document the reason for this action"
+            />
 
             <div className="mt-4 flex justify-end gap-2">
               <button
@@ -756,6 +768,7 @@ export default function AdminPage() {
                 onClick={() => {
                   setTenantAction(null);
                   setTenantActionInput("");
+                  setTenantActionReason("");
                 }}
               >
                 Cancel

@@ -13,11 +13,13 @@ from app.bench.runner import BenchCommandError, run_bench_command
 from app.db import get_db
 from app.config import get_settings
 from app.deps import get_current_user
-from app.models import Tenant, User
+from app.models import AuditLog, Tenant, User
 from app.rate_limits import authenticated_default_rate_limit, tenant_backup_rate_limit, tenant_create_rate_limit
 from app.schemas import (
     BackupManifestOut,
+    AuditLogOut,
     JobOut,
+    PaginatedAuditLogResponse,
     PaginatedTenantResponse,
     ResetAdminPasswordRequest,
     ResetAdminPasswordResponse,
@@ -287,7 +289,74 @@ def list_tenant_backups(
 ) -> list[BackupManifestOut]:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
     manifests = list_backup_manifests(db, tenant.id)
+    record_audit_event(
+        db,
+        action="tenant.backups_viewed",
+        resource="backups",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+        metadata={"count": len(manifests)},
+    )
     return [BackupManifestOut.model_validate(item) for item in manifests]
+
+
+@router.get(
+    "/{tenant_id}/audit-log",
+    response_model=PaginatedAuditLogResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def list_tenant_audit_log(
+    request: Request,
+    tenant_id: str,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PaginatedAuditLogResponse:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+
+    base_query = db.query(AuditLog).filter(
+        AuditLog.resource == "tenants",
+        AuditLog.resource_id == tenant.id,
+    )
+    total = base_query.count()
+
+    rows = (
+        db.query(AuditLog, User.email)
+        .outerjoin(User, AuditLog.actor_id == User.id)
+        .filter(
+            AuditLog.resource == "tenants",
+            AuditLog.resource_id == tenant.id,
+        )
+        .order_by(AuditLog.created_at.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
+        .all()
+    )
+
+    entries: list[AuditLogOut] = []
+    for entry, email in rows:
+        payload = AuditLogOut.model_validate(entry)
+        entries.append(payload.model_copy(update={"actor_email": email}))
+
+    record_audit_event(
+        db,
+        action="tenant.view_audit_log",
+        resource="tenants",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+        metadata={"count": len(entries), "page": page, "limit": limit},
+    )
+
+    return PaginatedAuditLogResponse(data=entries, total=total, page=page, limit=limit)
 
 
 @router.delete(

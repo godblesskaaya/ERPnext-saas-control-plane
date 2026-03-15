@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { JobLogPanel } from "../../../../domains/shared/components/JobLogPanel";
 import { api, getApiErrorMessage, isSessionExpiredError } from "../../../../domains/shared/lib/api";
-import type { BackupManifestEntry, Tenant } from "../../../../domains/shared/lib/types";
+import type { AuditLogEntry, BackupManifestEntry, Tenant } from "../../../../domains/shared/lib/types";
 
 function statusClass(status: string): string {
   const normalized = status.toLowerCase();
@@ -54,6 +54,12 @@ export default function TenantDetailPage() {
   const [backups, setBackups] = useState<BackupManifestEntry[]>([]);
   const [backupsSupported, setBackupsSupported] = useState(true);
   const [retrying, setRetrying] = useState(false);
+  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
+  const [auditSupported, setAuditSupported] = useState(true);
+  const [auditError, setAuditError] = useState<string | null>(null);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditLimit] = useState(25);
+  const [auditTotal, setAuditTotal] = useState(0);
 
   const loadTenant = useCallback(async () => {
     if (!id) return;
@@ -104,15 +110,41 @@ export default function TenantDetailPage() {
     }
   }, [id]);
 
+  const loadAuditLog = useCallback(async () => {
+    if (!id) return;
+    try {
+      const result = await api.listTenantAuditLog(id, auditPage, auditLimit);
+      if (!result.supported) {
+        setAuditSupported(false);
+        setAuditLog([]);
+        setAuditError(null);
+        return;
+      }
+      setAuditSupported(true);
+      setAuditLog(result.data.data);
+      setAuditTotal(result.data.total);
+      setAuditError(null);
+    } catch (err) {
+      setAuditError(getApiErrorMessage(err, "Failed to load activity log"));
+    }
+  }, [auditLimit, auditPage, id]);
+
   useEffect(() => {
     void loadTenant();
     void loadBackups();
-  }, [loadBackups, loadTenant]);
+    void loadAuditLog();
+  }, [loadAuditLog, loadBackups, loadTenant]);
+
+  useEffect(() => {
+    setAuditPage(1);
+  }, [id]);
 
   const sortedBackups = useMemo(
     () => [...backups].sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? ""))),
     [backups]
   );
+
+  const auditTotalPages = Math.max(1, Math.ceil(auditTotal / auditLimit));
 
   if (!tenant) {
     return <p>{error ?? "Loading tenant..."}</p>;
@@ -223,6 +255,79 @@ export default function TenantDetailPage() {
             No backup records yet. Trigger a backup from dashboard when you need a restore point.
           </p>
         )}
+      </div>
+
+      <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Activity log</h2>
+          <button
+            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            onClick={() => {
+              void loadAuditLog();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {!auditSupported ? (
+          <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
+            Activity log endpoint is not available on this backend yet.
+          </p>
+        ) : auditError ? (
+          <p className="text-sm text-red-400">{auditError}</p>
+        ) : auditLog.length ? (
+          <div className="overflow-x-auto rounded border border-slate-700">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-900/60">
+                <tr>
+                  <th className="p-2 text-left">Time</th>
+                  <th className="p-2 text-left">Actor</th>
+                  <th className="p-2 text-left">Action</th>
+                  <th className="p-2 text-left">IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLog.map((entry) => (
+                  <tr key={entry.id} className="border-t border-slate-700">
+                    <td className="p-2 text-xs text-slate-300">{formatTimestamp(entry.created_at)}</td>
+                    <td className="p-2 text-xs text-slate-300">
+                      {entry.actor_email || entry.actor_id || entry.actor_role}
+                    </td>
+                    <td className="p-2 text-xs">{entry.action}</td>
+                    <td className="p-2 text-xs text-slate-400">{entry.ip_address || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
+            No activity recorded yet.
+          </p>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+          <span>
+            Page {auditPage} of {auditTotalPages} • {auditTotal} events
+          </span>
+          <div className="flex gap-2">
+            <button
+              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+              disabled={auditPage <= 1}
+              onClick={() => setAuditPage((prev) => Math.max(1, prev - 1))}
+            >
+              Previous
+            </button>
+            <button
+              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+              disabled={auditPage >= auditTotalPages}
+              onClick={() => setAuditPage((prev) => Math.min(auditTotalPages, prev + 1))}
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}

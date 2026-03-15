@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import Job, Tenant, User
+from app.domains.audit.service import record_audit_event
 from app.rate_limits import authenticated_default_rate_limit
 from app.schemas import JobOut
 
@@ -45,5 +46,15 @@ def get_job(
 
     if current_user.role != "admin" and tenant.owner_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    record_audit_event(
+        db,
+        action="tenant.job_viewed",
+        resource="jobs",
+        actor=current_user,
+        resource_id=job.id,
+        request=request,
+        metadata={"tenant_id": tenant.id},
+    )
 
     return JobOut.model_validate(job)

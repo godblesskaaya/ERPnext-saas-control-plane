@@ -165,7 +165,6 @@ def get_admin_metrics(
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ) -> MetricsSummary:
-    del request
     total_tenants = db.query(Tenant).count()
     active_tenants = db.query(Tenant).filter(Tenant.status == "active").count()
     suspended_tenants = db.query(Tenant).filter(Tenant.status == "suspended").count()
@@ -184,6 +183,20 @@ def get_admin_metrics(
 
     dlq = get_dlq()
     dead_letter_count = dlq.count if isinstance(getattr(dlq, "count", None), int) else dlq.count()
+
+    record_audit_event(
+        db,
+        action="admin.view_metrics",
+        resource="metrics",
+        actor=current_admin,
+        request=request,
+        metadata={
+            "total_tenants": total_tenants,
+            "active_tenants": active_tenants,
+            "failed_tenants": failed_tenants,
+            "dead_letter_count": dead_letter_count,
+        },
+    )
 
     return MetricsSummary(
         total_tenants=total_tenants,
@@ -312,7 +325,11 @@ def unsuspend_tenant(
         status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
     },
 )
-def list_dead_letter_jobs(_: User = Depends(require_admin)) -> list[DeadLetterJobOut]:
+def list_dead_letter_jobs(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+) -> list[DeadLetterJobOut]:
     queue = get_dlq()
     results: list[DeadLetterJobOut] = []
     for job in queue.get_jobs():
@@ -327,6 +344,14 @@ def list_dead_letter_jobs(_: User = Depends(require_admin)) -> list[DeadLetterJo
                 enqueued_at=job.enqueued_at,
             )
         )
+    record_audit_event(
+        db,
+        action="admin.view_dead_letter",
+        resource="jobs",
+        actor=current_admin,
+        request=request,
+        metadata={"count": len(results)},
+    )
     return results
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from app.models import BackupManifest, Job, Tenant, User
+from app.models import AuditLog, BackupManifest, Job, Tenant, User
 
 
 def _auth_headers(client, email: str) -> dict[str, str]:
@@ -72,6 +72,14 @@ def test_list_backups_owner_gets_newest_first(client, db_session):
     assert [entry["id"] for entry in payload] == [item.id for item in expected_order]
     assert payload[0]["file_path"] == "/tmp/new.sql.gz"
     assert payload[0]["s3_key"] == "tenant/new.sql.gz"
+
+    audit = (
+        db_session.query(AuditLog)
+        .filter(AuditLog.action == "tenant.backups_viewed", AuditLog.resource_id == tenant.id)
+        .one()
+    )
+    assert audit.actor_id == owner.id
+    assert audit.metadata_json["count"] == 2
 
 
 def test_list_backups_forbidden_for_non_owner_non_admin(client, db_session):

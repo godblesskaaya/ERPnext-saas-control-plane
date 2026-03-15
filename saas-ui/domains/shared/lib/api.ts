@@ -370,13 +370,22 @@ export const api = {
       method: "POST",
     }),
 
-  suspendTenant: (tenantId: string) =>
-    requestOptionalEndpoint<MessageResponse>(`/admin/tenants/${tenantId}/suspend`, { method: "POST" }),
+  suspendTenant: (tenantId: string, reason?: string) => {
+    const query = reason ? `?reason=${encodeURIComponent(reason)}` : "";
+    return requestOptionalEndpoint<MessageResponse>(`/admin/tenants/${tenantId}/suspend${query}`, { method: "POST" });
+  },
 
-  unsuspendTenant: (tenantId: string) =>
-    requestOptionalEndpoint<MessageResponse>(`/admin/tenants/${tenantId}/unsuspend`, { method: "POST" }),
+  unsuspendTenant: (tenantId: string, reason?: string) => {
+    const query = reason ? `?reason=${encodeURIComponent(reason)}` : "";
+    return requestOptionalEndpoint<MessageResponse>(`/admin/tenants/${tenantId}/unsuspend${query}`, { method: "POST" });
+  },
 
   listTenantBackups: (tenantId: string) => requestOptionalEndpoint<BackupManifestEntry[]>(`/tenants/${tenantId}/backups`),
+
+  listTenantAuditLog: (tenantId: string, page = 1, limit = 50) =>
+    requestOptionalEndpoint<PaginatedResult<AuditLogEntry>>(
+      `/tenants/${tenantId}/audit-log?page=${page}&limit=${limit}`
+    ),
 
   listAdminJobs: (limit = 50) => requestOptionalEndpoint<Job[]>(`/admin/jobs?limit=${encodeURIComponent(String(limit))}`),
 

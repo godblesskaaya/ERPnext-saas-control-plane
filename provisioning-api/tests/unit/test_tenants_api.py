@@ -553,6 +553,42 @@ def test_admin_jobs_and_logs_view(client, db_session):
     assert "admin.view_job_logs" in actions
 
 
+def test_owner_job_view_records_audit(client, db_session):
+    headers = _auth_headers(client, db_session)
+    owner = db_session.query(User).filter(User.email == "owner@example.com").one()
+
+    tenant = Tenant(
+        owner_id=owner.id,
+        subdomain="owner-job",
+        domain="owner-job.erp.blenkotechnologies.co.tz",
+        site_name="owner-job.erp.blenkotechnologies.co.tz",
+        company_name="Owner Job Ltd",
+        plan="starter",
+        status="active",
+        billing_status="paid",
+    )
+    db_session.add(tenant)
+    db_session.commit()
+    db_session.refresh(tenant)
+
+    job = Job(tenant_id=tenant.id, type="backup", status="succeeded", logs="done")
+    db_session.add(job)
+    db_session.commit()
+    db_session.refresh(job)
+
+    response = client.get(f"/jobs/{job.id}", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["id"] == job.id
+
+    audit = (
+        db_session.query(AuditLog)
+        .filter(AuditLog.action == "tenant.job_viewed", AuditLog.resource_id == job.id)
+        .one()
+    )
+    assert audit.actor_id == owner.id
+    assert audit.metadata_json["tenant_id"] == tenant.id
+
+
 def test_tenants_requires_auth(client):
     response = client.get("/tenants")
     assert response.status_code == 401

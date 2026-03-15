@@ -132,6 +132,9 @@ def health(db: Session = Depends(get_db), redis: Redis = Depends(get_redis_conne
     )
 
 
+app.add_api_route(f"{API_PREFIX}/health", health, methods=["GET"])
+
+
 app.include_router(auth_router.router, prefix=API_PREFIX)
 app.include_router(tenants_router.router, prefix=API_PREFIX)
 app.include_router(jobs_router.router, prefix=API_PREFIX)

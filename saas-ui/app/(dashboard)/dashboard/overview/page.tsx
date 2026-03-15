@@ -10,6 +10,7 @@ export default function DashboardOverviewPage() {
       showCreate
       showMetrics
       showAttention
+      showActionCenter
       showBillingAlert
       showStatusFilter
     />

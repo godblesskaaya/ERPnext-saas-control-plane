@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { TenantCreateForm } from "./TenantCreateForm";
@@ -18,6 +19,7 @@ type QueueConfig = {
   showCreate?: boolean;
   showMetrics?: boolean;
   showAttention?: boolean;
+  showActionCenter?: boolean;
   showBillingAlert?: boolean;
   showStatusFilter?: boolean;
   attentionNote?: string;
@@ -51,6 +53,7 @@ export function WorkspaceQueuePage({
   showCreate = false,
   showMetrics = true,
   showAttention = false,
+  showActionCenter = false,
   showBillingAlert = false,
   showStatusFilter = true,
   attentionNote,
@@ -287,6 +290,9 @@ export function WorkspaceQueuePage({
 
   const canCreateTenants = !currentUser || currentUser.email_verified;
   const failedBillingTenants = baseTenants.filter((tenant) => tenant.billing_status?.toLowerCase() === "failed").length;
+  const suspendedTenants = baseTenants.filter((tenant) =>
+    ["suspended", "suspended_admin", "suspended_billing"].includes(normalizeStatus(tenant.status))
+  ).length;
 
   const loadBillingPortal = async () => {
     setBillingPortalError(null);
@@ -413,6 +419,40 @@ export function WorkspaceQueuePage({
           {metricCard("Healthy", activeTenants, "Ready for daily sales, stock, and finance activity", "good")}
           {metricCard("In setup", provisioningTenants, "Still being provisioned or awaiting payment checks", "warn")}
           {metricCard("Needs rescue", failedTenants, "Provisioning failed and requires operator action", failedTenants > 0 ? "warn" : "default")}
+        </div>
+      ) : null}
+
+      {showActionCenter ? (
+        <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Action center</p>
+              <p className="text-lg font-semibold text-slate-900">Queues that need attention</p>
+            </div>
+            <span className="text-xs text-slate-500">Inspired by AWS Health dashboards</span>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <Link href="/dashboard/onboarding" className="rounded-2xl border border-amber-200 bg-[#fff7ed] p-4 text-sm">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Onboarding & payments</p>
+              <p className="mt-1 text-2xl font-semibold text-amber-800">{provisioningTenants}</p>
+              <p className="mt-1 text-xs text-slate-600">Pending payment and provisioning workspaces.</p>
+            </Link>
+            <Link href="/dashboard/incidents" className="rounded-2xl border border-amber-200 bg-white p-4 text-sm">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Failed or blocked</p>
+              <p className="mt-1 text-2xl font-semibold text-red-700">{failedTenants + suspendedTenants}</p>
+              <p className="mt-1 text-xs text-slate-600">Failures, suspensions, or stalled environments.</p>
+            </Link>
+            <Link href="/dashboard/active" className="rounded-2xl border border-amber-200 bg-white p-4 text-sm">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Active tenants</p>
+              <p className="mt-1 text-2xl font-semibold text-emerald-700">{activeTenants}</p>
+              <p className="mt-1 text-xs text-slate-600">Healthy customers needing routine care.</p>
+            </Link>
+            <Link href="/billing" className="rounded-2xl border border-amber-200 bg-[#f7fbf9] p-4 text-sm">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Billing follow-ups</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-800">{failedBillingTenants}</p>
+              <p className="mt-1 text-xs text-slate-600">Failed payment workspaces and invoices.</p>
+            </Link>
+          </div>
         </div>
       ) : null}
 

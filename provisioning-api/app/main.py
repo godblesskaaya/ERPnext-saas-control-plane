@@ -3,6 +3,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -27,25 +29,7 @@ from app.rate_limits import limiter
 
 settings = get_settings()
 init_sentry(include_fastapi=True, include_rq=True)
-
-app = FastAPI(
-    title=settings.app_name,
-    docs_url="/docs" if settings.api_docs_enabled else None,
-    openapi_url="/openapi.json" if settings.openapi_schema_enabled else None,
-    redoc_url=None,
-)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.saas_ui_origin_list,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
-)
 APP_ROOT = Path(__file__).resolve().parents[1]
-init_metrics(app, enabled=settings.metrics_enabled)
 API_PREFIX = f"/{settings.api_prefix.strip('/')}" if settings.api_prefix.strip("/") else ""
 
 
@@ -100,12 +84,41 @@ def _detect_legacy_schema_revision(database_url: str) -> str | None:
         engine.dispose()
 
 
-@app.on_event("startup")
-def startup() -> None:
+def _run_startup_migrations() -> None:
     legacy_revision = _detect_legacy_schema_revision(settings.database_url)
     if legacy_revision:
         subprocess.run(["alembic", "stamp", legacy_revision], cwd=APP_ROOT, check=True)
     subprocess.run(["alembic", "upgrade", "head"], cwd=APP_ROOT, check=True)
+
+
+def startup() -> None:
+    _run_startup_migrations()
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    _run_startup_migrations()
+    yield
+
+
+app = FastAPI(
+    title=settings.app_name,
+    docs_url="/docs" if settings.api_docs_enabled else None,
+    openapi_url="/openapi.json" if settings.openapi_schema_enabled else None,
+    redoc_url=None,
+    lifespan=lifespan,
+)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.saas_ui_origin_list,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+init_metrics(app, enabled=settings.metrics_enabled)
 
 
 @app.get("/health")

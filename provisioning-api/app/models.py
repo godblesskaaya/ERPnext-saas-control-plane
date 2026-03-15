@@ -9,6 +9,7 @@ from sqlalchemy import JSON, DateTime, Enum as SqlEnum, ForeignKey, Integer, Str
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+from app.utils.time import utcnow
 
 
 class TenantRole(str, Enum):
@@ -28,7 +29,7 @@ class User(Base):
     email_verified: Mapped[bool] = mapped_column(default=False, index=True)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     stripe_customer_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     tenants: Mapped[list[Tenant]] = relationship(back_populates="owner")
     organizations_owned: Mapped[list[Organization]] = relationship(back_populates="owner")
@@ -42,8 +43,8 @@ class Organization(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String(255))
     owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     owner: Mapped[User] = relationship(back_populates="organizations_owned")
     tenants: Mapped[list[Tenant]] = relationship(back_populates="organization")
@@ -68,8 +69,8 @@ class Tenant(Base):
     stripe_checkout_session_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     platform_customer_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     owner: Mapped[User] = relationship(back_populates="tenants")
     organization: Mapped[Organization | None] = relationship(back_populates="tenants")
@@ -89,9 +90,9 @@ class DomainMapping(Base):
     domain: Mapped[str] = mapped_column(String(255), index=True)
     status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
     verification_token: Mapped[str] = mapped_column(String(120))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     tenant: Mapped[Tenant] = relationship(back_populates="domain_mappings")
 
@@ -105,8 +106,8 @@ class SupportNote(Base):
     author_role: Mapped[str] = mapped_column(String(30), default="admin")
     category: Mapped[str] = mapped_column(String(30), default="note")
     note: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     tenant: Mapped[Tenant] = relationship(back_populates="support_notes")
     author: Mapped[User | None] = relationship(back_populates="support_notes_authored")
@@ -120,8 +121,8 @@ class TenantMembership(Base):
     tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     role: Mapped[TenantRole] = mapped_column(SqlEnum(TenantRole, name="tenant_role"), default=TenantRole.owner, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     tenant: Mapped[Tenant] = relationship(back_populates="memberships")
     user: Mapped[User] = relationship(back_populates="memberships")
@@ -137,7 +138,7 @@ class Job(Base):
     rq_job_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     logs: Mapped[str] = mapped_column(Text, default="")
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -153,7 +154,7 @@ class BackupManifest(Base):
     job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"), index=True)
     file_path: Mapped[str] = mapped_column(String(1024))
     file_size_bytes: Mapped[int] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     s3_key: Mapped[str | None] = mapped_column(String(1024), nullable=True)
 
@@ -172,4 +173,4 @@ class AuditLog(Base):
     resource_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
     metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)

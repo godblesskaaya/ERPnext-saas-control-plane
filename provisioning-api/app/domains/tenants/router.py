@@ -4,7 +4,6 @@ import hashlib
 import json
 import secrets
 import socket
-from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy import or_
@@ -69,6 +68,7 @@ from app.domains.policy import (
 )
 from app.token_store import get_token_store
 from app.domains.support.notifications import notification_service
+from app.utils.time import utcnow
 
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
@@ -574,7 +574,7 @@ def verify_tenant_domain(
                 detail="Domain does not resolve to this tenant. Update DNS and try again.",
             )
         mapping.status = "verified"
-        mapping.verified_at = datetime.utcnow()
+        mapping.verified_at = utcnow()
         db.add(mapping)
         db.commit()
         db.refresh(mapping)

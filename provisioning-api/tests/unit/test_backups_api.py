@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.models import AuditLog, BackupManifest, Job, Tenant, User
 
@@ -39,8 +39,8 @@ def _create_tenant_with_backups(db_session, *, owner: User) -> tuple[Tenant, lis
         job_id=older_job.id,
         file_path="/tmp/old.sql.gz",
         file_size_bytes=100,
-        created_at=datetime.utcnow() - timedelta(days=2),
-        expires_at=datetime.utcnow() + timedelta(days=28),
+        created_at=datetime.now(timezone.utc) - timedelta(days=2),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=28),
         s3_key="tenant/old.sql.gz",
     )
     newer = BackupManifest(
@@ -48,8 +48,8 @@ def _create_tenant_with_backups(db_session, *, owner: User) -> tuple[Tenant, lis
         job_id=newer_job.id,
         file_path="/tmp/new.sql.gz",
         file_size_bytes=200,
-        created_at=datetime.utcnow() - timedelta(hours=1),
-        expires_at=datetime.utcnow() + timedelta(days=29),
+        created_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=29),
         s3_key="tenant/new.sql.gz",
     )
     db_session.add_all([older, newer])

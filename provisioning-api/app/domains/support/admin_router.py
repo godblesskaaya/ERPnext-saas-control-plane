@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy import or_
@@ -26,6 +26,7 @@ from app.schemas import (
 from app.domains.audit.service import record_audit_event
 from app.domains.support.notifications import notification_service
 from app.domains.tenants.state import InvalidTenantStatusTransition, transition_tenant_status
+from app.utils.time import utcnow
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -274,10 +275,10 @@ def get_admin_metrics(
     ).count()
     pending_payment_tenants = db.query(Tenant).filter(Tenant.status == "pending_payment").count()
 
-    since_24h = datetime.utcnow() - timedelta(hours=24)
+    since_24h = utcnow() - timedelta(hours=24)
     jobs_last_24h = db.query(Job).filter(Job.created_at >= since_24h).count()
 
-    since_7d = datetime.utcnow() - timedelta(days=7)
+    since_7d = utcnow() - timedelta(days=7)
     create_jobs = db.query(Job).filter(Job.type == "create", Job.created_at >= since_7d).all()
     total_create = len(create_jobs)
     success_create = len([job for job in create_jobs if job.status == "succeeded"])
@@ -341,7 +342,7 @@ def suspend_tenant(
         transition_tenant_status(tenant, "suspended_admin")
     except InvalidTenantStatusTransition as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    tenant.updated_at = datetime.utcnow()
+    tenant.updated_at = utcnow()
     db.add(tenant)
     db.commit()
     record_audit_event(
@@ -393,7 +394,7 @@ def unsuspend_tenant(
     except InvalidTenantStatusTransition as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
-    tenant.updated_at = datetime.utcnow()
+    tenant.updated_at = utcnow()
     db.add(tenant)
     db.commit()
     record_audit_event(

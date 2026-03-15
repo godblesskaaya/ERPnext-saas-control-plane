@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -167,29 +167,29 @@ def test_cleanup_expired_backups_deletes_files_rows_and_skips_missing(db_session
         job_id=job.id,
         file_path=str(existing_file),
         file_size_bytes=existing_file.stat().st_size,
-        created_at=datetime.utcnow() - timedelta(days=10),
-        expires_at=datetime.utcnow() - timedelta(days=1),
+        created_at=datetime.now(timezone.utc) - timedelta(days=10),
+        expires_at=datetime.now(timezone.utc) - timedelta(days=1),
     )
     missing_manifest = BackupManifest(
         tenant_id=tenant.id,
         job_id=job.id,
         file_path=str(Path(tmp_path) / "missing.sql.gz"),
         file_size_bytes=1,
-        created_at=datetime.utcnow() - timedelta(days=10),
-        expires_at=datetime.utcnow() - timedelta(days=1),
+        created_at=datetime.now(timezone.utc) - timedelta(days=10),
+        expires_at=datetime.now(timezone.utc) - timedelta(days=1),
     )
     valid_manifest = BackupManifest(
         tenant_id=tenant.id,
         job_id=job.id,
         file_path=str(Path(tmp_path) / "future.sql.gz"),
         file_size_bytes=1,
-        created_at=datetime.utcnow(),
-        expires_at=datetime.utcnow() + timedelta(days=5),
+        created_at=datetime.now(timezone.utc),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=5),
     )
     db_session.add_all([expired_manifest, missing_manifest, valid_manifest])
     db_session.commit()
 
-    result = cleanup_expired_backups(db_session, now=datetime.utcnow())
+    result = cleanup_expired_backups(db_session, now=datetime.now(timezone.utc))
 
     assert result.scanned == 2
     assert result.deleted_files == 1

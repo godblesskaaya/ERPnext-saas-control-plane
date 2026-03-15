@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from alembic import op
@@ -52,7 +52,7 @@ def upgrade() -> None:
     op.create_index(op.f("ix_tenant_memberships_role"), "tenant_memberships", ["role"], unique=False)
 
     conn = op.get_bind()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     rows = conn.execute(sa.text("SELECT id, company_name, owner_id FROM tenants")).fetchall()
     for row in rows:
         org_id = str(uuid.uuid4())

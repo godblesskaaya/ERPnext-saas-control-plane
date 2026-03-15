@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import traceback
-from datetime import datetime
 
 from app.bench.commands import (
     build_assets_command,
@@ -23,6 +22,7 @@ from app.domains.support.notifications import notification_service
 from app.domains.support.platform_erp_client import PlatformERPClient
 from app.domains.tenants.tls_sync import sync_tenant_tls_routes
 from app.domains.tenants.state import InvalidTenantStatusTransition, transition_tenant_status
+from app.utils.time import utcnow
 
 
 platform_erp_client = PlatformERPClient()
@@ -148,7 +148,7 @@ def provision_tenant(job_id: str, tenant_id: str, owner_email: str, admin_passwo
 
         tenant.platform_customer_id = customer_id
         transition_tenant_status(tenant, "active")
-        tenant.updated_at = datetime.utcnow()
+        tenant.updated_at = utcnow()
         db.add(tenant)
 
         db.add(job)
@@ -305,7 +305,7 @@ def delete_tenant(job_id: str, tenant_id: str) -> None:
         append_log(job, f"delete: {result.stdout.strip()}")
 
         transition_tenant_status(tenant, "deleted")
-        tenant.updated_at = datetime.utcnow()
+        tenant.updated_at = utcnow()
         db.add(tenant)
         db.add(job)
         db.commit()

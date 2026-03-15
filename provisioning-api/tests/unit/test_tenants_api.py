@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from app.config import get_settings
@@ -38,7 +38,7 @@ def _auth_headers(client, db_session):
     client.post("/auth/signup", json={"email": "owner@example.com", "password": "Secret123!"})
     owner = db_session.query(User).filter(User.email == "owner@example.com").one()
     owner.email_verified = True
-    owner.email_verified_at = datetime.utcnow()
+    owner.email_verified_at = datetime.now(timezone.utc)
     db_session.add(owner)
     db_session.commit()
     login = client.post("/auth/login", json={"email": "owner@example.com", "password": "Secret123!"})
@@ -541,7 +541,7 @@ def test_tenant_create_blocked_until_email_verified(_, client, db_session):
 
     owner = db_session.query(User).filter(User.email == "gate@example.com").one()
     owner.email_verified = True
-    owner.email_verified_at = datetime.utcnow()
+    owner.email_verified_at = datetime.now(timezone.utc)
     db_session.add(owner)
     db_session.commit()
 

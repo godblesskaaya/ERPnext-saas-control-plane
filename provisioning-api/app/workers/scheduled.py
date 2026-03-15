@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from app.utils.time import utcnow
 
 from app.db import SessionLocal
 from app.logging_config import get_logger
@@ -12,7 +12,7 @@ log = get_logger(__name__)
 
 def cleanup_expired_backups_job() -> dict[str, int | list[str] | str]:
     db = SessionLocal()
-    started_at = datetime.utcnow()
+    started_at = utcnow()
     try:
         result = cleanup_expired_backups(db)
         payload = {

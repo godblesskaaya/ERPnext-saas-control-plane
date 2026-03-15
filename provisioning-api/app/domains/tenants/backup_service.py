@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.logging_config import get_logger
 from app.models import BackupManifest, Job, Tenant
+from app.utils.time import utcnow
 
 
 settings = get_settings()
@@ -148,7 +149,7 @@ def _upload_to_s3(tenant: Tenant, file_path: str, created_at: datetime) -> str:
 
 
 def persist_backup_manifest(db: Session, *, tenant: Tenant, job: Job, bench_stdout: str) -> BackupManifest:
-    created_at = datetime.utcnow()
+    created_at = utcnow()
     artifact = parse_backup_artifact(bench_stdout)
     if artifact is None:
         if settings.bench_exec_mode == "mock":
@@ -198,7 +199,7 @@ def list_backup_manifests(db: Session, tenant_id: str) -> list[BackupManifest]:
 
 
 def cleanup_expired_backups(db: Session, *, now: datetime | None = None) -> BackupCleanupResult:
-    cutoff = now or datetime.utcnow()
+    cutoff = now or utcnow()
     result = BackupCleanupResult()
     expired = (
         db.query(BackupManifest)

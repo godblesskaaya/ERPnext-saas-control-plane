@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 import hashlib
 import secrets
 
@@ -40,6 +39,7 @@ from app.security import (
     hash_password,
     verify_password,
 )
+from app.utils.time import utcnow
 from app.domains.audit.service import record_audit_event
 from app.domains.support.notifications import notification_service
 from app.token_store import get_token_store
@@ -229,7 +229,7 @@ def verify_email(
 
     if not user.email_verified:
         user.email_verified = True
-        user.email_verified_at = datetime.utcnow()
+        user.email_verified_at = utcnow()
         db.add(user)
         db.commit()
 

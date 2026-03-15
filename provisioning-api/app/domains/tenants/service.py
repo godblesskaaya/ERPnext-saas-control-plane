@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime
 
 from fastapi import HTTPException, Request, status
 from rq import Retry
@@ -18,6 +17,7 @@ from app.domains.audit.service import record_audit_event
 from app.domains.billing.payment.base import CheckoutResult
 from app.domains.billing.payment.factory import get_payment_gateway
 from app.domains.tenants.state import InvalidTenantStatusTransition, transition_tenant_status
+from app.utils.time import utcnow
 
 
 log = get_logger(__name__)
@@ -172,7 +172,7 @@ def enforce_backup_plan_limit(db: Session, tenant: Tenant) -> None:
     if limit is None:
         return
 
-    since = datetime.utcnow().replace(microsecond=0)
+    since = utcnow().replace(microsecond=0)
     since = since.replace(hour=0, minute=0, second=0)
     count = (
         db.query(AuditLog)
@@ -228,7 +228,7 @@ def enqueue_delete(db: Session, tenant: Tenant, *, actor: User, request: Request
         transition_tenant_status(tenant, "pending_deletion")
     except InvalidTenantStatusTransition as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    tenant.updated_at = datetime.utcnow()
+    tenant.updated_at = utcnow()
     db.add(tenant)
     db.commit()
     db.refresh(tenant)

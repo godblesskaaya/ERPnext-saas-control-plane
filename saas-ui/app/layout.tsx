@@ -92,7 +92,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                     <Link href="/onboarding" className={navLinkClass}>
                       Onboarding
                     </Link>
-                    <Link href="/dashboard" className={navLinkClass}>
+                    <Link href="/dashboard/overview" className={navLinkClass}>
                       Dashboard
                     </Link>
                     <Link href="/billing" className={navLinkClass}>

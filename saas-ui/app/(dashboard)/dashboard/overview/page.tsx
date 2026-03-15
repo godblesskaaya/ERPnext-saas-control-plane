@@ -1,8 +1,8 @@
 "use client";
 
-import { WorkspaceQueuePage } from "../../../domains/dashboard/components/WorkspaceQueuePage";
+import { WorkspaceQueuePage } from "../../../../domains/dashboard/components/WorkspaceQueuePage";
 
-export default function DashboardPage() {
+export default function DashboardOverviewPage() {
   return (
     <WorkspaceQueuePage
       title="Operations overview"

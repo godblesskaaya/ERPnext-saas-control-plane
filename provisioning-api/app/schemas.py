@@ -236,7 +236,10 @@ class TenantOut(BaseModel):
     plan: str = Field(description="Tenant plan. Expected values: starter, business, enterprise.")
     chosen_app: str | None
     status: str = Field(
-        description="Tenant lifecycle status. Typical values: pending_payment, pending, provisioning, active, suspended, deleting, deleted, failed."
+        description=(
+            "Tenant lifecycle status. Typical values: pending_payment, pending, provisioning, active, suspended, "
+            "suspended_admin, suspended_billing, upgrading, restoring, pending_deletion, deleting, deleted, failed."
+        )
     )
     billing_status: str = Field(description="Billing state. Typical values: pending, paid, failed, cancelled, unpaid.")
     payment_provider: str = Field(description="Active billing provider (for example: stripe, dpo).")

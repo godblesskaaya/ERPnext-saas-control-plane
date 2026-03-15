@@ -54,7 +54,14 @@ from app.domains.tenants.membership import (
     ensure_membership,
     require_role,
 )
-from app.domains.policy import validate_plan_change
+from app.domains.policy import (
+    enforce_backup_policy,
+    enforce_delete_policy,
+    enforce_plan_change_policy,
+    enforce_retry_policy,
+    ensure_domain_operation_allowed,
+    validate_plan_change,
+)
 from app.token_store import get_token_store
 from app.domains.support.notifications import notification_service
 
@@ -146,7 +153,8 @@ def check_subdomain_availability(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> SubdomainAvailabilityResponse:
-    del request, current_user
+    del request
+    ensure_domain_operation_allowed(actor=current_user)
 
     try:
         normalized = validate_subdomain(subdomain)
@@ -238,7 +246,10 @@ def list_tenants_paginated(
             .distinct()
         )
     if status_filter:
-        query = query.filter(Tenant.status == status_filter)
+        if status_filter == "suspended":
+            query = query.filter(Tenant.status.in_(["suspended", "suspended_admin", "suspended_billing"]))
+        else:
+            query = query.filter(Tenant.status == status_filter)
     if search:
         term = f"%{search.strip()}%"
         query = query.filter(
@@ -304,6 +315,7 @@ def backup_tenant(
 ) -> JobOut:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
     require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_OPERATE)
+    enforce_backup_policy(tenant)
     enforce_backup_plan_limit(db, tenant)
     job = enqueue_backup(db, tenant, actor=current_user, request=request)
     return JobOut.model_validate(job)
@@ -660,6 +672,7 @@ def delete_tenant(
 ) -> JobOut:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
     require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_MANAGE_TEAM)
+    enforce_delete_policy(tenant)
     job = enqueue_delete(db, tenant, actor=current_user, request=request)
     return JobOut.model_validate(job)
 
@@ -688,6 +701,8 @@ def update_tenant(
     require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_MANAGE_BILLING)
     if payload.plan is None and payload.chosen_app is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No updates supplied")
+
+    enforce_plan_change_policy(tenant)
 
     settings = get_settings()
     new_plan, new_chosen_app = validate_plan_change(
@@ -745,10 +760,7 @@ def retry_tenant_provisioning(
 ) -> JobOut:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
     require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_OPERATE)
-    if tenant.status != "failed":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tenant is not in failed state")
-    if tenant.billing_status != "paid":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tenant payment is not confirmed")
+    enforce_retry_policy(tenant)
 
     transition_tenant_status(tenant, "pending")
     db.add(tenant)

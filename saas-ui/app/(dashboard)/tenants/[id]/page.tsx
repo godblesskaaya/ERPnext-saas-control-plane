@@ -10,11 +10,12 @@ import type { AuditLogEntry, BackupManifestEntry, Tenant, TenantMember } from ".
 function statusClass(status: string): string {
   const normalized = status.toLowerCase();
   if (normalized === "active") return "bg-emerald-500/20 text-emerald-300";
-  if (normalized === "provisioning" || normalized === "pending" || normalized === "deleting") {
+  if (["provisioning", "pending", "deleting", "upgrading", "restoring", "pending_deletion"].includes(normalized)) {
     return "bg-amber-500/20 text-amber-300";
   }
   if (normalized === "failed") return "bg-red-500/20 text-red-300";
   if (normalized === "deleted") return "bg-slate-500/20 text-slate-300";
+  if (["suspended", "suspended_admin", "suspended_billing"].includes(normalized)) return "bg-orange-500/20 text-orange-300";
   return "bg-sky-500/20 text-sky-300";
 }
 
@@ -38,7 +39,12 @@ function nextActionByStatus(status: string): string {
   if (normalized === "active") return "Workspace is live. Confirm users can log in and run first transactions.";
   if (normalized === "pending_payment") return "Complete payment to continue automatic provisioning.";
   if (normalized === "pending" || normalized === "provisioning") return "Provisioning is running. Keep this page open for status updates.";
+  if (normalized === "upgrading") return "Upgrade in progress. Avoid configuration changes until it completes.";
+  if (normalized === "restoring") return "Restore running. Monitor job logs for completion.";
+  if (normalized === "pending_deletion") return "Deletion queued. Coordinate with support if this was unintentional.";
   if (normalized === "failed") return "Provisioning failed. Review related job logs and retry from dashboard.";
+  if (normalized === "suspended_admin") return "Suspended by admin action. Contact support for reactivation.";
+  if (normalized === "suspended_billing") return "Suspended for billing. Resolve payment to restore service.";
   if (normalized === "suspended") return "Access is suspended. Coordinate with admin team before reactivation.";
   return "Review tenant state and choose the next operational action.";
 }

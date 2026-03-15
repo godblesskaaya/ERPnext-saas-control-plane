@@ -541,7 +541,7 @@ def test_admin_list_and_suspend_audit_state_changes(client, db_session):
     assert suspended.json()["message"] == "Tenant suspended"
 
     db_session.expire_all()
-    assert db_session.get(Tenant, tenant.id).status == "suspended"
+    assert db_session.get(Tenant, tenant.id).status == "suspended_admin"
 
     unsuspended = client.post(f"/admin/tenants/{tenant.id}/unsuspend", headers=headers)
     assert unsuspended.status_code == 200

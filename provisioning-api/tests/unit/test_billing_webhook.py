@@ -114,7 +114,7 @@ def test_payment_failed_and_subscription_cancelled_audited(client, db_session):
     db_session.expire_all()
     refreshed_tenant = db_session.get(Tenant, tenant.id)
     assert refreshed_tenant.billing_status == "cancelled"
-    assert refreshed_tenant.status == "suspended"
+    assert refreshed_tenant.status == "suspended_billing"
 
     actions = [
         row.action

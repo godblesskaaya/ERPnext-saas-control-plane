@@ -29,3 +29,17 @@ def test_invalid_transition_rejected():
     tenant = _tenant("deleted")
     with pytest.raises(InvalidTenantStatusTransition):
         transition_tenant_status(tenant, "active")
+
+
+def test_admin_suspend_transition_applies():
+    tenant = _tenant("active")
+    transition_tenant_status(tenant, "suspended_admin")
+    assert tenant.status == "suspended_admin"
+
+
+def test_pending_deletion_transition_applies():
+    tenant = _tenant("active")
+    transition_tenant_status(tenant, "pending_deletion")
+    assert tenant.status == "pending_deletion"
+    transition_tenant_status(tenant, "deleting")
+    assert tenant.status == "deleting"

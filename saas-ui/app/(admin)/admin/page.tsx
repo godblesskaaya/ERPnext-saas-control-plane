@@ -10,12 +10,14 @@ import type { AuditLogEntry, DeadLetterJob, Job, MetricsSummary, Tenant } from "
 function statusBadgeClass(status: string): string {
   const normalized = status.toLowerCase();
   if (normalized === "active") return "bg-emerald-500/20 text-emerald-300";
-  if (normalized === "provisioning" || normalized === "pending" || normalized === "deleting") {
+  if (
+    ["provisioning", "pending", "deleting", "upgrading", "restoring", "pending_deletion"].includes(normalized)
+  ) {
     return "bg-amber-500/20 text-amber-300";
   }
   if (normalized === "failed") return "bg-red-500/20 text-red-300";
   if (normalized === "deleted") return "bg-slate-500/20 text-slate-300";
-  if (normalized === "suspended") return "bg-orange-500/20 text-orange-300";
+  if (["suspended", "suspended_admin", "suspended_billing"].includes(normalized)) return "bg-orange-500/20 text-orange-300";
   return "bg-sky-500/20 text-sky-300";
 }
 
@@ -222,11 +224,19 @@ export default function AdminPage() {
   }, [tenantSearch, tenantStatusFilter]);
 
   const suspendedCount = useMemo(
-    () => tenants.filter((tenant) => tenant.status.toLowerCase() === "suspended").length,
+    () =>
+      tenants.filter((tenant) =>
+        ["suspended", "suspended_admin", "suspended_billing"].includes(tenant.status.toLowerCase())
+      ).length,
     [tenants]
   );
   const provisioningCount = useMemo(
-    () => tenants.filter((tenant) => ["pending", "pending_payment", "provisioning"].includes(tenant.status.toLowerCase())).length,
+    () =>
+      tenants.filter((tenant) =>
+        ["pending", "pending_payment", "provisioning", "upgrading", "restoring", "pending_deletion"].includes(
+          tenant.status.toLowerCase()
+        )
+      ).length,
     [tenants]
   );
   const failedCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "failed").length, [tenants]);
@@ -493,7 +503,9 @@ export default function AdminPage() {
             <option value="pending">Pending</option>
             <option value="provisioning">Provisioning</option>
             <option value="failed">Failed</option>
-            <option value="suspended">Suspended</option>
+            <option value="suspended">Suspended (all)</option>
+            <option value="suspended_admin">Suspended (admin)</option>
+            <option value="suspended_billing">Suspended (billing)</option>
           </select>
         </div>
 
@@ -533,7 +545,7 @@ export default function AdminPage() {
                       <a href={`/tenants/${tenant.id}`} className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800">
                         Details
                       </a>
-                      {tenant.status.toLowerCase() === "suspended" ? (
+                      {["suspended", "suspended_admin", "suspended_billing"].includes(tenant.status.toLowerCase()) ? (
                         <button
                           type="button"
                           disabled={busyTenantId === tenant.id}

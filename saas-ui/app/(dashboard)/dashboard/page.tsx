@@ -140,7 +140,12 @@ export default function DashboardPage() {
   );
 
   const provisioningTenants = useMemo(
-    () => tenants.filter((tenant) => ["pending", "pending_payment", "provisioning"].includes(tenant.status.toLowerCase())).length,
+    () =>
+      tenants.filter((tenant) =>
+        ["pending", "pending_payment", "provisioning", "upgrading", "restoring", "pending_deletion"].includes(
+          tenant.status.toLowerCase()
+        )
+      ).length,
     [tenants]
   );
 
@@ -391,7 +396,12 @@ export default function DashboardPage() {
               <option value="pending">Pending</option>
               <option value="provisioning">Provisioning</option>
               <option value="failed">Failed</option>
-              <option value="suspended">Suspended</option>
+              <option value="suspended">Suspended (all)</option>
+              <option value="suspended_admin">Suspended (admin)</option>
+              <option value="suspended_billing">Suspended (billing)</option>
+              <option value="upgrading">Upgrading</option>
+              <option value="restoring">Restoring</option>
+              <option value="pending_deletion">Pending deletion</option>
             </select>
           </div>
         </div>

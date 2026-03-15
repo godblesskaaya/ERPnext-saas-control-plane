@@ -28,12 +28,14 @@ type ConfirmAction = {
 function statusBadgeClass(status: string): string {
   const normalized = status.toLowerCase();
   if (normalized === "active") return "bg-emerald-100 text-emerald-800";
-  if (normalized === "provisioning" || normalized === "pending" || normalized === "deleting") {
+  if (
+    ["provisioning", "pending", "deleting", "upgrading", "restoring", "pending_deletion"].includes(normalized)
+  ) {
     return "bg-amber-100 text-amber-800";
   }
   if (normalized === "failed") return "bg-red-100 text-red-700";
   if (normalized === "deleted") return "bg-slate-100 text-slate-500";
-  if (normalized === "suspended") return "bg-orange-100 text-orange-800";
+  if (["suspended", "suspended_admin", "suspended_billing"].includes(normalized)) return "bg-orange-100 text-orange-800";
   return "bg-sky-100 text-sky-800";
 }
 
@@ -42,8 +44,13 @@ function statusHint(status: string): string {
   if (normalized === "active") return "Serving daily operations";
   if (normalized === "pending_payment") return "Waiting for checkout confirmation";
   if (normalized === "pending" || normalized === "provisioning") return "Setup in progress";
+  if (normalized === "upgrading") return "Upgrade running";
+  if (normalized === "restoring") return "Restore in progress";
+  if (normalized === "pending_deletion") return "Deletion scheduled";
   if (normalized === "failed") return "Needs operator follow-up";
-  if (normalized === "suspended") return "Access paused by admin";
+  if (normalized === "suspended_admin") return "Paused by admin";
+  if (normalized === "suspended_billing") return "Paused for billing";
+  if (normalized === "suspended") return "Access paused";
   if (normalized === "deleted") return "Archived";
   return "Status under review";
 }
@@ -51,7 +58,11 @@ function statusHint(status: string): string {
 function rowTone(status: string): string {
   const normalized = status.toLowerCase();
   if (normalized === "failed") return "bg-red-50";
-  if (normalized === "pending" || normalized === "pending_payment" || normalized === "provisioning") return "bg-amber-50/60";
+  if (
+    ["pending", "pending_payment", "provisioning", "upgrading", "restoring", "pending_deletion"].includes(normalized)
+  ) {
+    return "bg-amber-50/60";
+  }
   return "";
 }
 
@@ -106,7 +117,12 @@ export function TenantTable({
   const [planBusy, setPlanBusy] = useState(false);
   const failedCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "failed").length, [tenants]);
   const setupCount = useMemo(
-    () => tenants.filter((tenant) => ["pending", "pending_payment", "provisioning"].includes(tenant.status.toLowerCase())).length,
+    () =>
+      tenants.filter((tenant) =>
+        ["pending", "pending_payment", "provisioning", "upgrading", "restoring", "pending_deletion"].includes(
+          tenant.status.toLowerCase()
+        )
+      ).length,
     [tenants]
   );
   const liveCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "active").length, [tenants]);

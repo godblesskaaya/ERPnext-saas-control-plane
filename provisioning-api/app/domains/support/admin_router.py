@@ -167,9 +167,11 @@ def get_admin_metrics(
 ) -> MetricsSummary:
     total_tenants = db.query(Tenant).count()
     active_tenants = db.query(Tenant).filter(Tenant.status == "active").count()
-    suspended_tenants = db.query(Tenant).filter(Tenant.status == "suspended").count()
+    suspended_tenants = db.query(Tenant).filter(Tenant.status.in_(["suspended", "suspended_admin", "suspended_billing"])).count()
     failed_tenants = db.query(Tenant).filter(Tenant.status == "failed").count()
-    provisioning_tenants = db.query(Tenant).filter(Tenant.status.in_(["pending", "provisioning"])).count()
+    provisioning_tenants = db.query(Tenant).filter(
+        Tenant.status.in_(["pending", "provisioning", "upgrading", "restoring"])
+    ).count()
     pending_payment_tenants = db.query(Tenant).filter(Tenant.status == "pending_payment").count()
 
     since_24h = datetime.utcnow() - timedelta(hours=24)
@@ -236,7 +238,7 @@ def suspend_tenant(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
 
     try:
-        transition_tenant_status(tenant, "suspended")
+        transition_tenant_status(tenant, "suspended_admin")
     except InvalidTenantStatusTransition as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     tenant.updated_at = datetime.utcnow()

@@ -225,7 +225,7 @@ def enqueue_backup(db: Session, tenant: Tenant, *, actor: User, request: Request
 def enqueue_delete(db: Session, tenant: Tenant, *, actor: User, request: Request) -> Job:
     task_log = log.bind(actor_user_id=actor.id, tenant_id=tenant.id, domain=tenant.domain)
     try:
-        transition_tenant_status(tenant, "deleting")
+        transition_tenant_status(tenant, "pending_deletion")
     except InvalidTenantStatusTransition as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     tenant.updated_at = datetime.utcnow()

@@ -167,9 +167,9 @@ def _process_event(
         owner = db.get(User, tenant.owner_id)
         tenant.billing_status = "cancelled"
         try:
-            transition_tenant_status(tenant, "suspended")
+            transition_tenant_status(tenant, "suspended_billing")
         except InvalidTenantStatusTransition:
-            pass
+            tenant.status = "suspended_billing"
         db.add(tenant)
         db.commit()
         record_audit_event(

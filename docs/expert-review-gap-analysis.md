@@ -24,14 +24,13 @@ This compares the current codebase against `expert-review.txt` to highlight crit
 
 ### 2) Tenant lifecycle states and policy coverage
 
-**Gap:** Tenant lifecycle states are limited (pending/pending_payment/provisioning/active/suspended/deleting/deleted/failed). The expert review calls for explicit states like `upgrading`, `restoring`, `suspended_billing`, `suspended_admin`, and `pending_deletion`. Policy checks are limited to email verification + plan/app validation + backup limits.
+**Status:** Implemented (2026-03-15).
 
-**Impact:**
-- Hard to express “why” a tenant is suspended (billing vs admin).
-- Upgrade/restore workflows cannot be modeled cleanly.
-- Policy constraints (custom domains, backups, upgrades) are not centralized.
-
-**Recommended next step:** expand lifecycle enum + transitions in `domains/tenants/state.py`, add policy checks for upgrades, restores, and domain management, and surface state reasons in admin/tenant UI.
+**What changed:**
+- Expanded lifecycle states (`suspended_admin`, `suspended_billing`, `upgrading`, `restoring`, `pending_deletion`).
+- Central policy helpers for plan change, backup, retry, delete, and domain operations.
+- Admin suspend now writes `suspended_admin`; billing cancellation writes `suspended_billing`.
+- UI status badges and hints updated to reflect new lifecycle states.
 
 ### 3) Domain management + custom domain mapping
 

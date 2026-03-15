@@ -94,9 +94,11 @@ scripts/suspend_site.sh <tenant-domain>.erp.blenkotechnologies.co.tz
 
 docker compose exec postgres psql -U erp_saas -d erp_saas -c "
 UPDATE tenants
-SET status='suspended', updated_at=NOW()
+SET status='suspended_admin', updated_at=NOW()
 WHERE domain='<tenant-domain>.erp.blenkotechnologies.co.tz';"
 ```
+
+> Use `suspended_billing` when the suspension is billing-related. Legacy `suspended` is still accepted but prefer the explicit variants.
 
 ### Unsuspend
 

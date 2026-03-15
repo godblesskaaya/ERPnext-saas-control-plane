@@ -32,6 +32,10 @@ Purpose: show which state-changing actions emit audit events, where they are rec
 | `tenant.member_invited` | Tenant member invited | `provisioning-api/app/domains/tenants/router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_tenant_membership_list_and_invite` |
 | `tenant.member_role_updated` | Tenant member role updated | `provisioning-api/app/domains/tenants/router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_tenant_membership_list_and_invite` |
 | `tenant.member_removed` | Tenant member removed | `provisioning-api/app/domains/tenants/router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_tenant_membership_list_and_invite` |
+| `tenant.domains_viewed` | Tenant custom domains viewed | `provisioning-api/app/domains/tenants/router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_tenant_custom_domain_flow` |
+| `tenant.domain_added` | Tenant custom domain added | `provisioning-api/app/domains/tenants/router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_tenant_custom_domain_flow` |
+| `tenant.domain_verified` | Tenant custom domain verified | `provisioning-api/app/domains/tenants/router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_tenant_custom_domain_flow` |
+| `tenant.domain_removed` | Tenant custom domain removed | `provisioning-api/app/domains/tenants/router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_tenant_custom_domain_flow` |
 | `billing.payment_succeeded` | Payment confirmed | `provisioning-api/app/domains/billing/router.py` | `provisioning-api/tests/unit/test_billing_webhook.py::test_checkout_completed_webhook_enqueues_provisioning_once` |
 | `billing.payment_failed` | Payment failed | `provisioning-api/app/domains/billing/router.py` | `provisioning-api/tests/unit/test_billing_webhook.py::test_payment_failed_and_subscription_cancelled_audited` |
 | `billing.subscription_cancelled` | Subscription cancelled | `provisioning-api/app/domains/billing/router.py` | `provisioning-api/tests/unit/test_billing_webhook.py::test_payment_failed_and_subscription_cancelled_audited` |
@@ -42,6 +46,10 @@ Purpose: show which state-changing actions emit audit events, where they are rec
 | `admin.view_dead_letter` | Admin view dead-letter queue | `provisioning-api/app/domains/support/admin_router.py` | — |
 | `admin.view_jobs` | Admin list jobs | `provisioning-api/app/domains/support/admin_router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_admin_jobs_and_logs_view` |
 | `admin.view_job_logs` | Admin view job logs | `provisioning-api/app/domains/support/admin_router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_admin_jobs_and_logs_view` |
+| `admin.view_support_notes` | Admin list support notes | `provisioning-api/app/domains/support/admin_router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_support_notes_admin_workflow` |
+| `admin.create_support_note` | Admin create support note | `provisioning-api/app/domains/support/admin_router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_support_notes_admin_workflow` |
+| `admin.view_support_notes` | Admin view support notes | `provisioning-api/app/domains/support/admin_router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_support_notes_admin_workflow` |
+| `admin.create_support_note` | Admin add support note | `provisioning-api/app/domains/support/admin_router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_support_notes_admin_workflow` |
 
 Notes:
 - Worker audit events are emitted inside `app/workers/tasks.py` and require integration tests to cover the job lifecycle.

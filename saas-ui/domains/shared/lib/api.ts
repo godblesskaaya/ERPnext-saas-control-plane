@@ -2,6 +2,7 @@ import { clearToken, getToken } from "../../auth/auth";
 import type {
   AuditLogEntry,
   BackupManifestEntry,
+  DomainMapping,
   TenantMember,
   BillingPortalResponse,
   BillingInvoiceListResponse,
@@ -12,6 +13,7 @@ import type {
   OptionalEndpointResult,
   PaginatedResult,
   ResetAdminPasswordResult,
+  SupportNote,
   SubdomainAvailability,
   Tenant,
   TenantCreatePayload,
@@ -391,6 +393,26 @@ export const api = {
   listTenantMembers: (tenantId: string) =>
     requestOptionalEndpoint<TenantMember[]>(`/tenants/${tenantId}/members`),
 
+  listTenantDomains: (tenantId: string) =>
+    requestOptionalEndpoint<DomainMapping[]>(`/tenants/${tenantId}/domains`),
+
+  createTenantDomain: (tenantId: string, domain: string) =>
+    requestOptionalEndpoint<DomainMapping>(`/tenants/${tenantId}/domains`, {
+      method: "POST",
+      body: JSON.stringify({ domain }),
+    }),
+
+  verifyTenantDomain: (tenantId: string, mappingId: string, token?: string | null) =>
+    requestOptionalEndpoint<DomainMapping>(`/tenants/${tenantId}/domains/${encodeURIComponent(mappingId)}/verify`, {
+      method: "POST",
+      body: JSON.stringify({ token: token ?? null }),
+    }),
+
+  deleteTenantDomain: (tenantId: string, mappingId: string) =>
+    requestOptionalEndpoint<MessageResponse>(`/tenants/${tenantId}/domains/${encodeURIComponent(mappingId)}`, {
+      method: "DELETE",
+    }),
+
   inviteTenantMember: (tenantId: string, payload: { email: string; role: string }) =>
     requestOptionalEndpoint<TenantMember>(`/tenants/${tenantId}/members`, {
       method: "POST",
@@ -414,6 +436,15 @@ export const api = {
 
   listAuditLog: (page = 1, limit = 50) =>
     requestOptionalEndpoint<PaginatedResult<AuditLogEntry>>(`/admin/audit-log?page=${page}&limit=${limit}`),
+
+  listSupportNotes: (tenantId: string) =>
+    requestOptionalEndpoint<SupportNote[]>(`/admin/support-notes?tenant_id=${encodeURIComponent(tenantId)}`),
+
+  createSupportNote: (tenantId: string, category: string, note: string) =>
+    requestOptionalEndpoint<SupportNote>(`/admin/support-notes`, {
+      method: "POST",
+      body: JSON.stringify({ tenant_id: tenantId, category, note }),
+    }),
 
   getBillingPortal: () => requestOptionalEndpoint<BillingPortalResponse>("/billing/portal"),
 

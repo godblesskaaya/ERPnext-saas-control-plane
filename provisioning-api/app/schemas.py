@@ -270,6 +270,27 @@ class SubdomainAvailabilityResponse(BaseModel):
     message: str = Field(description="Human-readable availability explanation.")
 
 
+class DomainMappingOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    tenant_id: str
+    domain: str
+    status: str
+    verification_token: str
+    created_at: datetime
+    verified_at: datetime | None
+    updated_at: datetime
+
+
+class DomainMappingCreateRequest(BaseModel):
+    domain: str = Field(min_length=3, max_length=255, description="Custom domain to map to the tenant.")
+
+
+class DomainMappingVerifyRequest(BaseModel):
+    token: str | None = Field(default=None, description="Optional verification token for domain verification.")
+
+
 class JobOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -302,6 +323,26 @@ class MetricsSummary(BaseModel):
     jobs_last_24h: int
     provisioning_success_rate_7d: float
     dead_letter_count: int
+
+
+class SupportNoteOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    tenant_id: str
+    author_id: str | None
+    author_role: str
+    author_email: EmailStr | None = None
+    category: str
+    note: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class SupportNoteCreateRequest(BaseModel):
+    tenant_id: str
+    category: str = Field(default="note", max_length=30)
+    note: str = Field(min_length=1, max_length=4000)
 
 
 class BackupManifestOut(BaseModel):

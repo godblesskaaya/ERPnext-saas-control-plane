@@ -70,6 +70,8 @@ def _detect_legacy_schema_revision(database_url: str) -> str | None:
         users_columns = {column["name"] for column in inspector.get_columns("users")} if "users" in tables else set()
         if {"email_verified", "email_verified_at"}.issubset(users_columns):
             if "tenant_memberships" in tables and "organizations" in tables and "organization_id" in tenant_columns:
+                if "domain_mappings" in tables and "support_notes" in tables:
+                    return "20260315_0009"
                 return "20260315_0008"
             return "20260308_0007"
 

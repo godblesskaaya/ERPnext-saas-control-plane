@@ -60,9 +60,17 @@ function progressForStatus(status: string): number {
       return 45;
     case "provisioning":
       return 75;
+    case "upgrading":
+    case "restoring":
+      return 90;
     case "active":
       return 100;
     case "failed":
+      return 100;
+    case "pending_deletion":
+    case "suspended":
+    case "suspended_admin":
+    case "suspended_billing":
       return 100;
     default:
       return 35;
@@ -77,10 +85,22 @@ function statusLabel(status: string): string {
       return "Queued for provisioning";
     case "provisioning":
       return "Provisioning in progress";
+    case "upgrading":
+      return "Upgrade in progress";
+    case "restoring":
+      return "Restore in progress";
+    case "pending_deletion":
+      return "Deletion scheduled";
     case "active":
       return "Workspace is ready";
     case "failed":
       return "Provisioning failed";
+    case "suspended":
+      return "Workspace suspended";
+    case "suspended_admin":
+      return "Workspace suspended by admin";
+    case "suspended_billing":
+      return "Workspace suspended for billing";
     default:
       return status || "Starting";
   }
@@ -90,7 +110,21 @@ function deriveStepFromTenant(tenant: TenantRecord, checkoutUrl: string | null):
   const status = (tenant.status ?? "").toLowerCase();
   if (status === "active") return "success";
   if (status === "pending_payment") return checkoutUrl ? "payment" : "waiting";
-  if (status === "pending" || status === "provisioning" || status === "failed") return "waiting";
+  if (
+    [
+      "pending",
+      "provisioning",
+      "failed",
+      "upgrading",
+      "restoring",
+      "pending_deletion",
+      "suspended",
+      "suspended_admin",
+      "suspended_billing",
+    ].includes(status)
+  ) {
+    return "waiting";
+  }
   return "details";
 }
 

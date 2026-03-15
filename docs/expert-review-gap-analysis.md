@@ -34,43 +34,37 @@ This compares the current codebase against `expert-review.txt` to highlight crit
 
 ### 3) Domain management + custom domain mapping
 
-**Gap:** No domain mapping table or API exists. Expert review expects domain attach/verify flows with policy enforcement and audit trail.
+**Status:** ✅ Implemented in this pass.
 
-**Impact:**
-- Tenant admins cannot add custom domains.
-- Support cannot validate or rotate domains safely.
-
-**Recommended next step:** create `DomainMapping` model, endpoints for add/verify/remove, and UI surface in tenant dashboard.
+**What changed:**
+- Added `DomainMapping` model + migration.
+- Tenant endpoints now support add/verify/remove/list with policy enforcement + audit logging.
+- Tenant dashboard exposes custom domain management with DNS guidance.
 
 ### 4) Tenant-facing UI separation gaps
 
-**Gap:** Tenant UI lacks separate **Team** and **Activity/Audit** views. Expert review recommends tenant-visible activity/history and team membership management.
+**Status:** ✅ Implemented.
 
-**Impact:**
-- Tenant admins have no audit visibility.
-- No way to invite colleagues or assign roles.
-
-**Recommended next step:** add `/team` and `/activity` sections in the tenant dashboard, backed by membership + audit endpoints.
+**What changed:**
+- Tenant detail view includes **Team** management and **Activity log** panels.
+- Membership roles and audit log pagination are now exposed for tenant operators.
 
 ### 5) Support/admin tooling gaps
 
-**Gap:** No support case/notes system or impersonation/magic-link workflow. Observability metrics exist but do not include alerting/incident metadata or operator runbook links.
+**Status:** ✅ Support notes implemented; impersonation remains open.
 
-**Impact:**
-- Support actions are harder to track or hand off.
-- Operators lack structured case metadata for incidents.
-
-**Recommended next step:** add `support_notes` table + UI panel, plus an optional “impersonate tenant admin” flow that is fully audited.
+**What changed:**
+- Added `support_notes` table + admin endpoints with audit logging.
+- Tenant detail UI now shows internal support notes for admin users.
 
 ## Immediate fixes implemented in this pass
 
+- Added domain mapping + support notes models, migrations, and API endpoints.
+- Tenant dashboard now includes custom domain management and admin-only support notes panel.
 - Added audit logging for **admin metrics** and **dead-letter queue view** to satisfy “all privileged actions are auditable.”
 - Updated `docs/audit-log-coverage.md` to reflect new audit actions and current file paths.
 
 ## Next-priority actions (summary)
 
-1. Implement tenant membership + role model.
-2. Expand lifecycle states and policy coverage.
-3. Add custom domain management domain + UI.
-4. Add tenant team + activity UI views.
-5. Add support notes and incident metadata.
+1. Validate domain verification with real DNS propagation in staging.
+2. Add impersonation/magic-link support workflow (audited).

@@ -29,7 +29,16 @@ def test_alembic_upgrade_creates_core_tables(monkeypatch, tmp_path) -> None:
 
     inspector = inspect(create_engine(f"sqlite:///{database_path}"))
     tables = set(inspector.get_table_names())
-    assert {"users", "tenants", "jobs", "audit_logs", "organizations", "tenant_memberships"} <= tables
+    assert {
+        "users",
+        "tenants",
+        "jobs",
+        "audit_logs",
+        "organizations",
+        "tenant_memberships",
+        "domain_mappings",
+        "support_notes",
+    } <= tables
     user_columns = {column["name"] for column in inspector.get_columns("users")}
     assert {"email_verified", "email_verified_at"} <= user_columns
 

@@ -4,6 +4,11 @@ export type TenantStatus =
   | "provisioning"
   | "active"
   | "suspended"
+  | "suspended_admin"
+  | "suspended_billing"
+  | "upgrading"
+  | "restoring"
+  | "pending_deletion"
   | "deleting"
   | "deleted"
   | "failed"
@@ -108,6 +113,29 @@ export type TenantMember = {
   user_email?: string | null;
   role: string;
   created_at: string;
+};
+
+export type DomainMapping = {
+  id: string;
+  tenant_id: string;
+  domain: string;
+  status: string;
+  verification_token: string;
+  created_at: string;
+  verified_at?: string | null;
+  updated_at: string;
+};
+
+export type SupportNote = {
+  id: string;
+  tenant_id: string;
+  author_id?: string | null;
+  author_role: string;
+  author_email?: string | null;
+  category: string;
+  note: string;
+  created_at: string;
+  updated_at: string;
 };
 
 export type SubdomainAvailability = {

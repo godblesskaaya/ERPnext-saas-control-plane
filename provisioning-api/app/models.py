@@ -33,6 +33,7 @@ class User(Base):
     tenants: Mapped[list[Tenant]] = relationship(back_populates="owner")
     organizations_owned: Mapped[list[Organization]] = relationship(back_populates="owner")
     memberships: Mapped[list[TenantMembership]] = relationship(back_populates="user")
+    support_notes_authored: Mapped[list[SupportNote]] = relationship(back_populates="author")
 
 
 class Organization(Base):
@@ -75,6 +76,40 @@ class Tenant(Base):
     jobs: Mapped[list[Job]] = relationship(back_populates="tenant")
     backups: Mapped[list[BackupManifest]] = relationship(back_populates="tenant")
     memberships: Mapped[list[TenantMembership]] = relationship(back_populates="tenant")
+    domain_mappings: Mapped[list[DomainMapping]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
+    support_notes: Mapped[list[SupportNote]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
+
+
+class DomainMapping(Base):
+    __tablename__ = "domain_mappings"
+    __table_args__ = (UniqueConstraint("domain", name="uq_domain_mappings_domain"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    domain: Mapped[str] = mapped_column(String(255), index=True)
+    status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
+    verification_token: Mapped[str] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    tenant: Mapped[Tenant] = relationship(back_populates="domain_mappings")
+
+
+class SupportNote(Base):
+    __tablename__ = "support_notes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    author_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    author_role: Mapped[str] = mapped_column(String(30), default="admin")
+    category: Mapped[str] = mapped_column(String(30), default="note")
+    note: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    tenant: Mapped[Tenant] = relationship(back_populates="support_notes")
+    author: Mapped[User | None] = relationship(back_populates="support_notes_authored")
 
 
 class TenantMembership(Base):

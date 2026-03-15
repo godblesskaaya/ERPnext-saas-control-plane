@@ -159,6 +159,82 @@ def test_tenant_membership_list_and_invite(_, client, db_session):
     )
 
 
+@patch("app.domains.tenants.router._domain_points_to_tenant", return_value=True)
+@patch("app.domains.tenants.service.get_payment_gateway", return_value=DummyGateway())
+def test_tenant_custom_domain_flow(_, __, client, db_session):
+    headers = _auth_headers(client, db_session)
+    create = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "domains", "company_name": "Domains Ltd", "plan": "starter"},
+    )
+    tenant_id = create.json()["tenant"]["id"]
+
+    created = client.post(
+        f"/tenants/{tenant_id}/domains",
+        headers=headers,
+        json={"domain": "erp.domains.example.com"},
+    )
+    assert created.status_code == 201
+    created_payload = created.json()
+    assert created_payload["status"] == "pending"
+    assert created_payload["verification_token"]
+
+    listed = client.get(f"/tenants/{tenant_id}/domains", headers=headers)
+    assert listed.status_code == 200
+    assert len(listed.json()) == 1
+
+    verified = client.post(
+        f"/tenants/{tenant_id}/domains/{created_payload['id']}/verify",
+        headers=headers,
+        json={"token": created_payload["verification_token"]},
+    )
+    assert verified.status_code == 200
+    assert verified.json()["status"] == "verified"
+
+    removed = client.delete(
+        f"/tenants/{tenant_id}/domains/{created_payload['id']}",
+        headers=headers,
+    )
+    assert removed.status_code == 200
+
+    actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
+    assert "tenant.domains_viewed" in actions
+    assert "tenant.domain_added" in actions
+    assert "tenant.domain_verified" in actions
+    assert "tenant.domain_removed" in actions
+
+
+@patch("app.domains.tenants.service.get_payment_gateway", return_value=DummyGateway())
+def test_support_notes_admin_workflow(_, client, db_session):
+    owner_headers = _auth_headers(client, db_session)
+    create = client.post(
+        "/tenants",
+        headers=owner_headers,
+        json={"subdomain": "support", "company_name": "Supportful Co", "plan": "starter"},
+    )
+    tenant_id = create.json()["tenant"]["id"]
+
+    admin_headers = _admin_headers(client, db_session)
+    created = client.post(
+        "/admin/support-notes",
+        headers=admin_headers,
+        json={"tenant_id": tenant_id, "category": "incident", "note": "Investigated DNS propagation delays."},
+    )
+    assert created.status_code == 201
+    payload = created.json()
+    assert payload["tenant_id"] == tenant_id
+    assert payload["category"] == "incident"
+
+    listed = client.get("/admin/support-notes", headers=admin_headers, params={"tenant_id": tenant_id})
+    assert listed.status_code == 200
+    assert len(listed.json()) == 1
+
+    actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
+    assert "admin.create_support_note" in actions
+    assert "admin.view_support_notes" in actions
+
+
 @patch("app.domains.tenants.service.get_payment_gateway", return_value=DummyGateway())
 def test_unverified_user_cannot_create_tenant(_, client, db_session):
     headers = _unverified_headers(client)

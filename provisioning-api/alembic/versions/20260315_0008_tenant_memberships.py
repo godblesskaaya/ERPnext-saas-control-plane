@@ -14,6 +14,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    tenant_role_enum = sa.Enum("owner", "admin", "billing", "technical", name="tenant_role")
+
     op.create_table(
         "organizations",
         sa.Column("id", sa.String(length=36), primary_key=True),
@@ -33,7 +35,7 @@ def upgrade() -> None:
         sa.Column("id", sa.String(length=36), primary_key=True),
         sa.Column("tenant_id", sa.String(length=36), nullable=False),
         sa.Column("user_id", sa.String(length=36), nullable=False),
-        sa.Column("role", sa.String(length=20), nullable=False),
+        sa.Column("role", tenant_role_enum, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"]),

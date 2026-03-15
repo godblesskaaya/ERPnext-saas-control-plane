@@ -8,10 +8,21 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import require_admin
-from app.models import AuditLog, Job, Tenant, User
+from app.models import AuditLog, Job, SupportNote, Tenant, User
 from app.queue.enqueue import get_dlq
 from app.rate_limits import authenticated_default_rate_limit
-from app.schemas import AuditLogOut, DeadLetterJobOut, JobOut, MessageResponse, MetricsSummary, PaginatedAuditLogResponse, PaginatedTenantResponse, TenantOut
+from app.schemas import (
+    AuditLogOut,
+    DeadLetterJobOut,
+    JobOut,
+    MessageResponse,
+    MetricsSummary,
+    PaginatedAuditLogResponse,
+    PaginatedTenantResponse,
+    SupportNoteCreateRequest,
+    SupportNoteOut,
+    TenantOut,
+)
 from app.domains.audit.service import record_audit_event
 from app.domains.support.notifications import notification_service
 from app.domains.tenants.state import InvalidTenantStatusTransition, transition_tenant_status
@@ -148,6 +159,95 @@ def list_audit_log(
         metadata={"count": len(entries), "page": page, "limit": limit},
     )
     return PaginatedAuditLogResponse(data=entries, total=total, page=page, limit=limit)
+
+
+@router.get(
+    "/support-notes",
+    response_model=list[SupportNoteOut],
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def list_support_notes(
+    request: Request,
+    tenant_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+) -> list[SupportNoteOut]:
+    query = db.query(SupportNote, User.email).outerjoin(User, SupportNote.author_id == User.id)
+    if tenant_id:
+        query = query.filter(SupportNote.tenant_id == tenant_id)
+    rows = query.order_by(SupportNote.created_at.desc()).all()
+
+    entries: list[SupportNoteOut] = []
+    for note, email in rows:
+        payload = SupportNoteOut.model_validate(note)
+        entries.append(payload.model_copy(update={"author_email": email}))
+
+    record_audit_event(
+        db,
+        action="admin.view_support_notes",
+        resource="support_notes",
+        actor=current_admin,
+        request=request,
+        metadata={"count": len(entries), "tenant_id": tenant_id},
+    )
+    return entries
+
+
+@router.post(
+    "/support-notes",
+    response_model=SupportNoteOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def create_support_note(
+    request: Request,
+    payload: SupportNoteCreateRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+) -> SupportNoteOut:
+    tenant = db.get(Tenant, payload.tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+
+    note_text = payload.note.strip()
+    if not note_text:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Note cannot be empty")
+
+    note = SupportNote(
+        tenant_id=tenant.id,
+        author_id=current_admin.id,
+        author_role=current_admin.role,
+        category=payload.category.strip() or "note",
+        note=note_text,
+    )
+    db.add(note)
+    db.commit()
+    db.refresh(note)
+
+    record_audit_event(
+        db,
+        action="admin.create_support_note",
+        resource="support_notes",
+        actor=current_admin,
+        resource_id=note.id,
+        request=request,
+        metadata={"tenant_id": tenant.id, "category": note.category},
+    )
+
+    payload_out = SupportNoteOut.model_validate(note)
+    return payload_out.model_copy(update={"author_email": current_admin.email})
 
 
 @router.get(

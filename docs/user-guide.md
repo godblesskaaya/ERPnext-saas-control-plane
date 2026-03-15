@@ -49,7 +49,21 @@ To add a teammate:
 
 ---
 
-## 4) Reset ERPNext Administrator password
+## 4) Add a custom domain
+
+From the tenant detail page, open **Custom domains**.
+
+1. Enter your custom domain (for example `erp.yourcompany.co.tz`).
+2. Create a CNAME record pointing to your workspace domain (shown in the panel).
+3. Wait for DNS propagation, then click **Verify**.
+
+Notes:
+- Custom domains must not end with the platform suffix (`.erp.blenkotechnologies.co.tz`).
+- Verification may take a few minutes after DNS changes.
+
+---
+
+## 5) Reset ERPNext Administrator password
 
 From dashboard tenant table:
 
@@ -65,7 +79,7 @@ Security notes:
 
 ---
 
-## 5) Trigger a manual backup
+## 6) Trigger a manual backup
 
 From dashboard, click **Backup** for your tenant.
 
@@ -79,7 +93,7 @@ When accepted, a backup job is queued and can be tracked via job status.
 
 ---
 
-## 6) If subscription payment fails
+## 7) If subscription payment fails
 
 When payment webhook reports failure:
 
@@ -95,7 +109,7 @@ What to do:
 
 ---
 
-## 7) Delete your ERP instance and retention policy
+## 8) Delete your ERP instance and retention policy
 
 From dashboard, click **Delete** on the tenant.
 

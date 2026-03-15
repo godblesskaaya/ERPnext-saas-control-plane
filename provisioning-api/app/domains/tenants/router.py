@@ -3,23 +3,28 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+import socket
+from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.bench.validators import ValidationError, domain_from_subdomain, validate_subdomain
+from app.bench.validators import ValidationError, domain_from_subdomain, validate_custom_domain, validate_subdomain
 from app.bench.commands import build_set_admin_password_command
 from app.bench.runner import BenchCommandError, run_bench_command
 from app.db import get_db
 from app.config import get_settings
 from app.deps import get_current_user
-from app.models import AuditLog, Tenant, TenantMembership, User
+from app.models import AuditLog, DomainMapping, Tenant, TenantMembership, User
 from app.rate_limits import authenticated_default_rate_limit, tenant_backup_rate_limit, tenant_create_rate_limit
 from app.security import hash_password
 from app.schemas import (
     BackupManifestOut,
     AuditLogOut,
+    DomainMappingCreateRequest,
+    DomainMappingOut,
+    DomainMappingVerifyRequest,
     JobOut,
     MessageResponse,
     PaginatedAuditLogResponse,
@@ -87,6 +92,29 @@ def _get_accessible_tenant(tenant_id: str, db: Session, current_user: User) -> T
 def _password_reset_token_key(raw_token: str) -> str:
     digest = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
     return f"password-reset:{digest}"
+
+
+def _get_domain_mapping(db: Session, *, tenant: Tenant, mapping_id: str) -> DomainMapping:
+    mapping = db.get(DomainMapping, mapping_id)
+    if not mapping or mapping.tenant_id != tenant.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain mapping not found")
+    return mapping
+
+
+def _resolve_domain_ips(domain: str) -> set[str]:
+    try:
+        results = socket.getaddrinfo(domain, None)
+    except socket.gaierror:
+        return set()
+    return {result[4][0] for result in results if result and result[4]}
+
+
+def _domain_points_to_tenant(domain: str, tenant_domain: str) -> bool:
+    domain_ips = _resolve_domain_ips(domain)
+    tenant_ips = _resolve_domain_ips(tenant_domain)
+    if not domain_ips or not tenant_ips:
+        return False
+    return bool(domain_ips & tenant_ips)
 
 
 @router.post(
@@ -413,6 +441,195 @@ def list_tenant_audit_log(
 
 
 @router.get(
+    "/{tenant_id}/domains",
+    response_model=list[DomainMappingOut],
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def list_tenant_domains(
+    request: Request,
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[DomainMappingOut]:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_OPERATE)
+    ensure_domain_operation_allowed(tenant=tenant, actor=current_user)
+
+    mappings = (
+        db.query(DomainMapping)
+        .filter(DomainMapping.tenant_id == tenant.id)
+        .order_by(DomainMapping.created_at.desc())
+        .all()
+    )
+    record_audit_event(
+        db,
+        action="tenant.domains_viewed",
+        resource="domains",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+        metadata={"count": len(mappings)},
+    )
+    return [DomainMappingOut.model_validate(item) for item in mappings]
+
+
+@router.post(
+    "/{tenant_id}/domains",
+    response_model=DomainMappingOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_409_CONFLICT: CONFLICT_409_RESPONSE,
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def create_tenant_domain(
+    request: Request,
+    tenant_id: str,
+    payload: DomainMappingCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DomainMappingOut:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_OPERATE)
+    ensure_domain_operation_allowed(tenant=tenant, actor=current_user)
+
+    try:
+        domain = validate_custom_domain(payload.domain)
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
+    if domain == tenant.domain:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Domain is already assigned to this tenant")
+
+    existing_tenant = db.query(Tenant).filter(Tenant.domain == domain).first()
+    existing_mapping = db.query(DomainMapping).filter(DomainMapping.domain == domain).first()
+    if existing_tenant or existing_mapping:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Domain is already in use")
+
+    mapping = DomainMapping(
+        tenant_id=tenant.id,
+        domain=domain,
+        status="pending",
+        verification_token=secrets.token_urlsafe(16),
+    )
+    db.add(mapping)
+    db.commit()
+    db.refresh(mapping)
+
+    record_audit_event(
+        db,
+        action="tenant.domain_added",
+        resource="domains",
+        actor=current_user,
+        resource_id=mapping.id,
+        request=request,
+        metadata={"domain": domain, "tenant_id": tenant.id},
+    )
+    return DomainMappingOut.model_validate(mapping)
+
+
+@router.post(
+    "/{tenant_id}/domains/{mapping_id}/verify",
+    response_model=DomainMappingOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def verify_tenant_domain(
+    request: Request,
+    tenant_id: str,
+    mapping_id: str,
+    payload: DomainMappingVerifyRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DomainMappingOut:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_OPERATE)
+    ensure_domain_operation_allowed(tenant=tenant, actor=current_user)
+
+    mapping = _get_domain_mapping(db, tenant=tenant, mapping_id=mapping_id)
+    if payload.token and payload.token != mapping.verification_token:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Verification token mismatch")
+
+    if mapping.status != "verified":
+        if not _domain_points_to_tenant(mapping.domain, tenant.domain):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Domain does not resolve to this tenant. Update DNS and try again.",
+            )
+        mapping.status = "verified"
+        mapping.verified_at = datetime.utcnow()
+        db.add(mapping)
+        db.commit()
+        db.refresh(mapping)
+
+    record_audit_event(
+        db,
+        action="tenant.domain_verified",
+        resource="domains",
+        actor=current_user,
+        resource_id=mapping.id,
+        request=request,
+        metadata={"domain": mapping.domain, "tenant_id": tenant.id},
+    )
+    return DomainMappingOut.model_validate(mapping)
+
+
+@router.delete(
+    "/{tenant_id}/domains/{mapping_id}",
+    response_model=MessageResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def delete_tenant_domain(
+    request: Request,
+    tenant_id: str,
+    mapping_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MessageResponse:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_OPERATE)
+    ensure_domain_operation_allowed(tenant=tenant, actor=current_user)
+
+    mapping = _get_domain_mapping(db, tenant=tenant, mapping_id=mapping_id)
+    db.delete(mapping)
+    db.commit()
+
+    record_audit_event(
+        db,
+        action="tenant.domain_removed",
+        resource="domains",
+        actor=current_user,
+        resource_id=mapping_id,
+        request=request,
+        metadata={"domain": mapping.domain, "tenant_id": tenant.id},
+    )
+    return MessageResponse(message="Domain mapping removed")
+
+
+@router.get(
     "/{tenant_id}/members",
     response_model=list[TenantMemberOut],
     dependencies=[Depends(authenticated_default_rate_limit)],
@@ -649,6 +866,8 @@ def remove_tenant_member(
         metadata={"user_id": membership.user_id},
     )
     return MessageResponse(message="Member removed")
+
+
 
 
 @router.delete(

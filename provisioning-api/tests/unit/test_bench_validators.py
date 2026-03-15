@@ -7,6 +7,7 @@ from app.bench.validators import (
     domain_from_subdomain,
     validate_admin_password,
     validate_app_name,
+    validate_custom_domain,
     validate_plan,
     validate_subdomain,
 )
@@ -50,3 +51,9 @@ def test_validate_admin_password_rules():
 def test_validate_subdomain_rejects_reserved_names():
     with pytest.raises(ValidationError):
         validate_subdomain("admin")
+
+
+def test_validate_custom_domain_rejects_platform_suffix():
+    assert validate_custom_domain("customer.example.com") == "customer.example.com"
+    with pytest.raises(ValidationError):
+        validate_custom_domain("tenant.erp.blenkotechnologies.co.tz")

@@ -72,6 +72,16 @@ def validate_domain(domain: str) -> str:
     return cleaned
 
 
+def validate_custom_domain(domain: str) -> str:
+    cleaned = domain.strip().lower()
+    if not DOMAIN_PATTERN.fullmatch(cleaned):
+        raise ValidationError("Invalid domain")
+    platform_suffix = f".{settings.tenant_domain_suffix}"
+    if cleaned.endswith(platform_suffix):
+        raise ValidationError(f"Custom domains cannot end with {platform_suffix}")
+    return cleaned
+
+
 def validate_plan(plan: str) -> str:
     cleaned = plan.strip().lower()
     if cleaned not in settings.allowed_plan_set:

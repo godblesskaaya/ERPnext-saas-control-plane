@@ -13,6 +13,7 @@ export type TenantPlan = "starter" | "business" | "enterprise" | (string & {});
 
 export type Tenant = {
   id: string;
+  organization_id?: string | null;
   owner_id: string;
   subdomain: string;
   domain: string;
@@ -97,6 +98,15 @@ export type AuditLogEntry = {
   resource_id?: string | null;
   ip_address?: string | null;
   metadata?: Record<string, unknown>;
+  created_at: string;
+};
+
+export type TenantMember = {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  user_email?: string | null;
+  role: string;
   created_at: string;
 };
 

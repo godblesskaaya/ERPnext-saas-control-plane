@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -13,12 +14,14 @@ from app.bench.runner import BenchCommandError, run_bench_command
 from app.db import get_db
 from app.config import get_settings
 from app.deps import get_current_user
-from app.models import AuditLog, Tenant, User
+from app.models import AuditLog, Tenant, TenantMembership, User
 from app.rate_limits import authenticated_default_rate_limit, tenant_backup_rate_limit, tenant_create_rate_limit
+from app.security import hash_password
 from app.schemas import (
     BackupManifestOut,
     AuditLogOut,
     JobOut,
+    MessageResponse,
     PaginatedAuditLogResponse,
     PaginatedTenantResponse,
     ResetAdminPasswordRequest,
@@ -26,6 +29,9 @@ from app.schemas import (
     SubdomainAvailabilityResponse,
     TenantCreateRequest,
     TenantCreateResponse,
+    TenantMemberInviteRequest,
+    TenantMemberOut,
+    TenantMemberUpdateRequest,
     TenantOut,
     TenantUpdateRequest,
 )
@@ -39,8 +45,18 @@ from app.domains.tenants.service import (
     enforce_backup_plan_limit,
 )
 from app.domains.tenants.state import transition_tenant_status
+from app.domains.tenants.membership import (
+    TENANT_ROLE_CAN_MANAGE_BILLING,
+    TENANT_ROLE_CAN_MANAGE_TEAM,
+    TENANT_ROLE_CAN_OPERATE,
+    TENANT_ROLE_OWNER,
+    TENANT_ROLES,
+    ensure_membership,
+    require_role,
+)
 from app.domains.policy import validate_plan_change
 from app.token_store import get_token_store
+from app.domains.support.notifications import notification_service
 
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
@@ -57,9 +73,13 @@ def _get_accessible_tenant(tenant_id: str, db: Session, current_user: User) -> T
     tenant = db.get(Tenant, tenant_id)
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
-    if current_user.role != "admin" and tenant.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    ensure_membership(db, tenant=tenant, user=current_user)
     return tenant
+
+
+def _password_reset_token_key(raw_token: str) -> str:
+    digest = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    return f"password-reset:{digest}"
 
 
 @router.post(
@@ -172,7 +192,16 @@ def check_subdomain_availability(
 def list_tenants(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[TenantOut]:
     query = db.query(Tenant)
     if current_user.role != "admin":
-        query = query.filter(Tenant.owner_id == current_user.id)
+        query = (
+            query.outerjoin(TenantMembership, TenantMembership.tenant_id == Tenant.id)
+            .filter(
+                or_(
+                    Tenant.owner_id == current_user.id,
+                    TenantMembership.user_id == current_user.id,
+                )
+            )
+            .distinct()
+        )
     tenants = query.order_by(Tenant.created_at.desc()).all()
     return [TenantOut.model_validate(item) for item in tenants]
 
@@ -198,7 +227,16 @@ def list_tenants_paginated(
     del request
     query = db.query(Tenant)
     if current_user.role != "admin":
-        query = query.filter(Tenant.owner_id == current_user.id)
+        query = (
+            query.outerjoin(TenantMembership, TenantMembership.tenant_id == Tenant.id)
+            .filter(
+                or_(
+                    Tenant.owner_id == current_user.id,
+                    TenantMembership.user_id == current_user.id,
+                )
+            )
+            .distinct()
+        )
     if status_filter:
         query = query.filter(Tenant.status == status_filter)
     if search:
@@ -265,6 +303,7 @@ def backup_tenant(
     current_user: User = Depends(get_current_user),
 ) -> JobOut:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_OPERATE)
     enforce_backup_plan_limit(db, tenant)
     job = enqueue_backup(db, tenant, actor=current_user, request=request)
     return JobOut.model_validate(job)
@@ -288,6 +327,7 @@ def list_tenant_backups(
     current_user: User = Depends(get_current_user),
 ) -> list[BackupManifestOut]:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLES)
     manifests = list_backup_manifests(db, tenant.id)
     record_audit_event(
         db,
@@ -321,6 +361,7 @@ def list_tenant_audit_log(
     current_user: User = Depends(get_current_user),
 ) -> PaginatedAuditLogResponse:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLES)
 
     base_query = db.query(AuditLog).filter(
         AuditLog.resource == "tenants",
@@ -359,6 +400,245 @@ def list_tenant_audit_log(
     return PaginatedAuditLogResponse(data=entries, total=total, page=page, limit=limit)
 
 
+@router.get(
+    "/{tenant_id}/members",
+    response_model=list[TenantMemberOut],
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def list_tenant_members(
+    request: Request,
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[TenantMemberOut]:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLES)
+
+    rows = (
+        db.query(TenantMembership, User.email)
+        .join(User, TenantMembership.user_id == User.id)
+        .filter(TenantMembership.tenant_id == tenant.id)
+        .order_by(TenantMembership.created_at.asc())
+        .all()
+    )
+    members = [
+        TenantMemberOut(
+            id=membership.id,
+            tenant_id=membership.tenant_id,
+            user_id=membership.user_id,
+            user_email=email,
+            role=membership.role,
+            created_at=membership.created_at,
+        )
+        for membership, email in rows
+    ]
+
+    record_audit_event(
+        db,
+        action="tenant.members_viewed",
+        resource="memberships",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+        metadata={"count": len(members)},
+    )
+    return members
+
+
+@router.post(
+    "/{tenant_id}/members",
+    response_model=TenantMemberOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_409_CONFLICT: CONFLICT_409_RESPONSE,
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def invite_tenant_member(
+    request: Request,
+    tenant_id: str,
+    payload: TenantMemberInviteRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    token_store=Depends(get_token_store),
+) -> TenantMemberOut:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_MANAGE_TEAM)
+
+    requested_role = payload.role
+    if requested_role not in TENANT_ROLES:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid member role")
+
+    email = payload.email.lower()
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        temp_password = secrets.token_urlsafe(16)
+        user = User(email=email, password_hash=hash_password(temp_password), role="user")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        raw_token = secrets.token_urlsafe(32)
+        token_store.setex(
+            _password_reset_token_key(raw_token),
+            get_settings().password_reset_token_expire_minutes * 60,
+            user.id,
+        )
+        background_tasks.add_task(
+            notification_service.send_password_reset_requested,
+            email,
+            raw_token,
+            f"{get_settings().password_reset_url_base}?token={raw_token}",
+        )
+
+    existing = (
+        db.query(TenantMembership)
+        .filter(TenantMembership.tenant_id == tenant.id, TenantMembership.user_id == user.id)
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User is already a member of this tenant")
+
+    membership = TenantMembership(tenant_id=tenant.id, user_id=user.id, role=requested_role)
+    db.add(membership)
+    db.commit()
+    db.refresh(membership)
+
+    record_audit_event(
+        db,
+        action="tenant.member_invited",
+        resource="memberships",
+        actor=current_user,
+        resource_id=membership.id,
+        request=request,
+        metadata={"user_id": user.id, "email": email, "role": requested_role.value},
+    )
+
+    return TenantMemberOut(
+        id=membership.id,
+        tenant_id=membership.tenant_id,
+        user_id=membership.user_id,
+        user_email=user.email,
+        role=membership.role,
+        created_at=membership.created_at,
+    )
+
+
+@router.patch(
+    "/{tenant_id}/members/{member_id}",
+    response_model=TenantMemberOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_409_CONFLICT: CONFLICT_409_RESPONSE,
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def update_tenant_member_role(
+    request: Request,
+    tenant_id: str,
+    member_id: str,
+    payload: TenantMemberUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TenantMemberOut:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_MANAGE_TEAM)
+
+    membership = db.get(TenantMembership, member_id)
+    if not membership or membership.tenant_id != tenant.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+
+    new_role = payload.role
+    if new_role not in TENANT_ROLES:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid member role")
+    if membership.role == TENANT_ROLE_OWNER and new_role != TENANT_ROLE_OWNER and current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Owner role cannot be changed")
+
+    membership.role = new_role
+    db.add(membership)
+    db.commit()
+    db.refresh(membership)
+
+    record_audit_event(
+        db,
+        action="tenant.member_role_updated",
+        resource="memberships",
+        actor=current_user,
+        resource_id=membership.id,
+        request=request,
+        metadata={"role": new_role.value},
+    )
+
+    user = db.get(User, membership.user_id)
+    return TenantMemberOut(
+        id=membership.id,
+        tenant_id=membership.tenant_id,
+        user_id=membership.user_id,
+        user_email=user.email if user else None,
+        role=membership.role,
+        created_at=membership.created_at,
+    )
+
+
+@router.delete(
+    "/{tenant_id}/members/{member_id}",
+    response_model=MessageResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_409_CONFLICT: CONFLICT_409_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def remove_tenant_member(
+    request: Request,
+    tenant_id: str,
+    member_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MessageResponse:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_MANAGE_TEAM)
+
+    membership = db.get(TenantMembership, member_id)
+    if not membership or membership.tenant_id != tenant.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+    if membership.role == TENANT_ROLE_OWNER:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Owner membership cannot be removed")
+
+    db.delete(membership)
+    db.commit()
+
+    record_audit_event(
+        db,
+        action="tenant.member_removed",
+        resource="memberships",
+        actor=current_user,
+        resource_id=member_id,
+        request=request,
+        metadata={"user_id": membership.user_id},
+    )
+    return MessageResponse(message="Member removed")
+
+
 @router.delete(
     "/{tenant_id}",
     response_model=JobOut,
@@ -379,6 +659,7 @@ def delete_tenant(
     current_user: User = Depends(get_current_user),
 ) -> JobOut:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_MANAGE_TEAM)
     job = enqueue_delete(db, tenant, actor=current_user, request=request)
     return JobOut.model_validate(job)
 
@@ -404,6 +685,7 @@ def update_tenant(
     current_user: User = Depends(get_current_user),
 ) -> TenantOut:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_MANAGE_BILLING)
     if payload.plan is None and payload.chosen_app is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No updates supplied")
 
@@ -462,6 +744,7 @@ def retry_tenant_provisioning(
     current_user: User = Depends(get_current_user),
 ) -> JobOut:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_OPERATE)
     if tenant.status != "failed":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tenant is not in failed state")
     if tenant.billing_status != "paid":
@@ -505,6 +788,7 @@ def reset_admin_password(
     current_user: User = Depends(get_current_user),
 ) -> ResetAdminPasswordResponse:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_OPERATE)
     new_password = payload.new_password.strip() if payload.new_password else secrets.token_urlsafe(14)
 
     try:

@@ -2,6 +2,7 @@ import { clearToken, getToken } from "../../auth/auth";
 import type {
   AuditLogEntry,
   BackupManifestEntry,
+  TenantMember,
   BillingPortalResponse,
   BillingInvoiceListResponse,
   MetricsSummary,
@@ -386,6 +387,26 @@ export const api = {
     requestOptionalEndpoint<PaginatedResult<AuditLogEntry>>(
       `/tenants/${tenantId}/audit-log?page=${page}&limit=${limit}`
     ),
+
+  listTenantMembers: (tenantId: string) =>
+    requestOptionalEndpoint<TenantMember[]>(`/tenants/${tenantId}/members`),
+
+  inviteTenantMember: (tenantId: string, payload: { email: string; role: string }) =>
+    requestOptionalEndpoint<TenantMember>(`/tenants/${tenantId}/members`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateTenantMemberRole: (tenantId: string, memberId: string, role: string) =>
+    requestOptionalEndpoint<TenantMember>(`/tenants/${tenantId}/members/${encodeURIComponent(memberId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    }),
+
+  removeTenantMember: (tenantId: string, memberId: string) =>
+    requestOptionalEndpoint<MessageResponse>(`/tenants/${tenantId}/members/${encodeURIComponent(memberId)}`, {
+      method: "DELETE",
+    }),
 
   listAdminJobs: (limit = 50) => requestOptionalEndpoint<Job[]>(`/admin/jobs?limit=${encodeURIComponent(String(limit))}`),
 

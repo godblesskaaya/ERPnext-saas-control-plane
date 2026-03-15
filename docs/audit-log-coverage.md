@@ -28,6 +28,10 @@ Purpose: show which state-changing actions emit audit events, where they are rec
 | `tenant.provision_failed` | Provisioning failed | `provisioning-api/app/workers/tasks.py` | `provisioning-api/tests/integration/test_worker_tasks.py` |
 | `tenant.view_audit_log` | Tenant audit log viewed | `provisioning-api/app/domains/tenants/router.py` | — |
 | `tenant.job_viewed` | Tenant job view | `provisioning-api/app/domains/support/jobs_router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_owner_job_view_records_audit` |
+| `tenant.members_viewed` | Tenant members listed | `provisioning-api/app/domains/tenants/router.py` | — |
+| `tenant.member_invited` | Tenant member invited | `provisioning-api/app/domains/tenants/router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_tenant_membership_list_and_invite` |
+| `tenant.member_role_updated` | Tenant member role updated | `provisioning-api/app/domains/tenants/router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_tenant_membership_list_and_invite` |
+| `tenant.member_removed` | Tenant member removed | `provisioning-api/app/domains/tenants/router.py` | `provisioning-api/tests/unit/test_tenants_api.py::test_tenant_membership_list_and_invite` |
 | `billing.payment_succeeded` | Payment confirmed | `provisioning-api/app/domains/billing/router.py` | `provisioning-api/tests/unit/test_billing_webhook.py::test_checkout_completed_webhook_enqueues_provisioning_once` |
 | `billing.payment_failed` | Payment failed | `provisioning-api/app/domains/billing/router.py` | `provisioning-api/tests/unit/test_billing_webhook.py::test_payment_failed_and_subscription_cancelled_audited` |
 | `billing.subscription_cancelled` | Subscription cancelled | `provisioning-api/app/domains/billing/router.py` | `provisioning-api/tests/unit/test_billing_webhook.py::test_payment_failed_and_subscription_cancelled_audited` |

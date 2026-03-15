@@ -69,6 +69,8 @@ def _detect_legacy_schema_revision(database_url: str) -> str | None:
         tenant_columns = {column["name"] for column in inspector.get_columns("tenants")} if "tenants" in tables else set()
         users_columns = {column["name"] for column in inspector.get_columns("users")} if "users" in tables else set()
         if {"email_verified", "email_verified_at"}.issubset(users_columns):
+            if "tenant_memberships" in tables and "organizations" in tables and "organization_id" in tenant_columns:
+                return "20260315_0008"
             return "20260308_0007"
 
         if {"payment_provider", "dpo_transaction_token"}.issubset(tenant_columns):

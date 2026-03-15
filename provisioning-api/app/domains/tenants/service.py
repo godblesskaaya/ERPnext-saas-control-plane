@@ -10,8 +10,9 @@ from sqlalchemy.orm import Session
 from app.bench.validators import ValidationError, domain_from_subdomain, validate_subdomain
 from app.config import get_settings
 from app.logging_config import get_logger
-from app.models import AuditLog, Job, Tenant, User
+from app.models import AuditLog, Job, Organization, Tenant, TenantMembership, User
 from app.domains.policy import PLAN_BACKUP_DAILY_LIMITS, ensure_email_verified, resolve_plan_and_app
+from app.domains.tenants.membership import TENANT_ROLE_OWNER
 from app.queue.enqueue import get_queue
 from app.domains.audit.service import record_audit_event
 from app.domains.billing.payment.base import CheckoutResult
@@ -62,9 +63,17 @@ def create_tenant_and_start_checkout(
         status="pending_payment",
         billing_status="pending",
     )
+    organization = Organization(name=company_name, owner_id=owner.id)
+    db.add(organization)
+    db.flush()
+    tenant.organization_id = organization.id
     db.add(tenant)
     db.commit()
     db.refresh(tenant)
+
+    membership = TenantMembership(tenant_id=tenant.id, user_id=owner.id, role=TENANT_ROLE_OWNER)
+    db.add(membership)
+    db.commit()
 
     try:
         checkout_session = get_payment_gateway().create_checkout(tenant, owner)

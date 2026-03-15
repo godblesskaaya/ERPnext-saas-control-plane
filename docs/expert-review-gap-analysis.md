@@ -15,14 +15,12 @@ This compares the current codebase against `expert-review.txt` to highlight crit
 
 ### 1) Tenant registry + membership model (backend boundary gap)
 
-**Gap:** The control plane only stores `Tenant` + `User` with a single `owner_id` and global `role` (`user`/`admin`). There is no tenant membership table, no role-based membership (tenant admin/billing/technical contact), and no organization/account entity.
+**Status:** Implemented (2026-03-15).
 
-**Impact:**
-- Cannot invite multiple users into a tenant account.
-- No distinction between billing and technical contacts.
-- Admin/support actions cannot be scoped by tenant membership beyond the owner.
-
-**Recommended next step:** introduce `Organization`, `TenantMembership`, and role enums (owner/admin/billing/technical). Add API + UI flows for invites, membership list, and role management.
+**What changed:**
+- Added `Organization` and `TenantMembership` models with role enums (`owner/admin/billing/technical`).
+- Added membership APIs (list/invite/update/remove) and UI **Team** section.
+- Updated access checks to use tenant membership (auto-backfill owner membership for legacy tenants).
 
 ### 2) Tenant lifecycle states and policy coverage
 
@@ -77,4 +75,3 @@ This compares the current codebase against `expert-review.txt` to highlight crit
 3. Add custom domain management domain + UI.
 4. Add tenant team + activity UI views.
 5. Add support notes and incident metadata.
-

@@ -4,7 +4,7 @@ from datetime import datetime
 from unittest.mock import patch
 
 from app.config import get_settings
-from app.models import AuditLog, Job, Tenant, User
+from app.models import AuditLog, Job, Tenant, TenantMembership, User
 
 
 class DummyRQJob:
@@ -109,6 +109,54 @@ def test_create_and_list_tenant_returns_checkout(_, client, db_session):
     actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
     assert "tenant.create" in actions
     assert actions.count("tenant.reset_admin_password") == 2
+
+
+@patch("app.domains.tenants.service.get_payment_gateway", return_value=DummyGateway())
+def test_tenant_membership_list_and_invite(_, client, db_session):
+    headers = _auth_headers(client, db_session)
+    create = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "team", "company_name": "Team Co", "plan": "starter"},
+    )
+    tenant_id = create.json()["tenant"]["id"]
+
+    members = client.get(f"/tenants/{tenant_id}/members", headers=headers)
+    assert members.status_code == 200
+    payload = members.json()
+    assert len(payload) == 1
+    assert payload[0]["role"] == "owner"
+
+    client.post("/auth/signup", json={"email": "member@example.com", "password": "Secret123!"})
+    invite = client.post(
+        f"/tenants/{tenant_id}/members",
+        headers=headers,
+        json={"email": "member@example.com", "role": "billing"},
+    )
+    assert invite.status_code == 201
+    invite_payload = invite.json()
+    assert invite_payload["role"] == "billing"
+
+    updated = client.patch(
+        f"/tenants/{tenant_id}/members/{invite_payload['id']}",
+        headers=headers,
+        json={"role": "technical"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["role"] == "technical"
+
+    removed = client.delete(
+        f"/tenants/{tenant_id}/members/{invite_payload['id']}",
+        headers=headers,
+    )
+    assert removed.status_code == 200
+
+    assert (
+        db_session.query(TenantMembership)
+        .filter(TenantMembership.user_id == invite_payload["user_id"], TenantMembership.tenant_id == tenant_id)
+        .count()
+        == 0
+    )
 
 
 @patch("app.domains.tenants.service.get_payment_gateway", return_value=DummyGateway())

@@ -7,6 +7,7 @@ from app.db import get_db
 from app.deps import get_current_user
 from app.models import Job, Tenant, User
 from app.domains.audit.service import record_audit_event
+from app.domains.tenants.membership import ensure_membership
 from app.rate_limits import authenticated_default_rate_limit
 from app.schemas import JobOut
 
@@ -44,8 +45,7 @@ def get_job(
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
 
-    if current_user.role != "admin" and tenant.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    ensure_membership(db, tenant=tenant, user=current_user)
 
     record_audit_event(
         db,

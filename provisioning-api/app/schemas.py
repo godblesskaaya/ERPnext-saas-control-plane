@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from app.models import TenantRole
 
 class MessageResponse(BaseModel):
     message: str = Field(description="Human-readable status message.", examples=["processed"])
@@ -144,6 +145,34 @@ class AuditLogOut(BaseModel):
     created_at: datetime
 
 
+class OrganizationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    owner_id: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class TenantMemberOut(BaseModel):
+    id: str
+    tenant_id: str
+    user_id: str
+    user_email: EmailStr | None = None
+    role: TenantRole
+    created_at: datetime
+
+
+class TenantMemberInviteRequest(BaseModel):
+    email: EmailStr
+    role: TenantRole = Field(default=TenantRole.admin)
+
+
+class TenantMemberUpdateRequest(BaseModel):
+    role: TenantRole
+
+
 class TenantCreateRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
@@ -198,6 +227,7 @@ class TenantOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
+    organization_id: str | None
     owner_id: str
     subdomain: str
     domain: str

@@ -2,12 +2,20 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, Enum as SqlEnum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
+
+
+class TenantRole(str, Enum):
+    owner = "owner"
+    admin = "admin"
+    billing = "billing"
+    technical = "technical"
 
 
 class User(Base):
@@ -23,6 +31,21 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
     tenants: Mapped[list[Tenant]] = relationship(back_populates="owner")
+    organizations_owned: Mapped[list[Organization]] = relationship(back_populates="owner")
+    memberships: Mapped[list[TenantMembership]] = relationship(back_populates="user")
+
+
+class Organization(Base):
+    __tablename__ = "organizations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(255))
+    owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    owner: Mapped[User] = relationship(back_populates="organizations_owned")
+    tenants: Mapped[list[Tenant]] = relationship(back_populates="organization")
 
 
 class Tenant(Base):
@@ -30,6 +53,7 @@ class Tenant(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    organization_id: Mapped[str | None] = mapped_column(ForeignKey("organizations.id"), nullable=True, index=True)
     subdomain: Mapped[str] = mapped_column(String(63), unique=True)
     domain: Mapped[str] = mapped_column(String(255), unique=True)
     site_name: Mapped[str] = mapped_column(String(255))
@@ -47,8 +71,25 @@ class Tenant(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
     owner: Mapped[User] = relationship(back_populates="tenants")
+    organization: Mapped[Organization | None] = relationship(back_populates="tenants")
     jobs: Mapped[list[Job]] = relationship(back_populates="tenant")
     backups: Mapped[list[BackupManifest]] = relationship(back_populates="tenant")
+    memberships: Mapped[list[TenantMembership]] = relationship(back_populates="tenant")
+
+
+class TenantMembership(Base):
+    __tablename__ = "tenant_memberships"
+    __table_args__ = (UniqueConstraint("tenant_id", "user_id", name="uq_tenant_memberships_tenant_user"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(ForeignKey("tenants.id"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    role: Mapped[TenantRole] = mapped_column(SqlEnum(TenantRole, name="tenant_role"), default=TenantRole.owner, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    tenant: Mapped[Tenant] = relationship(back_populates="memberships")
+    user: Mapped[User] = relationship(back_populates="memberships")
 
 
 class Job(Base):

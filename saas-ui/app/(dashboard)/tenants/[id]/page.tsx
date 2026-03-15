@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { JobLogPanel } from "../../../../domains/shared/components/JobLogPanel";
 import { api, getApiErrorMessage, isSessionExpiredError } from "../../../../domains/shared/lib/api";
-import type { AuditLogEntry, BackupManifestEntry, Tenant } from "../../../../domains/shared/lib/types";
+import type { AuditLogEntry, BackupManifestEntry, Tenant, TenantMember } from "../../../../domains/shared/lib/types";
 
 function statusClass(status: string): string {
   const normalized = status.toLowerCase();
@@ -60,6 +60,14 @@ export default function TenantDetailPage() {
   const [auditPage, setAuditPage] = useState(1);
   const [auditLimit] = useState(25);
   const [auditTotal, setAuditTotal] = useState(0);
+  const [members, setMembers] = useState<TenantMember[]>([]);
+  const [membersSupported, setMembersSupported] = useState(true);
+  const [membersError, setMembersError] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("admin");
+  const [inviting, setInviting] = useState(false);
+  const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
   const loadTenant = useCallback(async () => {
     if (!id) return;
@@ -129,11 +137,30 @@ export default function TenantDetailPage() {
     }
   }, [auditLimit, auditPage, id]);
 
+  const loadMembers = useCallback(async () => {
+    if (!id) return;
+    try {
+      const result = await api.listTenantMembers(id);
+      if (!result.supported) {
+        setMembersSupported(false);
+        setMembers([]);
+        setMembersError(null);
+        return;
+      }
+      setMembersSupported(true);
+      setMembers(result.data);
+      setMembersError(null);
+    } catch (err) {
+      setMembersError(getApiErrorMessage(err, "Failed to load team members"));
+    }
+  }, [id]);
+
   useEffect(() => {
     void loadTenant();
     void loadBackups();
     void loadAuditLog();
-  }, [loadAuditLog, loadBackups, loadTenant]);
+    void loadMembers();
+  }, [loadAuditLog, loadBackups, loadMembers, loadTenant]);
 
   useEffect(() => {
     setAuditPage(1);
@@ -145,6 +172,7 @@ export default function TenantDetailPage() {
   );
 
   const auditTotalPages = Math.max(1, Math.ceil(auditTotal / auditLimit));
+  const memberRoles = ["owner", "admin", "billing", "technical"];
 
   if (!tenant) {
     return <p>{error ?? "Loading tenant..."}</p>;
@@ -254,6 +282,173 @@ export default function TenantDetailPage() {
           <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
             No backup records yet. Trigger a backup from dashboard when you need a restore point.
           </p>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Team</h2>
+          <button
+            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            onClick={() => {
+              void loadMembers();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {!membersSupported ? (
+          <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
+            Team management is not available on this backend yet.
+          </p>
+        ) : membersError ? (
+          <p className="text-sm text-red-400">{membersError}</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded border border-slate-700 bg-slate-950/60 p-3">
+              <h3 className="text-sm font-semibold text-slate-200">Invite teammate</h3>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                <input
+                  className="w-full flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                  placeholder="Email address"
+                  value={inviteEmail}
+                  onChange={(event) => setInviteEmail(event.target.value)}
+                />
+                <select
+                  className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                  value={inviteRole}
+                  onChange={(event) => setInviteRole(event.target.value)}
+                >
+                  {memberRoles.map((role) => (
+                    <option key={role} value={role}>
+                      {role}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  disabled={inviting || !inviteEmail.trim()}
+                  onClick={async () => {
+                    if (!id) return;
+                    setInviting(true);
+                    setMembersError(null);
+                    try {
+                      const result = await api.inviteTenantMember(id, {
+                        email: inviteEmail.trim(),
+                        role: inviteRole,
+                      });
+                      if (!result.supported) {
+                        setMembersError("Team invitation endpoint is not available on this backend.");
+                        return;
+                      }
+                      setInviteEmail("");
+                      await loadMembers();
+                    } catch (err) {
+                      setMembersError(getApiErrorMessage(err, "Failed to invite member"));
+                    } finally {
+                      setInviting(false);
+                    }
+                  }}
+                >
+                  Invite
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded border border-slate-700">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-900/60">
+                  <tr>
+                    <th className="p-2 text-left">Email</th>
+                    <th className="p-2 text-left">Role</th>
+                    <th className="p-2 text-left">Joined</th>
+                    <th className="p-2 text-left">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {members.length === 0 ? (
+                    <tr>
+                      <td className="p-3 text-sm text-slate-400" colSpan={4}>
+                        No team members yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    members.map((member) => (
+                      <tr key={member.id} className="border-t border-slate-700">
+                        <td className="p-2 text-xs text-slate-200">{member.user_email || member.user_id}</td>
+                        <td className="p-2 text-xs">
+                          {member.role === "owner" ? (
+                            <span className="rounded bg-slate-800 px-2 py-1 text-xs text-slate-200">owner</span>
+                          ) : (
+                            <select
+                              className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100"
+                              value={member.role}
+                              onChange={async (event) => {
+                                if (!id) return;
+                                const nextRole = event.target.value;
+                                setUpdatingMemberId(member.id);
+                                setMembersError(null);
+                                try {
+                                  const result = await api.updateTenantMemberRole(id, member.id, nextRole);
+                                  if (!result.supported) {
+                                    setMembersError("Member update endpoint is not available on this backend.");
+                                    return;
+                                  }
+                                  await loadMembers();
+                                } catch (err) {
+                                  setMembersError(getApiErrorMessage(err, "Failed to update member role"));
+                                } finally {
+                                  setUpdatingMemberId(null);
+                                }
+                              }}
+                              disabled={updatingMemberId === member.id}
+                            >
+                              {memberRoles.map((role) => (
+                                <option key={role} value={role}>
+                                  {role}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
+                        <td className="p-2 text-xs text-slate-400">{formatTimestamp(member.created_at)}</td>
+                        <td className="p-2 text-xs">
+                          {member.role === "owner" ? (
+                            <span className="text-slate-500">Owner</span>
+                          ) : (
+                            <button
+                              className="rounded border border-slate-600 px-2 py-1 text-xs text-red-300 hover:bg-slate-800 disabled:opacity-60"
+                              disabled={removingMemberId === member.id}
+                              onClick={async () => {
+                                if (!id) return;
+                                setRemovingMemberId(member.id);
+                                setMembersError(null);
+                                try {
+                                  const result = await api.removeTenantMember(id, member.id);
+                                  if (!result.supported) {
+                                    setMembersError("Member removal endpoint is not available on this backend.");
+                                    return;
+                                  }
+                                  await loadMembers();
+                                } catch (err) {
+                                  setMembersError(getApiErrorMessage(err, "Failed to remove member"));
+                                } finally {
+                                  setRemovingMemberId(null);
+                                }
+                              }}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </div>
 

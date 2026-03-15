@@ -23,6 +23,10 @@ type QueueConfig = {
   showBillingAlert?: boolean;
   showStatusFilter?: boolean;
   attentionNote?: string;
+  emptyStateTitle?: string;
+  emptyStateBody?: string;
+  emptyStateActionLabel?: string;
+  emptyStateActionHref?: string;
 };
 
 function metricCard(label: string, value: number, hint: string, tone: "default" | "good" | "warn" = "default") {
@@ -57,6 +61,10 @@ export function WorkspaceQueuePage({
   showBillingAlert = false,
   showStatusFilter = true,
   attentionNote,
+  emptyStateTitle,
+  emptyStateBody,
+  emptyStateActionLabel,
+  emptyStateActionHref,
 }: QueueConfig) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -608,6 +616,10 @@ export function WorkspaceQueuePage({
         retryingTenantId={retryingTenantId}
         onUpdatePlan={updateTenantPlan}
         updatingTenantId={updatingTenantId}
+        emptyStateTitle={emptyStateTitle}
+        emptyStateBody={emptyStateBody}
+        emptyStateActionLabel={emptyStateActionLabel}
+        emptyStateActionHref={emptyStateActionHref}
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">

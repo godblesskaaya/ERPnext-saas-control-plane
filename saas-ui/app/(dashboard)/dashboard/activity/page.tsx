@@ -12,6 +12,10 @@ export default function DashboardActivityPage() {
       showBillingAlert={false}
       showStatusFilter={false}
       attentionNote="Use tenant detail pages for deep audit logs, team management, and support notes."
+      emptyStateTitle="No recent jobs yet"
+      emptyStateBody="Provisioning and backup jobs will surface here once scheduled."
+      emptyStateActionLabel="Start onboarding"
+      emptyStateActionHref="/dashboard/overview#create-tenant"
     />
   );
 }

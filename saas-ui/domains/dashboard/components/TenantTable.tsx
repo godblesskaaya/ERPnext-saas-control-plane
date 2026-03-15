@@ -17,6 +17,10 @@ type Props = {
   retryingTenantId?: string | null;
   onUpdatePlan?: (id: string, payload: { plan: string; chosen_app?: string }) => Promise<void>;
   updatingTenantId?: string | null;
+  emptyStateTitle?: string;
+  emptyStateBody?: string;
+  emptyStateActionLabel?: string;
+  emptyStateActionHref?: string;
 };
 
 type ConfirmAction = {
@@ -98,6 +102,10 @@ export function TenantTable({
   retryingTenantId,
   onUpdatePlan,
   updatingTenantId,
+  emptyStateTitle,
+  emptyStateBody,
+  emptyStateActionLabel,
+  emptyStateActionHref,
 }: Props) {
   const [expandedTenantId, setExpandedTenantId] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
@@ -209,14 +217,24 @@ export function TenantTable({
   };
 
   if (!tenants.length) {
+    const title = emptyStateTitle ?? "No workspaces yet";
+    const body = emptyStateBody ?? "Create your first workspace to start onboarding and daily operations.";
+    const actionLabel = emptyStateActionLabel ?? "Create first workspace";
+    const actionHref = emptyStateActionHref ?? "#create-tenant";
+
     return (
       <div className="rounded-3xl border border-dashed border-amber-200 bg-white/80 p-8 text-center">
         <p className="text-3xl">📦</p>
-        <p className="mt-2 text-lg font-semibold text-slate-900">No workspaces yet</p>
-        <p className="mt-1 text-sm text-slate-600">Create your first workspace to start onboarding and daily operations.</p>
-        <a href="#create-tenant" className="mt-4 inline-flex rounded-full bg-[#0d6a6a] px-4 py-2 font-medium text-white hover:bg-[#0b5a5a]">
-          Create first workspace
-        </a>
+        <p className="mt-2 text-lg font-semibold text-slate-900">{title}</p>
+        <p className="mt-1 text-sm text-slate-600">{body}</p>
+        {actionHref ? (
+          <a
+            href={actionHref}
+            className="mt-4 inline-flex rounded-full bg-[#0d6a6a] px-4 py-2 font-medium text-white hover:bg-[#0b5a5a]"
+          >
+            {actionLabel}
+          </a>
+        ) : null}
       </div>
     );
   }

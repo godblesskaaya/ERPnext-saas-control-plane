@@ -13,6 +13,10 @@ export default function DashboardSupportPage() {
       showBillingAlert
       showStatusFilter={false}
       attentionNote="Add support notes inside tenant detail pages to maintain context across handoffs."
+      emptyStateTitle="No support escalations"
+      emptyStateBody="There are no tenant incidents requiring support follow-up right now."
+      emptyStateActionLabel="Review active tenants"
+      emptyStateActionHref="/dashboard/active"
     />
   );
 }

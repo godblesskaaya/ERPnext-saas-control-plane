@@ -13,6 +13,10 @@ export default function DashboardIncidentsPage() {
       showBillingAlert
       showStatusFilter={false}
       attentionNote="Resolve failures and suspensions quickly to restore access for affected customers."
+      emptyStateTitle="No failed or suspended workspaces"
+      emptyStateBody="There are no blocked or failed tenants in the incident queue."
+      emptyStateActionLabel="Review onboarding queue"
+      emptyStateActionHref="/dashboard/onboarding"
     />
   );
 }

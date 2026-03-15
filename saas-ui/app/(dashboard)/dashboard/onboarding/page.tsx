@@ -13,6 +13,10 @@ export default function DashboardOnboardingPage() {
       showBillingAlert
       showStatusFilter={false}
       attentionNote="Prioritize pending payments and provisioning workspaces to complete go-live."
+      emptyStateTitle="No onboarding workspaces right now"
+      emptyStateBody="All current customers are either live or in a separate incident queue."
+      emptyStateActionLabel="View active tenants"
+      emptyStateActionHref="/dashboard/active"
     />
   );
 }

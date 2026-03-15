@@ -13,6 +13,10 @@ export default function DashboardActivePage() {
       showBillingAlert={false}
       showStatusFilter={false}
       attentionNote="Focus on uptime, backups, and customer growth for active workspaces."
+      emptyStateTitle="No active tenants yet"
+      emptyStateBody="Once provisioning is complete, live tenants will appear here for routine operations."
+      emptyStateActionLabel="Review onboarding queue"
+      emptyStateActionHref="/dashboard/onboarding"
     />
   );
 }

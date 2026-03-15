@@ -53,6 +53,8 @@ services:
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-ERP SaaS}
       MAIL_SUPPORT_EMAIL: ${MAIL_SUPPORT_EMAIL:-support@blenkotechnologies.co.tz}
       MAIL_TIMEOUT_SECONDS: ${MAIL_TIMEOUT_SECONDS:-10}
+      EXPOSE_API_DOCS: "true"
+      EXPOSE_OPENAPI_SCHEMA: "true"
     depends_on:
       postgres:
         condition: service_healthy

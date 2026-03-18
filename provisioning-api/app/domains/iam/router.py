@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import secrets
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
@@ -14,6 +15,7 @@ from app.models import User
 from app.rate_limits import (
     authenticated_default_rate_limit,
     forgot_password_rate_limit,
+    impersonation_exchange_rate_limit,
     login_rate_limit,
     logout_rate_limit,
     resend_verification_rate_limit,
@@ -23,6 +25,7 @@ from app.rate_limits import (
 )
 from app.schemas import (
     ForgotPasswordRequest,
+    ImpersonationExchangeRequest,
     LoginRequest,
     MessageResponse,
     ResetPasswordRequest,
@@ -62,6 +65,11 @@ def _password_reset_token_key(raw_token: str) -> str:
 def _email_verification_token_key(raw_token: str) -> str:
     digest = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
     return f"email-verify:{digest}"
+
+
+def _impersonation_token_key(raw_token: str) -> str:
+    digest = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    return f"impersonation:{digest}"
 
 
 def _consume_single_use_token(token_store, token_key: str) -> str | None:
@@ -193,6 +201,21 @@ def login(request: Request, response: Response, payload: LoginRequest, db: Sessi
 
 
 @router.get(
+    "/health",
+    response_model=MessageResponse,
+)
+def auth_health(request: Request, db: Session = Depends(get_db)) -> MessageResponse:
+    record_audit_event(
+        db,
+        action="auth.health_check",
+        resource="auth",
+        actor_role="system",
+        request=request,
+    )
+    return MessageResponse(message="ok")
+
+
+@router.get(
     "/me",
     response_model=UserOut,
     dependencies=[Depends(authenticated_default_rate_limit)],
@@ -242,6 +265,68 @@ def verify_email(
         request=request,
     )
     return MessageResponse(message="Email verified successfully. You can now create a workspace.")
+
+
+@router.post(
+    "/impersonate",
+    response_model=TokenResponse,
+    dependencies=[Depends(impersonation_exchange_rate_limit)],
+    responses={
+        status.HTTP_400_BAD_REQUEST: {"description": "Invalid, expired, or already-used impersonation token."},
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+    },
+)
+def exchange_impersonation_token(
+    request: Request,
+    payload: ImpersonationExchangeRequest,
+    db: Session = Depends(get_db),
+    token_store=Depends(get_token_store),
+) -> TokenResponse:
+    token_payload_raw = _consume_single_use_token(token_store, _impersonation_token_key(payload.token))
+    if not token_payload_raw:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Impersonation token is invalid or expired")
+
+    try:
+        token_payload = json.loads(str(token_payload_raw))
+    except Exception as exc:  # pragma: no cover - defensive
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Impersonation token is invalid") from exc
+
+    target_user_id = str(token_payload.get("target_user_id") or "")
+    admin_user_id = str(token_payload.get("admin_user_id") or "")
+    reason = str(token_payload.get("reason") or "").strip()
+    if not target_user_id or not admin_user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Impersonation token is invalid")
+
+    target_user = db.get(User, target_user_id)
+    admin_user = db.get(User, admin_user_id)
+    if not target_user or not admin_user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Impersonation token is invalid")
+
+    access_token = create_access_token(
+        subject=target_user.id,
+        role=target_user.role,
+        extra_claims={"impersonated_by": admin_user.id},
+    )
+    record_audit_event(
+        db,
+        action="auth.impersonation_consumed",
+        resource="users",
+        actor=target_user,
+        resource_id=target_user.id,
+        request=request,
+        metadata={"impersonated_by": admin_user.id, "reason": reason},
+    )
+    record_audit_event(
+        db,
+        action="admin.impersonation_session_issued",
+        resource="users",
+        actor=admin_user,
+        resource_id=target_user.id,
+        request=request,
+        metadata={"target_user_id": target_user.id, "reason": reason},
+    )
+    return TokenResponse(access_token=access_token)
 
 
 @router.get(

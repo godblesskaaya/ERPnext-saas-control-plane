@@ -23,7 +23,7 @@ function decodePayload(token: string): JwtPayload | null {
 }
 
 function isProtected(pathname: string): boolean {
-  return ["/dashboard", "/admin", "/onboarding"].some(
+  return ["/dashboard", "/admin", "/onboarding", "/tenants"].some(
     (base) => pathname === base || pathname.startsWith(`${base}/`),
   );
 }
@@ -148,6 +148,7 @@ export const config = {
     "/dashboard/:path*",
     "/admin/:path*",
     "/onboarding/:path*",
+    "/tenants/:path*",
     "/login",
     "/signup",
     "/forgot-password",

@@ -31,6 +31,8 @@ class DPOGateway(PaymentGateway):
                 checkout_url=checkout_url,
                 customer_ref=owner.id,
                 provider=self.provider_name,
+                payment_channel="mobile_money",
+                payment_method_types=["mobile_money"],
                 mock_mode=True,
             )
 
@@ -60,6 +62,8 @@ class DPOGateway(PaymentGateway):
             checkout_url=f"{settings.dpo_payment_url}?ID={token}",
             customer_ref=owner.id,
             provider=self.provider_name,
+            payment_channel="mobile_money",
+            payment_method_types=["mobile_money"],
             mock_mode=False,
         )
 

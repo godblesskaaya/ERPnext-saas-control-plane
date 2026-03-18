@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { api, getApiErrorMessage } from "../../../domains/shared/lib/api";
+import { loadBillingWorkspaceSnapshot } from "../../../domains/billing/application/billingUseCases";
+import { getApiErrorMessage } from "../../../domains/shared/lib/api";
 import type { BillingInvoice } from "../../../domains/shared/lib/types";
 
 function formatCurrency(amount?: number | null, currency?: string | null): string {
@@ -27,23 +28,15 @@ export default function BillingPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const portal = await api.getBillingPortal();
-        if (portal.supported) {
-          setPortalUrl(portal.data.url);
-        }
-      } catch {
-        // ignore portal errors
-      }
-
-      try {
-        const result = await api.listBillingInvoices();
-        if (!result.supported) {
+        const snapshot = await loadBillingWorkspaceSnapshot();
+        setPortalUrl(snapshot.portalUrl);
+        if (!snapshot.invoicesSupported) {
           setSupported(false);
           setInvoices([]);
           return;
         }
         setSupported(true);
-        setInvoices(result.data.invoices ?? []);
+        setInvoices(snapshot.invoices);
       } catch (err) {
         setError(getApiErrorMessage(err, "Failed to load invoices"));
       }
@@ -58,7 +51,7 @@ export default function BillingPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Billing & invoices</h1>
-            <p className="text-sm text-slate-600">Review payment history and manage your subscription.</p>
+            <p className="text-sm text-slate-600">Review payment history and resume outstanding invoices.</p>
           </div>
           {portalUrl ? (
             <a
@@ -67,7 +60,7 @@ export default function BillingPage() {
               rel="noreferrer"
               className="rounded-full bg-[#0d6a6a] px-4 py-2 text-xs font-semibold text-white"
             >
-              Open billing portal
+              Open billing workspace
             </a>
           ) : null}
         </div>
@@ -84,6 +77,7 @@ export default function BillingPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-[#fff7ed] text-left text-xs uppercase tracking-wide text-slate-600">
               <tr>
+                <th className="p-2.5">Workspace</th>
                 <th className="p-2.5">Invoice</th>
                 <th className="p-2.5">Status</th>
                 <th className="p-2.5">Amount due</th>
@@ -95,6 +89,9 @@ export default function BillingPage() {
             <tbody>
               {invoices.map((invoice) => (
                 <tr key={invoice.id} className="border-t border-amber-200/60">
+                  <td className="p-2.5 text-xs text-slate-700">
+                    {invoice.metadata?.company_name ?? invoice.metadata?.tenant_domain ?? "—"}
+                  </td>
                   <td className="p-2.5 font-mono text-xs text-slate-700">{invoice.id}</td>
                   <td className="p-2.5 text-xs text-slate-700">{invoice.status ?? "—"}</td>
                   <td className="p-2.5 text-xs text-slate-700">
@@ -106,12 +103,17 @@ export default function BillingPage() {
                   <td className="p-2.5 text-xs text-slate-700">{formatTimestamp(invoice.created_at)}</td>
                   <td className="p-2.5 text-xs">
                     {invoice.hosted_invoice_url ? (
-                      <a className="text-[#0d6a6a] hover:text-[#0b5a5a]" href={invoice.hosted_invoice_url} target="_blank" rel="noreferrer">
-                        View
+                      <a
+                        className="text-[#0d6a6a] hover:text-[#0b5a5a]"
+                        href={invoice.hosted_invoice_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Resume payment
                       </a>
                     ) : invoice.invoice_pdf ? (
                       <a className="text-[#0d6a6a] hover:text-[#0b5a5a]" href={invoice.invoice_pdf} target="_blank" rel="noreferrer">
-                        PDF
+                        Download
                       </a>
                     ) : (
                       "—"

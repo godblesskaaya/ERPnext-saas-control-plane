@@ -21,6 +21,9 @@ class BillingInvoiceOut(BaseModel):
     amount_due: int | None = None
     amount_paid: int | None = None
     currency: str | None = None
+    collection_method: str | None = None
+    payment_method_types: list[str] | None = None
+    metadata: dict[str, Any] | None = None
     hosted_invoice_url: str | None = None
     invoice_pdf: str | None = None
     created_at: datetime | None = None
@@ -28,6 +31,11 @@ class BillingInvoiceOut(BaseModel):
 
 class BillingInvoiceListResponse(BaseModel):
     invoices: list[BillingInvoiceOut]
+
+
+class TenantReadinessOut(BaseModel):
+    ready: bool
+    message: str
 
 
 class DeadLetterJobOut(BaseModel):
@@ -112,6 +120,27 @@ class VerifyEmailRequest(BaseModel):
     )
 
     token: str = Field(min_length=20, max_length=512, description="One-time email-verification token.")
+
+
+class ImpersonationLinkCreateRequest(BaseModel):
+    target_email: EmailStr = Field(description="Email for the account to impersonate for support troubleshooting.")
+    reason: str = Field(
+        min_length=3,
+        max_length=500,
+        description="Operator reason for issuing the impersonation link (captured in audit logs).",
+    )
+
+
+class ImpersonationExchangeRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=512, description="One-time support impersonation token.")
+
+
+class ImpersonationLinkResponse(BaseModel):
+    token: str = Field(description="Raw one-time token. Share securely with the intended operator only.")
+    url: str = Field(description="Direct URL for exchanging the impersonation token.")
+    expires_at: datetime = Field(description="Token expiration timestamp.")
+    target_user_id: str
+    target_email: EmailStr
 
 
 class TokenResponse(BaseModel):
@@ -242,8 +271,15 @@ class TenantOut(BaseModel):
         )
     )
     billing_status: str = Field(description="Billing state. Typical values: pending, paid, failed, cancelled, unpaid.")
-    payment_provider: str = Field(description="Active billing provider (for example: stripe, dpo).")
-    dpo_transaction_token: str | None
+    payment_provider: str = Field(description="Active billing provider (for example: azampay, selcom, stripe, dpo).")
+    payment_channel: str | None = Field(
+        default=None,
+        description="Preferred payment channel when known (mobile_money, card, bank_transfer, invoice).",
+    )
+    dpo_transaction_token: str | None = Field(
+        default=None,
+        description="Checkout/payment token for non-Stripe providers (for example AzamPay, DPO, or Selcom).",
+    )
     stripe_checkout_session_id: str | None
     stripe_subscription_id: str | None
     platform_customer_id: str | None
@@ -323,6 +359,34 @@ class MetricsSummary(BaseModel):
     jobs_last_24h: int
     provisioning_success_rate_7d: float
     dead_letter_count: int
+    support_open_notes: int
+    support_breached_notes: int
+    support_due_soon_notes: int
+
+
+class TenantSummaryOut(BaseModel):
+    tenant_id: str
+    last_job: JobOut | None = None
+    last_backup: BackupManifestOut | None = None
+    last_audit: AuditLogOut | None = None
+    last_invoice: BillingInvoiceOut | None = None
+
+
+class TenantRestoreRequest(BaseModel):
+    backup_id: str = Field(description="Backup manifest id to restore.")
+
+
+class DunningItemOut(BaseModel):
+    tenant_id: str
+    tenant_name: str
+    domain: str
+    status: str
+    billing_status: str | None = None
+    payment_channel: str | None = None
+    next_retry_at: datetime | None = None
+    grace_ends_at: datetime | None = None
+    last_invoice_id: str | None = None
+    last_payment_attempt: datetime | None = None
 
 
 class SupportNoteOut(BaseModel):
@@ -334,6 +398,13 @@ class SupportNoteOut(BaseModel):
     author_role: str
     author_email: EmailStr | None = None
     category: str
+    owner_name: str | None = None
+    owner_contact: str | None = None
+    sla_due_at: datetime | None = None
+    status: str
+    resolved_at: datetime | None = None
+    sla_state: str | None = None
+    sla_last_evaluated_at: datetime | None = None
     note: str
     created_at: datetime
     updated_at: datetime
@@ -342,7 +413,20 @@ class SupportNoteOut(BaseModel):
 class SupportNoteCreateRequest(BaseModel):
     tenant_id: str
     category: str = Field(default="note", max_length=30)
+    owner_name: str | None = Field(default=None, max_length=120)
+    owner_contact: str | None = Field(default=None, max_length=120)
+    sla_due_at: datetime | None = None
+    status: str | None = Field(default=None, max_length=20)
     note: str = Field(min_length=1, max_length=4000)
+
+
+class SupportNoteUpdateRequest(BaseModel):
+    category: str | None = Field(default=None, max_length=30)
+    owner_name: str | None = Field(default=None, max_length=120)
+    owner_contact: str | None = Field(default=None, max_length=120)
+    sla_due_at: datetime | None = None
+    status: str | None = Field(default=None, max_length=20)
+    note: str | None = Field(default=None, max_length=4000)
 
 
 class BackupManifestOut(BaseModel):

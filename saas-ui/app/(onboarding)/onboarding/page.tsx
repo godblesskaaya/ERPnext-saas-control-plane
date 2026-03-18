@@ -3,130 +3,35 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  loadCurrentUserProfile,
+  loadTenantStatus,
+  loadWorkspaceReadiness,
+  parsePersistedOnboardingState,
+  renewCheckoutLink as renewCheckoutLinkUseCase,
+  restorePersistedTenant,
+  retryProvisioning as retryTenantProvisioningUseCase,
+  sendVerificationEmailAgain,
+  submitTenantOnboarding,
+  validateSubdomain,
+} from "../../../domains/onboarding/application/onboardingUseCases";
+import {
+  flowLabels,
+  onboardingFlow as flow,
+  sanitizeSubdomain,
+  statusLabel,
+  TERMINAL_TENANT_STATUSES,
+  type OnboardingStep,
+  type PersistedOnboardingState,
+  type TenantRecord,
+} from "../../../domains/onboarding/domain/onboardingFlow";
 import { BUSINESS_APP_OPTIONS, PlanSelector } from "../../../domains/onboarding/components/PlanSelector";
-import { api } from "../../../domains/shared/lib/api";
+import { OnboardingEmailVerificationPanel } from "../../../domains/onboarding/ui/OnboardingEmailVerificationPanel";
+import { OnboardingNoticePanel } from "../../../domains/onboarding/ui/OnboardingNoticePanel";
+import { OnboardingPageHeader } from "../../../domains/onboarding/ui/OnboardingPageHeader";
+import { OnboardingStepTracker } from "../../../domains/onboarding/ui/OnboardingStepTracker";
 import type { SubdomainAvailability, UserProfile } from "../../../domains/shared/lib/types";
-
-type OnboardingStep = "details" | "plan" | "payment" | "waiting" | "success";
-
-type TenantRecord = {
-  id: string;
-  subdomain: string;
-  domain: string;
-  company_name: string;
-  plan: string;
-  chosen_app?: string | null;
-  status: string;
-};
-
-type TenantCreateResponse = {
-  tenant: TenantRecord;
-  checkout_url?: string | null;
-};
-
-type PersistedOnboardingState = {
-  step: OnboardingStep;
-  subdomain: string;
-  companyName: string;
-  plan: string;
-  chosenApp: string;
-  tenantId: string | null;
-  checkoutUrl: string | null;
-};
-
-const flow = ["details", "plan", "payment", "waiting", "success"] as const;
 const ONBOARDING_STATE_KEY = "erp-saas:onboarding-state:v1";
-const flowLabels: Record<OnboardingStep, string> = {
-  details: "1. Business details",
-  plan: "2. Choose operating level",
-  payment: "3. Confirm payment",
-  waiting: "4. Provisioning",
-  success: "5. Go live",
-};
-
-function sanitizeSubdomain(input: string): string {
-  return input
-    .toLowerCase()
-    .replace(/[^a-z0-9-]/g, "")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 63);
-}
-
-function progressForStatus(status: string): number {
-  switch (status) {
-    case "pending_payment":
-      return 20;
-    case "pending":
-      return 45;
-    case "provisioning":
-      return 75;
-    case "upgrading":
-    case "restoring":
-      return 90;
-    case "active":
-      return 100;
-    case "failed":
-      return 100;
-    case "pending_deletion":
-    case "suspended":
-    case "suspended_admin":
-    case "suspended_billing":
-      return 100;
-    default:
-      return 35;
-  }
-}
-
-function statusLabel(status: string): string {
-  switch (status) {
-    case "pending_payment":
-      return "Awaiting payment confirmation";
-    case "pending":
-      return "Queued for provisioning";
-    case "provisioning":
-      return "Provisioning in progress";
-    case "upgrading":
-      return "Upgrade in progress";
-    case "restoring":
-      return "Restore in progress";
-    case "pending_deletion":
-      return "Deletion scheduled";
-    case "active":
-      return "Workspace is ready";
-    case "failed":
-      return "Provisioning failed";
-    case "suspended":
-      return "Workspace suspended";
-    case "suspended_admin":
-      return "Workspace suspended by admin";
-    case "suspended_billing":
-      return "Workspace suspended for billing";
-    default:
-      return status || "Starting";
-  }
-}
-
-function deriveStepFromTenant(tenant: TenantRecord, checkoutUrl: string | null): OnboardingStep {
-  const status = (tenant.status ?? "").toLowerCase();
-  if (status === "active") return "success";
-  if (status === "pending_payment") return checkoutUrl ? "payment" : "waiting";
-  if (
-    [
-      "pending",
-      "provisioning",
-      "failed",
-      "upgrading",
-      "restoring",
-      "pending_deletion",
-      "suspended",
-      "suspended_admin",
-      "suspended_billing",
-    ].includes(status)
-  ) {
-    return "waiting";
-  }
-  return "details";
-}
 
 function clearPersistedState() {
   if (typeof window === "undefined") return;
@@ -155,8 +60,19 @@ export default function OnboardingPage() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [resendBusy, setResendBusy] = useState(false);
   const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
+  const [readinessStatus, setReadinessStatus] = useState<{ ready: boolean; message: string } | null>(null);
+  const [readinessChecking, setReadinessChecking] = useState(false);
+  const [renewBusy, setRenewBusy] = useState(false);
+  const [renewNotice, setRenewNotice] = useState<string | null>(null);
+  const [renewError, setRenewError] = useState<string | null>(null);
+  const [longWaitNotice, setLongWaitNotice] = useState<string | null>(null);
+  const [retryBusy, setRetryBusy] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
 
   const hydratedRef = useRef(false);
+  const pollingDelayRef = useRef(5000);
+  const pollingTimerRef = useRef<number | null>(null);
+  const pollingStartRef = useRef<number | null>(null);
 
   const cleanSubdomain = useMemo(() => sanitizeSubdomain(subdomain), [subdomain]);
   const previewDomain = `${cleanSubdomain || "your-company"}.erp.your-domain.com`;
@@ -180,16 +96,9 @@ export default function OnboardingPage() {
       return;
     }
 
-    let parsed: PersistedOnboardingState | null = null;
-    try {
-      parsed = JSON.parse(raw) as PersistedOnboardingState;
-    } catch {
-      clearPersistedState();
-      setRestored(true);
-      return;
-    }
-
+    const parsed = parsePersistedOnboardingState(raw);
     if (!parsed) {
+      clearPersistedState();
       setRestored(true);
       return;
     }
@@ -211,10 +120,10 @@ export default function OnboardingPage() {
 
     void (async () => {
       try {
-        const latest = (await api.getTenant(restoredTenantId)) as TenantRecord;
-        setTenant(latest);
-        setProgress(progressForStatus((latest.status ?? "").toLowerCase()));
-        setStep(deriveStepFromTenant(latest, restoredCheckoutUrl));
+        const restoredState = await restorePersistedTenant(restoredTenantId, restoredCheckoutUrl);
+        setTenant(restoredState.tenant);
+        setProgress(restoredState.progress);
+        setStep(restoredState.step);
       } catch (err) {
         clearPersistedState();
         const message = err instanceof Error ? err.message : "Unable to restore onboarding state";
@@ -258,38 +167,14 @@ export default function OnboardingPage() {
       return;
     }
 
-    if (cleanSubdomain.length < 3) {
-      setSubdomainAvailability({
-        subdomain: cleanSubdomain,
-        domain: null,
-        available: false,
-        reason: "invalid",
-        message: "Subdomain must be at least 3 characters.",
-      });
-      setSubdomainChecking(false);
-      return;
-    }
-
     let active = true;
     setSubdomainChecking(true);
     const timer = window.setTimeout(() => {
       void (async () => {
-        try {
-          const result = await api.checkSubdomainAvailability(cleanSubdomain);
-          if (!active) return;
-          setSubdomainAvailability(result);
-        } catch (err) {
-          if (!active) return;
-          setSubdomainAvailability({
-            subdomain: cleanSubdomain,
-            domain: null,
-            available: false,
-            reason: "invalid",
-            message: err instanceof Error ? err.message : "Could not validate subdomain",
-          });
-        } finally {
-          if (active) setSubdomainChecking(false);
-        }
+        const result = await validateSubdomain(cleanSubdomain);
+        if (!active) return;
+        setSubdomainAvailability(result);
+        if (active) setSubdomainChecking(false);
       })();
     }, 400);
 
@@ -310,7 +195,7 @@ export default function OnboardingPage() {
     let cancelled = false;
     const loadUser = async () => {
       try {
-        const user = await api.getCurrentUser();
+        const user = await loadCurrentUserProfile();
         if (cancelled) return;
         setCurrentUser(user);
       } catch {
@@ -327,53 +212,155 @@ export default function OnboardingPage() {
     if (step !== "waiting" || !tenant?.id) return;
 
     let active = true;
-    const poll = async () => {
-      try {
-        const latest = (await api.getTenant(tenant.id)) as TenantRecord;
-        if (!active) return;
+    pollingDelayRef.current = 5000;
+    pollingStartRef.current = Date.now();
+    setLongWaitNotice(null);
 
-        setTenant(latest);
-        const nextStatus = (latest.status ?? "").toLowerCase();
-        setProgress(progressForStatus(nextStatus));
-
-        if (nextStatus === "active") {
-          setStep("success");
-          setError(null);
-          clearPersistedState();
-        } else if (nextStatus === "failed") {
-          setError("Provisioning failed. Please contact support or retry with a different subdomain.");
-        }
-      } catch (err) {
-        if (!active) return;
-        const message = err instanceof Error ? err.message : "Unable to load provisioning status";
-
-        if (message.toLowerCase().includes("404")) {
-          clearPersistedState();
-          setTenant(null);
-          setStep("details");
-          setError("Saved onboarding session was not found. Please start again.");
-          return;
-        }
-
-        if (message.includes("401") || message.toLowerCase().includes("not authenticated")) {
-          router.push("/login?sessionExpired=1&next=/onboarding");
-          return;
-        }
-
-        setError(message);
+    const clearTimer = () => {
+      if (pollingTimerRef.current) {
+        window.clearTimeout(pollingTimerRef.current);
+        pollingTimerRef.current = null;
       }
     };
 
-    void poll();
-    const timer = window.setInterval(() => {
-      void poll();
-    }, 5000);
+    const stopPolling = () => {
+      active = false;
+      clearTimer();
+    };
+
+    const schedulePoll = () => {
+      if (!active || document.hidden) return;
+      pollingTimerRef.current = window.setTimeout(async () => {
+        try {
+          const latest = await loadTenantStatus(tenant.id);
+          if (!active) return;
+
+          setTenant(latest.tenant);
+          const nextStatus = latest.status;
+          setProgress(latest.progress);
+
+          if (nextStatus === "active") {
+            setStep("success");
+            setError(null);
+            clearPersistedState();
+            stopPolling();
+            return;
+          }
+          if (nextStatus === "failed") {
+            setError("Provisioning failed. You can retry or contact support.");
+            stopPolling();
+            return;
+          }
+          if (TERMINAL_TENANT_STATUSES.has(nextStatus)) {
+            stopPolling();
+            return;
+          }
+        } catch (err) {
+          if (!active) return;
+          const message = err instanceof Error ? err.message : "Unable to load provisioning status";
+
+          if (message.toLowerCase().includes("404")) {
+            clearPersistedState();
+            setTenant(null);
+            setStep("details");
+            setError("Saved onboarding session was not found. Please start again.");
+            stopPolling();
+            return;
+          }
+
+          if (message.includes("401") || message.toLowerCase().includes("not authenticated")) {
+            router.push("/login?sessionExpired=1&next=/onboarding");
+            stopPolling();
+            return;
+          }
+
+          setError(message);
+        }
+
+        const elapsed = pollingStartRef.current ? Date.now() - pollingStartRef.current : 0;
+        if (elapsed > 15 * 60 * 1000) {
+          setLongWaitNotice("Provisioning is taking longer than expected. We are still working—contact support if this persists.");
+        }
+        if (elapsed > 30 * 60 * 1000) {
+          setLongWaitNotice("Provisioning timed out. Please contact support to continue.");
+          stopPolling();
+          return;
+        }
+
+        pollingDelayRef.current = Math.min(pollingDelayRef.current * 2, 30000) + Math.floor(Math.random() * 500);
+        schedulePoll();
+      }, pollingDelayRef.current);
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        clearTimer();
+        return;
+      }
+      pollingDelayRef.current = 5000;
+      void (async () => {
+        try {
+          const latest = await loadTenantStatus(tenant.id);
+          if (!active) return;
+          const nextStatus = latest.status;
+          setTenant(latest.tenant);
+          setProgress(latest.progress);
+          if (nextStatus === "active") {
+            setStep("success");
+            setError(null);
+            clearPersistedState();
+            stopPolling();
+            return;
+          }
+          if (TERMINAL_TENANT_STATUSES.has(nextStatus)) {
+            if (nextStatus === "failed") {
+              setError("Provisioning failed. You can retry or contact support.");
+            }
+            stopPolling();
+            return;
+          }
+          schedulePoll();
+        } catch {
+          if (active) {
+            schedulePoll();
+          }
+        }
+      })();
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    schedulePoll();
 
     return () => {
-      active = false;
-      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      stopPolling();
     };
   }, [router, step, tenant?.id]);
+
+  useEffect(() => {
+    if (step !== "success" || !tenant?.id) return;
+    let active = true;
+    setReadinessChecking(true);
+    void (async () => {
+      try {
+        const result = await loadWorkspaceReadiness(tenant.id);
+        if (!active) return;
+        if (result.supported) {
+          setReadinessStatus({ ready: result.data.ready, message: result.data.message });
+        } else {
+          setReadinessStatus({ ready: true, message: "Workspace status check not available." });
+        }
+      } catch (err) {
+        if (!active) return;
+        setReadinessStatus({ ready: false, message: err instanceof Error ? err.message : "Readiness check failed." });
+      } finally {
+        if (active) setReadinessChecking(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [step, tenant?.id]);
 
   const submitTenant = async () => {
     if (emailVerificationRequired) {
@@ -398,21 +385,17 @@ export default function OnboardingPage() {
     setError(null);
 
     try {
-      const response = (await api.createTenant({
+      const onboardingState = await submitTenantOnboarding({
         subdomain: cleanSubdomain,
-        company_name: companyName.trim(),
+        companyName,
         plan,
-        ...(plan.toLowerCase() === "business" ? { chosen_app: chosenApp } : {}),
-      })) as TenantCreateResponse | TenantRecord;
+        chosenApp,
+      });
 
-      const payload = (response as TenantCreateResponse).tenant
-        ? (response as TenantCreateResponse)
-        : { tenant: response as TenantRecord, checkout_url: null };
-
-      setTenant(payload.tenant);
-      setCheckoutUrl(payload.checkout_url ?? null);
-      setProgress(progressForStatus((payload.tenant.status ?? "").toLowerCase()));
-      setStep(payload.checkout_url ? "payment" : "waiting");
+      setTenant(onboardingState.tenant);
+      setCheckoutUrl(onboardingState.checkoutUrl);
+      setProgress(onboardingState.progress);
+      setStep(onboardingState.step);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to create tenant";
       setError(message);
@@ -427,7 +410,7 @@ export default function OnboardingPage() {
   const resendVerification = async () => {
     setResendBusy(true);
     try {
-      const result = await api.resendVerification();
+      const result = await sendVerificationEmailAgain();
       setVerificationNotice(result.message || "Verification email sent. Check your inbox.");
     } catch (err) {
       setVerificationNotice(err instanceof Error ? err.message : "Unable to resend verification email.");
@@ -444,6 +427,27 @@ export default function OnboardingPage() {
     setProgress((current) => Math.max(current, 35));
   };
 
+  const renewCheckout = async () => {
+    if (!tenant?.id) return;
+    setRenewBusy(true);
+    setRenewNotice(null);
+    setRenewError(null);
+    try {
+      const result = await renewCheckoutLinkUseCase(tenant.id);
+      if (!result.supported) {
+        setRenewError("Checkout renewal is not available on this backend.");
+        return;
+      }
+      setTenant(result.data.tenant as TenantRecord);
+      setCheckoutUrl(result.data.checkout_url ?? null);
+      setRenewNotice("A new checkout link is ready.");
+    } catch (err) {
+      setRenewError(err instanceof Error ? err.message : "Unable to renew checkout link.");
+    } finally {
+      setRenewBusy(false);
+    }
+  };
+
   const erpUrl = tenant?.domain ? `https://${tenant.domain}` : `https://${previewDomain}`;
 
   const copyUrl = async () => {
@@ -456,51 +460,49 @@ export default function OnboardingPage() {
     }
   };
 
-  const activeIndex = flow.indexOf(step);
+  const retryProvisioning = async () => {
+    if (!tenant?.id) return;
+    setRetryBusy(true);
+    setRetryError(null);
+    setError(null);
+    try {
+      const result = await retryTenantProvisioningUseCase(tenant.id);
+      if (!result.supported) {
+        setRetryError("Retry endpoint is not available on this backend.");
+        return;
+      }
+      setStep("waiting");
+      setProgress(35);
+      setLongWaitNotice(null);
+    } catch (err) {
+      setRetryError(err instanceof Error ? err.message : "Retry failed.");
+    } finally {
+      setRetryBusy(false);
+    }
+  };
 
   return (
     <section className="mx-auto max-w-5xl space-y-5 rounded-3xl border border-amber-200/70 bg-white/80 p-4 sm:p-6 lg:p-8">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">Get your team live faster</h1>
-        <p className="text-sm text-slate-600">
-          Set up once, then run daily sales, stock, and finance operations from office or mobile across Tanzania.
-        </p>
-      </header>
+      <OnboardingPageHeader
+        title="Get your team live faster"
+        description="Set up once, then run daily sales, stock, and finance operations from office or mobile across Tanzania."
+      />
 
-      <ol className="grid gap-2 text-[11px] uppercase tracking-wide text-slate-500 md:grid-cols-5">
-        {flow.map((item, index) => (
-          <li
-            key={item}
-            className={`rounded border px-2 py-2 text-center ${
-              index <= activeIndex ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-white/70"
-            }`}
-          >
-            {flowLabels[item]}
-          </li>
-        ))}
-      </ol>
+      <OnboardingStepTracker steps={flow} labels={flowLabels} activeStep={step} />
 
-      {notice ? <p className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p> : null}
+      {notice ? <OnboardingNoticePanel tone="success">{notice}</OnboardingNoticePanel> : null}
 
-      {error ? <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+      {error ? <OnboardingNoticePanel tone="error">{error}</OnboardingNoticePanel> : null}
 
       {emailVerificationRequired ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          <p className="font-medium">Email verification required before tenant creation.</p>
-          <p className="mt-1 text-xs text-amber-700">
-            We sent a verification link to <span className="font-medium">{currentUser?.email}</span>.
-          </p>
-          <button
-            className="mt-3 rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:border-amber-400 disabled:opacity-60"
-            onClick={() => {
-              void resendVerification();
-            }}
-            disabled={resendBusy}
-          >
-            {resendBusy ? "Sending..." : "Resend verification email"}
-          </button>
-          {verificationNotice ? <p className="mt-2 text-xs text-amber-800">{verificationNotice}</p> : null}
-        </div>
+        <OnboardingEmailVerificationPanel
+          email={currentUser?.email}
+          resendBusy={resendBusy}
+          verificationNotice={verificationNotice}
+          onResend={() => {
+            void resendVerification();
+          }}
+        />
       ) : null}
 
       <div className="grid gap-5 lg:grid-cols-[1.8fr_1fr]">
@@ -610,8 +612,18 @@ export default function OnboardingPage() {
                 <button
                   className="rounded-full bg-[#0d6a6a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0b5a5a]"
                   onClick={launchCheckout}
+                  disabled={!checkoutUrl}
                 >
                   Open checkout
+                </button>
+                <button
+                  className="rounded-full border border-amber-200 px-4 py-2 text-sm text-slate-700 hover:border-amber-300 disabled:opacity-60"
+                  onClick={() => {
+                    void renewCheckout();
+                  }}
+                  disabled={renewBusy}
+                >
+                  {renewBusy ? "Generating link..." : "Generate new checkout link"}
                 </button>
                 <button
                   className="rounded-full border border-amber-200 px-4 py-2 text-sm text-slate-700 hover:border-amber-300"
@@ -620,6 +632,11 @@ export default function OnboardingPage() {
                   I already completed payment
                 </button>
               </div>
+              {!checkoutUrl ? (
+                <p className="text-xs text-amber-700">Checkout link has expired or is missing. Generate a new link.</p>
+              ) : null}
+              {renewNotice ? <p className="text-xs text-emerald-700">{renewNotice}</p> : null}
+              {renewError ? <p className="text-xs text-red-700">{renewError}</p> : null}
             </div>
           ) : null}
 
@@ -633,6 +650,29 @@ export default function OnboardingPage() {
                 <div className="h-full rounded-full bg-[#0d6a6a] transition-all" style={{ width: `${progress}%` }} />
               </div>
               <p className="text-xs text-slate-500">Current status: {tenant?.status ?? "pending"}</p>
+              {longWaitNotice ? (
+                <OnboardingNoticePanel tone="warning" className="text-xs">
+                  {longWaitNotice}
+                </OnboardingNoticePanel>
+              ) : null}
+              {(tenant?.status ?? "").toLowerCase() === "failed" ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className="rounded-full bg-[#0d6a6a] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                    onClick={() => void retryProvisioning()}
+                    disabled={retryBusy}
+                  >
+                    {retryBusy ? "Retrying..." : "Retry provisioning"}
+                  </button>
+                  <button
+                    className="rounded-full border border-amber-200 px-3 py-1.5 text-xs text-slate-700 hover:border-amber-300"
+                    onClick={() => router.push("/dashboard/support")}
+                  >
+                    Contact support
+                  </button>
+                  {retryError ? <p className="w-full text-xs text-red-700">{retryError}</p> : null}
+                </div>
+              ) : null}
               {checkoutUrl ? (
                 <button
                   className="rounded-full border border-amber-200 px-3 py-1.5 text-xs text-slate-700 hover:border-amber-300"
@@ -649,6 +689,21 @@ export default function OnboardingPage() {
               <h2 className="text-xl font-semibold text-emerald-900">Workspace ready 🎉</h2>
               <p className="text-sm text-emerald-800">Share this URL with your team and start your first daily operations cycle.</p>
               <div className="rounded-xl border border-emerald-200 bg-white p-3 text-sm text-[#0d6a6a]">{erpUrl}</div>
+              {readinessStatus ? (
+                <p
+                  className={`rounded-2xl border p-3 text-xs ${
+                    readinessStatus.ready
+                      ? "border-emerald-200 bg-white text-emerald-800"
+                      : "border-amber-200 bg-amber-50 text-amber-900"
+                  }`}
+                >
+                  {readinessStatus.message}
+                </p>
+              ) : readinessChecking ? (
+                <OnboardingNoticePanel tone="warning" className="text-xs">
+                  Checking workspace readiness...
+                </OnboardingNoticePanel>
+              ) : null}
               <div className="flex flex-wrap gap-3">
                 <button
                   className="rounded-full border border-emerald-300 px-4 py-2 text-sm text-emerald-800 hover:border-emerald-400"

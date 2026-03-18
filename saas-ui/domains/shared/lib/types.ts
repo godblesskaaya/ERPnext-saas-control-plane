@@ -28,6 +28,7 @@ export type Tenant = {
   chosen_app?: string | null;
   status: TenantStatus;
   billing_status?: string;
+  payment_channel?: string | null;
   stripe_checkout_session_id?: string | null;
   stripe_subscription_id?: string | null;
   platform_customer_id?: string | null;
@@ -133,6 +134,13 @@ export type SupportNote = {
   author_role: string;
   author_email?: string | null;
   category: string;
+  owner_name?: string | null;
+  owner_contact?: string | null;
+  sla_due_at?: string | null;
+  status?: string | null;
+  resolved_at?: string | null;
+  sla_state?: string | null;
+  sla_last_evaluated_at?: string | null;
   note: string;
   created_at: string;
   updated_at: string;
@@ -183,6 +191,14 @@ export type BillingPortalResponse = {
   url: string;
 };
 
+export type ImpersonationLink = {
+  token: string;
+  url: string;
+  expires_at: string;
+  target_user_id: string;
+  target_email: string;
+};
+
 export type NotificationItem = {
   id: string;
   type: "success" | "warning" | "error" | "info";
@@ -198,6 +214,9 @@ export type BillingInvoice = {
   amount_due?: number | null;
   amount_paid?: number | null;
   currency?: string | null;
+  collection_method?: string | null;
+  payment_method_types?: string[] | null;
+  metadata?: Record<string, string | number | boolean | null> | null;
   hosted_invoice_url?: string | null;
   invoice_pdf?: string | null;
   created_at?: string | null;
@@ -217,6 +236,35 @@ export type MetricsSummary = {
   jobs_last_24h: number;
   provisioning_success_rate_7d: number;
   dead_letter_count: number;
+  support_open_notes: number;
+  support_breached_notes: number;
+  support_due_soon_notes: number;
+};
+
+export type TenantSummary = {
+  tenant_id: string;
+  last_job?: Job | null;
+  last_backup?: BackupManifestEntry | null;
+  last_audit?: AuditLogEntry | null;
+  last_invoice?: BillingInvoice | null;
+};
+
+export type TenantReadiness = {
+  ready: boolean;
+  message: string;
+};
+
+export type DunningItem = {
+  tenant_id: string;
+  tenant_name: string;
+  domain: string;
+  status: string;
+  billing_status?: string | null;
+  payment_channel?: string | null;
+  next_retry_at?: string | null;
+  grace_ends_at?: string | null;
+  last_invoice_id?: string | null;
+  last_payment_attempt?: string | null;
 };
 
 export type OptionalEndpointResult<T> =

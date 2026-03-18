@@ -237,4 +237,4 @@ Related runtime-proof checklist: [`docs/runtime-verification-sentry-email.md`](.
 
 | Date (UTC) | Scope reviewed | Author | Reviewer (must differ from author) | Result | Notes / links |
 |---|---|---|---|---|---|
-| `<YYYY-MM-DD>` | `<section/file>` | `<name>` | `<name>` | `<approved / changes-requested>` | `<PR/commit/evidence link>` |
+| `2026-03-17` | `docs/operator-runbook.md + docs/uat-report-2026-03-17.md` | `Codex UAT` | `Pending` | `pending-review` | `UAT hardening verification pass; requires human reviewer sign-off` |

@@ -11,6 +11,8 @@ class CheckoutResult:
     checkout_url: str
     customer_ref: str
     provider: str
+    payment_channel: str | None = None
+    payment_method_types: list[str] | None = None
     mock_mode: bool = False
 
 
@@ -33,4 +35,3 @@ class PaymentGateway(ABC):
 
     @abstractmethod
     def parse_webhook(self, payload: bytes, headers: dict[str, str]) -> WebhookEvent: ...
-

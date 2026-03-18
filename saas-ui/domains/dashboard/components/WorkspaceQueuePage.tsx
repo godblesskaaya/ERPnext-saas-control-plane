@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -9,6 +9,11 @@ import { TenantTable } from "./TenantTable";
 import { useNotifications } from "../../shared/components/NotificationsProvider";
 import { api, getApiErrorMessage, isSessionExpiredError, onSessionExpired } from "../../shared/lib/api";
 import type { Job, Tenant, TenantCreateResponse, UserProfile } from "../../shared/lib/types";
+import {
+  deriveWorkspaceQueueSnapshot,
+  loadWorkspaceCurrentUserProfile,
+  loadWorkspaceQueue,
+} from "../../tenant-ops/application/workspaceQueueUseCases";
 
 const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed", "deleted", "canceled", "cancelled"]);
 
@@ -16,6 +21,12 @@ type QueueConfig = {
   title: string;
   description: string;
   statusFilter?: string[];
+  billingFilter?: string[];
+  billingFilterMode?: "and" | "or";
+  paymentChannelFilter?: string[];
+  handoffLinks?: { label: string; href: string }[];
+  callout?: { title: string; body: string; tone?: "default" | "warn" };
+  extraContent?: ReactNode;
   showCreate?: boolean;
   showMetrics?: boolean;
   showAttention?: boolean;
@@ -46,14 +57,16 @@ function metricCard(label: string, value: number, hint: string, tone: "default" 
   );
 }
 
-function normalizeStatus(status: string) {
-  return status.toLowerCase();
-}
-
 export function WorkspaceQueuePage({
   title,
   description,
   statusFilter,
+  billingFilter,
+  billingFilterMode = "and",
+  paymentChannelFilter,
+  handoffLinks,
+  callout,
+  extraContent,
   showCreate = false,
   showMetrics = true,
   showAttention = false,
@@ -69,6 +82,7 @@ export function WorkspaceQueuePage({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [metricsTenants, setMetricsTenants] = useState<Tenant[]>([]);
   const [jobsByTenant, setJobsByTenant] = useState<Record<string, Job | undefined>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -81,11 +95,13 @@ export function WorkspaceQueuePage({
   const [total, setTotal] = useState(0);
   const [retryingTenantId, setRetryingTenantId] = useState<string | null>(null);
   const [statusFilterValue, setStatusFilterValue] = useState("all");
+  const [planFilter, setPlanFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [billingPortalUrl, setBillingPortalUrl] = useState<string | null>(null);
   const [billingPortalError, setBillingPortalError] = useState<string | null>(null);
   const { addNotification } = useNotifications();
   const [updatingTenantId, setUpdatingTenantId] = useState<string | null>(null);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   const handleError = useCallback(
     (err: unknown, fallback: string) => {
@@ -102,30 +118,28 @@ export function WorkspaceQueuePage({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      let nextTenants: Tenant[] = [];
-      if (statusFilter && statusFilter.length > 1) {
-        nextTenants = await api.listTenants();
-        setTotal(nextTenants.length);
-      } else {
-        const paged = await api.listTenantsPaged(
-          page,
-          limit,
-          statusFilterValue === "all" ? undefined : statusFilterValue,
-          search.trim()
-        );
-        if (paged.supported) {
-          nextTenants = paged.data.data;
-          setTotal(paged.data.total);
-        } else {
-          nextTenants = await api.listTenants();
-          setTotal(nextTenants.length);
-        }
+      const queue = await loadWorkspaceQueue({
+        page,
+        limit,
+        showStatusFilter,
+        statusFilter,
+        statusFilterValue,
+        search,
+        planFilter,
+        billingFilter,
+        paymentChannelFilter,
+        billingFilterMode,
+      });
+      setTenants(queue.visibleTenants);
+      setMetricsTenants(queue.metricsTenants);
+      setTotal(queue.total);
+      if (queue.page !== page) {
+        setPage(queue.page);
       }
-      setTenants(nextTenants);
       setError(null);
       setLastUpdated(new Date());
       setJobsByTenant((previous) => {
-        const activeTenantIds = new Set(nextTenants.map((tenant) => tenant.id));
+        const activeTenantIds = new Set(queue.visibleTenants.map((tenant) => tenant.id));
         const next: Record<string, Job | undefined> = {};
         for (const [tenantId, job] of Object.entries(previous)) {
           if (activeTenantIds.has(tenantId)) {
@@ -139,11 +153,23 @@ export function WorkspaceQueuePage({
     } finally {
       setLoading(false);
     }
-  }, [handleError, limit, page, search, statusFilter, statusFilterValue]);
+  }, [
+    billingFilter,
+    billingFilterMode,
+    handleError,
+    limit,
+    page,
+    paymentChannelFilter,
+    planFilter,
+    search,
+    showStatusFilter,
+    statusFilter,
+    statusFilterValue,
+  ]);
 
   const loadCurrentUser = useCallback(async () => {
     try {
-      const user = await api.getCurrentUser();
+      const user = await loadWorkspaceCurrentUserProfile();
       setCurrentUser(user);
       if (user.email_verified) {
         setVerificationNotice(null);
@@ -155,12 +181,21 @@ export function WorkspaceQueuePage({
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
     void loadCurrentUser();
-  }, [load, loadCurrentUser]);
+  }, [loadCurrentUser]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilterValue]);
+  }, [billingFilter, billingFilterMode, paymentChannelFilter, planFilter, search, statusFilter, statusFilterValue]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   useEffect(() => {
     if (!showStatusFilter && statusFilter && statusFilter.length === 1) {
@@ -186,50 +221,19 @@ export function WorkspaceQueuePage({
     [jobsByTenant]
   );
 
-  const baseTenants = useMemo(() => {
-    if (!statusFilter || statusFilter.length === 0) {
-      return tenants;
-    }
-    const allowed = new Set(statusFilter.map(normalizeStatus));
-    return tenants.filter((tenant) => allowed.has(normalizeStatus(tenant.status)));
-  }, [statusFilter, tenants]);
-
-  const filteredTenants = useMemo(() => {
-    if (!search.trim()) {
-      return baseTenants;
-    }
-    const term = search.trim().toLowerCase();
-    return baseTenants.filter((tenant) =>
-      [tenant.company_name, tenant.subdomain, tenant.domain].some((value) => value?.toLowerCase().includes(term))
-    );
-  }, [baseTenants, search]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredTenants.length / limit));
-  const pagedTenants = useMemo(
-    () => filteredTenants.slice((page - 1) * limit, page * limit),
-    [filteredTenants, page, limit]
-  );
-
-  const activeTenants = useMemo(
-    () => baseTenants.filter((tenant) => normalizeStatus(tenant.status) === "active").length,
-    [baseTenants]
-  );
-
-  const provisioningTenants = useMemo(
-    () =>
-      baseTenants.filter((tenant) =>
-        ["pending", "pending_payment", "provisioning", "upgrading", "restoring", "pending_deletion"].includes(
-          normalizeStatus(tenant.status)
-        )
-      ).length,
-    [baseTenants]
-  );
-
-  const failedTenants = useMemo(
-    () => baseTenants.filter((tenant) => normalizeStatus(tenant.status) === "failed").length,
-    [baseTenants]
-  );
-  const needsAttentionCount = provisioningTenants + failedTenants + activeJobs;
+  const queueSnapshot = useMemo(() => deriveWorkspaceQueueSnapshot(metricsTenants, activeJobs), [activeJobs, metricsTenants]);
+  const {
+    totalTenants,
+    activeTenants,
+    pendingPaymentTenants,
+    provisioningQueueTenants,
+    provisioningTenants,
+    failedTenants,
+    billingQueueCount,
+    suspendedTenants,
+    needsAttentionCount,
+  } = queueSnapshot;
+  const pagedTenants = tenants;
   const lastUpdatedLabel = lastUpdated ? lastUpdated.toLocaleString() : "Not refreshed yet";
   const attentionSummary =
     attentionNote ??
@@ -284,6 +288,7 @@ export function WorkspaceQueuePage({
         return;
       }
       setTenants((prev) => prev.map((tenant) => (tenant.id === tenantId ? result.data : tenant)));
+      setMetricsTenants((prev) => prev.map((tenant) => (tenant.id === tenantId ? result.data : tenant)));
       addNotification({
         type: "success",
         title: "Plan updated",
@@ -297,10 +302,6 @@ export function WorkspaceQueuePage({
   };
 
   const canCreateTenants = !currentUser || currentUser.email_verified;
-  const failedBillingTenants = baseTenants.filter((tenant) => tenant.billing_status?.toLowerCase() === "failed").length;
-  const suspendedTenants = baseTenants.filter((tenant) =>
-    ["suspended", "suspended_admin", "suspended_billing"].includes(normalizeStatus(tenant.status))
-  ).length;
 
   const loadBillingPortal = async () => {
     setBillingPortalError(null);
@@ -313,8 +314,8 @@ export function WorkspaceQueuePage({
       setBillingPortalUrl(result.data.url);
       addNotification({
         type: "info",
-        title: "Billing portal ready",
-        body: "A billing portal link is ready to open in a new tab.",
+        title: "Billing workspace ready",
+        body: "A billing workspace link is ready to open in a new tab.",
       });
     } catch (err) {
       setBillingPortalError(getApiErrorMessage(err, "Unable to open billing portal."));
@@ -423,7 +424,7 @@ export function WorkspaceQueuePage({
 
       {showMetrics ? (
         <div className="grid gap-3 md:grid-cols-4">
-          {metricCard("Total workspaces", baseTenants.length, "All customer environments under management")}
+          {metricCard("Total workspaces", totalTenants, "All customer environments under management")}
           {metricCard("Healthy", activeTenants, "Ready for daily sales, stock, and finance activity", "good")}
           {metricCard("In setup", provisioningTenants, "Still being provisioned or awaiting payment checks", "warn")}
           {metricCard("Needs rescue", failedTenants, "Provisioning failed and requires operator action", failedTenants > 0 ? "warn" : "default")}
@@ -441,41 +442,77 @@ export function WorkspaceQueuePage({
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <Link href="/dashboard/onboarding" className="rounded-2xl border border-amber-200 bg-[#fff7ed] p-4 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Onboarding & payments</p>
-              <p className="mt-1 text-2xl font-semibold text-amber-800">{provisioningTenants}</p>
-              <p className="mt-1 text-xs text-slate-600">Pending payment and provisioning workspaces.</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">Payment confirmation</p>
+              <p className="mt-1 text-2xl font-semibold text-amber-800">{pendingPaymentTenants}</p>
+              <p className="mt-1 text-xs text-slate-600">Sign-ups waiting for payment confirmation.</p>
+            </Link>
+            <Link href="/dashboard/provisioning" className="rounded-2xl border border-amber-200 bg-white p-4 text-sm">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Provisioning queue</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-800">{provisioningQueueTenants}</p>
+              <p className="mt-1 text-xs text-slate-600">Deployments and upgrades still in progress.</p>
             </Link>
             <Link href="/dashboard/incidents" className="rounded-2xl border border-amber-200 bg-white p-4 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Failed or blocked</p>
-              <p className="mt-1 text-2xl font-semibold text-red-700">{failedTenants + suspendedTenants}</p>
-              <p className="mt-1 text-xs text-slate-600">Failures, suspensions, or stalled environments.</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">System failures</p>
+              <p className="mt-1 text-2xl font-semibold text-red-700">{failedTenants}</p>
+              <p className="mt-1 text-xs text-slate-600">Provisioning failures needing operator action.</p>
             </Link>
-            <Link href="/dashboard/active" className="rounded-2xl border border-amber-200 bg-white p-4 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Active tenants</p>
-              <p className="mt-1 text-2xl font-semibold text-emerald-700">{activeTenants}</p>
-              <p className="mt-1 text-xs text-slate-600">Healthy customers needing routine care.</p>
+            <Link href="/dashboard/suspensions" className="rounded-2xl border border-amber-200 bg-white p-4 text-sm">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Account suspensions</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-800">{suspendedTenants}</p>
+              <p className="mt-1 text-xs text-slate-600">Admin or billing suspensions to review.</p>
             </Link>
-            <Link href="/billing" className="rounded-2xl border border-amber-200 bg-[#f7fbf9] p-4 text-sm">
+            <Link href="/dashboard/billing" className="rounded-2xl border border-amber-200 bg-[#f7fbf9] p-4 text-sm">
               <p className="text-xs uppercase tracking-wide text-slate-500">Billing follow-ups</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-800">{failedBillingTenants}</p>
-              <p className="mt-1 text-xs text-slate-600">Failed payment workspaces and invoices.</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-800">{billingQueueCount}</p>
+              <p className="mt-1 text-xs text-slate-600">Pending payments and failed billing workspaces.</p>
             </Link>
           </div>
         </div>
       ) : null}
 
-      {showBillingAlert && failedBillingTenants > 0 ? (
+      {handoffLinks && handoffLinks.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-3xl border border-amber-200/70 bg-white/80 p-4 text-sm text-slate-600">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Queue handoff</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {handoffLinks.map((link) => (
+              <Link key={link.href} href={link.href} className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-amber-300">
+                {link.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {callout ? (
+        <div
+          className={`rounded-3xl border p-5 ${
+            callout.tone === "warn" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-amber-200/70 bg-white/80 text-slate-700"
+          }`}
+        >
+          <p className="text-sm font-semibold">{callout.title}</p>
+          <p className="mt-2 text-sm">{callout.body}</p>
+        </div>
+      ) : null}
+
+      {showBillingAlert && billingQueueCount > 0 ? (
         <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          <p className="font-semibold">Payment issue detected</p>
+          <p className="font-semibold">Billing follow-up needed</p>
           <p className="mt-1">
-            {failedBillingTenants} workspace(s) have failed payments. Ask the owner to update billing details.
+            {billingQueueCount} workspace(s) need payment attention (pending, suspended, or unpaid). Direct them to
+            settle invoices so provisioning and upgrades can resume.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Link
+              href="/dashboard/billing"
+              className="rounded-full border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-800 hover:border-red-400"
+            >
+              Go to billing follow-ups
+            </Link>
             <button
               className="rounded-full border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-800 hover:border-red-400"
               onClick={() => void loadBillingPortal()}
             >
-              Open billing portal
+              Open ERPNext billing workspace
             </button>
             {billingPortalUrl ? (
               <a
@@ -484,7 +521,7 @@ export function WorkspaceQueuePage({
                 rel="noreferrer"
                 className="rounded-full bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500"
               >
-                Continue in portal
+                Continue in ERPNext
               </a>
             ) : null}
           </div>
@@ -495,13 +532,23 @@ export function WorkspaceQueuePage({
       <div className="grid gap-3 md:grid-cols-[1.4fr_1fr]">
         <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Filter workspaces</p>
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
             <input
               className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900"
               placeholder="Search by company, subdomain, or domain"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
+            <select
+              className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900"
+              value={planFilter}
+              onChange={(event) => setPlanFilter(event.target.value)}
+            >
+              <option value="all">All plans</option>
+              <option value="starter">Starter</option>
+              <option value="business">Business</option>
+              <option value="enterprise">Enterprise</option>
+            </select>
             {showStatusFilter ? (
               <select
                 className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900"
@@ -556,9 +603,17 @@ export function WorkspaceQueuePage({
         <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
       ) : null}
 
+      {extraContent}
+
       <TenantTable
         tenants={pagedTenants}
         jobsByTenant={jobsByTenant}
+        showPaymentChannel={Boolean(paymentChannelFilter && paymentChannelFilter.length)}
+        filterLabel={
+          paymentChannelFilter && paymentChannelFilter.length
+            ? `Payment channel filter: ${paymentChannelFilter.join(", ").replace(/_/g, " ")}`
+            : undefined
+        }
         onBackup={async (id) => {
           try {
             const job = await api.backupTenant(id);
@@ -624,7 +679,7 @@ export function WorkspaceQueuePage({
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
         <span>
-          Page {page} of {totalPages} • {filteredTenants.length} workspaces
+          Page {page} of {totalPages} • {total} workspaces
         </span>
         <div className="flex gap-2">
           <button

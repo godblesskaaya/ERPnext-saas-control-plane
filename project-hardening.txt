@@ -1,0 +1,812 @@
+ 
+ 
+ ERPNext SaaS Control Plane
+ 
+Enterprise Hardening Roadmap
+ 
+ From MVP to Production-Grade SaaS  
+ 
+
+Project
+ERP SaaS — blenkotechnologies.co.tz
+Document Type
+Enterprise Hardening Roadmap
+Current Status
+MVP — site creation & admin password reset verified
+Target State
+Production-grade multi-tenant SaaS platform
+Author
+Engineering — Blenko Technologies
+Classification
+Confidential — Internal Engineering
+
+
+1. Executive Summary
+The ERP SaaS platform has achieved its MVP milestone: sites can be provisioned inside the 
+existing ERPNext Docker bench, admin passwords reset, and the control plane is accessible 
+through Traefik. The core machinery works.
+This document is a complete engineering roadmap to harden that foundation to enterprise 
+grade. It covers nine critical domains — security, observability, resilience, UI/UX, billing, multi-
+tenancy enforcement, data integrity, DevOps, and documentation — with precise, actionable 
+specifications for each.
+
+Current Baseline
+Site creation functional. Admin password reset confirmed. JWT auth in place. PostgreSQL + Redis + 
+RQ worker wired. Next.js dashboard scaffold live.
+
+Hardening Goal
+Rate-limited, audited, idempotent API. Stripe billing with plan enforcement. Real-time job tracking. 
+Polished UI with landing page. Alembic migrations. Structured logging. CI/CD with health gates.
+
+1.1 Gap Summary
+Area
+Current State
+Target State
+Authentication
+JWT issued, no refresh, no revocation
+Short-lived access + 
+refresh tokens, revocation 
+list
+Rate Limiting
+None
+slowapi per-IP per-
+endpoint limits
+Input Validation
+Pydantic + domain regex
+Same + subdomain 
+blocklist, reserved word 
+filter
+Billing
+ERPNext REST call (mock-capable)
+Stripe Checkout + 
+webhooks + plan 
+enforcement
+Job Tracking
+DB polling only
+WebSocket real-time 
+updates + retry/DLQ
+Database Migrations
+create_all on startup
+Alembic versioned 
+migrations + CI gate
+Audit Log
+None
+Append-only audit_logs 
+table, every state change
+Observability
+None
+Structured JSON logs, 
+/metrics Prometheus, 
+Sentry
+UI / UX
+Functional scaffold only
+Polished landing page, 
+onboarding flow, job 
+progress
+Security Headers
+None
+HSTS, CSP, X-Frame-
+Options, CORS whitelist
+Email Notifications
+None
+Provisioning complete, 
+payment failed, deletion 
+warning
+Admin Panel
+List & suspend only
+Full CRUD, logs viewer, 
+upgrade trigger, metrics
+Backup Management
+Fire-and-forget
+Manifest file, S3-ready, 
+scheduled cron + 
+retention
+Documentation
+README only
+OpenAPI UI, operator 
+runbook, user guide
+
+2. Priority Matrix
+Items are ordered by risk × user-impact. P0 issues can cause data loss, security breaches, or 
+complete service unavailability. All P0 items must be resolved before accepting paying 
+customers.
+
+Feature / Fix
+Priority
+Effort
+Impact
+DB migrations (Alembic)
+P0
+2 h
+Prevents schema drift, data 
+loss on redeploy
+Rate limiting all endpoints
+P0
+3 h
+Prevents credential stuffing 
+& abuse
+JWT refresh + revocation
+P0
+4 h
+Prevents token theft from 
+being permanent
+Security headers (CORS, 
+HSTS, CSP)
+P0
+2 h
+Closes XSS, clickjacking, 
+MITM vectors
+Subdomain blocklist validation
+P0
+1 h
+Prevents admin/platform 
+subdomain squatting
+Audit log table
+P0
+3 h
+Required for compliance, 
+incident investigation
+Stripe billing + webhooks
+P1
+1 d
+Revenue-blocking: free tier 
+bypass otherwise
+Plan enforcement middleware
+P1
+4 h
+Without it, all plans are 
+effectively equal
+Real-time job progress (WS)
+P1
+1 d
+UX: users currently see no 
+feedback
+Email notifications
+P1
+4 h
+Provisioning result, payment 
+failures
+Structured logging + Sentry
+P1
+3 h
+Without this, prod incidents 
+are blind
+Landing page + onboarding
+P1
+1 d
+Conversion: current UI has 
+no value prop
+Backup manifest + schedule
+P2
+6 h
+Data durability beyond ad-
+hoc triggers
+Prometheus /metrics endpoint
+P2
+3 h
+Capacity planning, SLA 
+monitoring
+Admin panel — logs viewer
+P2
+6 h
+Ops: currently requires DB 
+access
+S3 backup upload
+P2
+4 h
+Off-server backup durability
+Tenant resource quotas
+P3
+1 d
+Prevents one tenant 
+starving others
+CI/CD GitHub Actions pipeline
+P3
+4 h
+Developer velocity, prevents 
+regressions
+
+
+3. Security Hardening
+3.1 Database Migrations — P0
+The current pattern of Base.metadata.create_all(bind=engine) on startup is unsafe for 
+production. Any model change can silently corrupt data or be ignored. Alembic must be 
+introduced immediately.
+Required changes
+•	Add alembic==1.16.5 to requirements.txt (already present — wire it)
+•	Create alembic/ directory with env.py pointing to app.db.Base.metadata
+•	Generate initial migration from current models
+•	Replace create_all call in main.py with alembic upgrade head subprocess at startup
+•	Add CI step: alembic check — fails if unapplied migrations exist
+
+# alembic/env.py (key excerpt)
+from app.models import Base   # import all models so they're visible
+target_metadata = Base.metadata
+
+# provisioning-api/app/main.py startup
+import subprocess
+@app.on_event('startup')
+def startup():
+    subprocess.run(['alembic', 'upgrade', 'head'], check=True)
+
+3.2 Rate Limiting — P0
+Without rate limiting, the /auth/login and /auth/signup endpoints are trivially brute-forced. The 
+/tenants POST endpoint can be abused to exhaust bench capacity. Use slowapi (the FastAPI-
+native Starlette limiter).
+Limits to enforce
+•	POST /auth/login — 10 requests / minute / IP
+•	POST /auth/signup — 5 requests / minute / IP
+•	POST /tenants — 3 requests / minute / user
+•	POST /tenants/{id}/backup — 1 request / 5 minutes / tenant
+•	All other authenticated endpoints — 60 requests / minute / user
+
+# provisioning-api/requirements.txt — add:
+slowapi==0.1.9
+
+# app/main.py
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+limiter = Limiter(key_func=get_remote_address, storage_uri=settings.redis_url)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# app/routers/auth.py
+@router.post('/login')
+@limiter.limit('10/minute')
+def login(request: Request, payload: LoginRequest, ...):
+
+3.3 JWT Refresh Tokens & Revocation — P0
+The current implementation issues 24-hour access tokens with no revocation. A stolen token is 
+valid for a full day. The fix is to shorten access token lifetime and add a Redis-backed 
+revocation list.
+Token lifecycle
+•	Access token: 15-minute expiry — short enough to limit stolen-token damage
+•	Refresh token: 7-day expiry — stored in HttpOnly cookie, not localStorage
+•	Revocation: on logout, store jti in Redis with TTL matching remaining token lifetime
+•	Middleware: on every request, check jti against Redis revocation set
+
+# app/security.py — new constants
+ACCESS_TOKEN_EXPIRE_MINUTES  = 15
+REFRESH_TOKEN_EXPIRE_DAYS    = 7
+
+# app/routers/auth.py — logout endpoint
+@router.post('/logout')
+def logout(credentials: ..., redis: Redis = Depends(get_redis)):
+    payload = decode_access_token(credentials.credentials)
+    jti = payload['jti']
+    ttl = int(payload['exp'] - time.time()) + 60
+    redis.setex(f'revoked:{jti}', ttl, '1')
+    return {'message': 'Logged out'}
+
+# app/deps.py — revocation check
+def get_current_user(credentials, db, redis):
+    payload = decode_access_token(credentials.credentials)
+    if redis.exists(f"revoked:{payload['jti']}"):
+        raise HTTPException(401, 'Token revoked')
+
+3.4 Security Headers & CORS — P0
+The API and UI currently ship no security headers. This leaves them exposed to XSS, 
+clickjacking, and cross-origin data exfiltration. Add a hardened middleware layer.
+
+# app/middleware/security.py
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; 
+includeSubDomains'
+        response.headers['X-Content-Type-Options']    = 'nosniff'
+        response.headers['X-Frame-Options']           = 'DENY'
+        response.headers['Referrer-Policy']           = 'strict-origin-when-cross-
+origin'
+        response.headers['Content-Security-Policy']   = "default-src 'self'"
+        return response
+
+# app/main.py — CORS (whitelist only)
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(CORSMiddleware,
+    allow_origins=[settings.saas_ui_origin],
+    allow_credentials=True,
+    allow_methods=['GET','POST','DELETE'],
+    allow_headers=['Authorization','Content-Type'],
+)
+
+3.5 Subdomain Blocklist — P0
+A tenant could register the subdomain 'admin', 'api', 'platform', 'billing', 'mail', 'smtp', 'ns1', or 
+'www' — any of which could create serious routing conflicts or impersonation risk.
+
+# app/bench/validators.py — add to validate_subdomain()
+BLOCKLIST = frozenset({
+    'admin', 'api', 'platform', 'billing', 'mail', 'smtp',
+    'ns1', 'ns2', 'www', 'ftp', 'ssh', 'vpn', 'cdn', 'blenko',
+    'support', 'help', 'status', 'monitor', 'metrics', 'grafana',
+})
+
+def validate_subdomain(subdomain: str) -> str:
+    cleaned = subdomain.strip().lower()
+    if cleaned in BLOCKLIST:
+        raise ValidationError('This subdomain is reserved')
+    ...
+
+3.6 Audit Log — P0
+Every state-changing action must be recorded in an append-only audit table. This is required for 
+GDPR compliance, incident investigation, and chargeback disputes.
+Schema
+class AuditLog(Base):
+    __tablename__ = 'audit_logs'
+    id         = Column(String(36), primary_key=True, default=uuid4)
+    actor_id   = Column(String(36), nullable=True)   # null = system
+    actor_role = Column(String(20))
+    action     = Column(String(50))  # tenant.create, tenant.delete, auth.login, ...
+    resource   = Column(String(50))  # tenants, users, jobs
+    resource_id= Column(String(36), nullable=True)
+    ip_address = Column(String(45), nullable=True)
+    metadata   = Column(JSONB, default=dict)         # plan, subdomain, etc.
+    created_at = Column(DateTime(timezone=True), default=utcnow, index=True)
+Actions to audit
+•	auth.signup, auth.login, auth.login_failed, auth.logout
+•	tenant.create, tenant.provision_started, tenant.provision_succeeded, 
+tenant.provision_failed
+•	tenant.backup_started, tenant.backup_succeeded
+•	tenant.delete, tenant.suspend, tenant.restore
+•	admin.suspend_tenant, admin.view_all_tenants
+•	billing.payment_succeeded, billing.payment_failed, billing.subscription_cancelled
+
+
+4. Billing & Plan Enforcement
+4.1 Stripe Integration — P1
+The current billing_client.py registers a Customer in the platform ERP site but has no payment 
+capture, subscription lifecycle, or plan enforcement. Until Stripe is wired, the platform cannot 
+collect revenue and plans are meaningless.
+Stripe objects required
+•	Product: 'ERPNext SaaS' — one product, three Price objects 
+(starter/business/enterprise)
+•	Customer: created on signup, stored as stripe_customer_id on the User model
+•	Subscription: created when tenant provisioning is confirmed — status determines 
+tenant.status
+•	Checkout Session: hosted by Stripe, redirect back to /dashboard after payment
+•	Webhook: stripe.Webhook.construct_event verifies signature on /billing/webhook
+
+# Stripe price IDs in .env.example
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_STARTER=price_...
+STRIPE_PRICE_BUSINESS=price_...
+STRIPE_PRICE_ENTERPRISE=price_...
+
+Provisioning gate
+Tenant provisioning must be gated on payment. The flow must be:
+1.	User submits create-tenant form ? API returns a Stripe Checkout Session URL
+2.	User completes payment on Stripe-hosted page
+3.	Stripe fires checkout.session.completed webhook to /billing/webhook
+4.	Webhook handler enqueues the RQ provisioning job
+5.	Tenant status transitions: pending ? provisioning ? active
+
+Critical
+Never start site provisioning before webhook payment confirmation. Enqueue only from the webhook 
+handler, never from the tenant create endpoint directly.
+
+4.2 Plan Enforcement — P1
+Plans must gate features. Without enforcement, all plans are equivalent and paying enterprise 
+customers have no differentiation.
+
+Feature
+Starter
+Business
+Enterprise
+Max additional apps
+1 (erpnext only)
+3 (crm, hrms)
+All
+Backup retention
+7 days
+30 days
+90 days
+Manual backup triggers
+1/day
+3/day
+Unlimited
+Support SLA
+Email 48h
+Email 12h
+Priority 4h
+Custom domain alias
+No
+No
+Yes
+
+
+5. Worker Resilience & Job Tracking
+5.1 Job Retry Logic — P1
+The current RQ worker has no retry policy. A bench timeout (e.g., MariaDB is briefly 
+unavailable) causes a permanent job failure with no recovery. Add structured retries with 
+exponential backoff.
+
+# app/services/tenant_service.py — add retry config
+from rq.job import Retry
+
+rq_job = queue.enqueue(
+    'app.workers.tasks.provision_tenant',
+    job.id, tenant.id, owner.email, admin_password,
+    job_timeout='10m',
+    retry=Retry(max=3, interval=[30, 120, 300]),  # 30s, 2m, 5m
+)
+
+5.2 Dead Letter Queue — P1
+After all retries are exhausted, failed jobs must land in a dead-letter queue for manual inspection 
+rather than vanishing. An admin API endpoint must expose these jobs.
+
+# app/queue/enqueue.py — DLQ queue
+def get_dlq() -> Queue:
+    return Queue('dead-letter', connection=get_redis_connection())
+
+# RQ worker on_failure callback
+def on_job_failure(job, connection, type, value, traceback):
+    dlq = get_dlq()
+    dlq.enqueue('app.workers.dlq.handle_failed', job.id, job.args)
+
+5.3 Real-Time Job Progress via WebSocket — P1
+Users currently have no way to see provisioning progress without polling the job endpoint. A 
+WebSocket endpoint allows the dashboard to display live log lines as they stream from the 
+worker.
+
+# app/routers/ws.py
+from fastapi import WebSocket
+
+@router.websocket('/ws/jobs/{job_id}')
+async def job_stream(websocket: WebSocket, job_id: str, token: str):
+    await websocket.accept()
+    # Subscribe to Redis pub/sub channel: job:{job_id}:logs
+    # Worker publishes each log line to this channel
+    async for message in redis_pubsub(f'job:{job_id}:logs'):
+        await websocket.send_text(message)
+        if message == '__DONE__': break
+    await websocket.close()
+
+
+6. Observability
+6.1 Structured Logging — P1
+The application currently produces no structured logs. When a provisioning job fails at 3am, 
+there is no breadcrumb trail. Every log line must be structured JSON, emitted to stdout, and 
+captured by Docker/Traefik.
+
+# provisioning-api/requirements.txt — add:
+structlog==25.4.0
+
+# app/logging_config.py
+import structlog
+structlog.configure(
+    processors=[
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt='iso'),
+        structlog.processors.JSONRenderer(),
+    ],
+    logger_factory=structlog.PrintLoggerFactory(),
+)
+log = structlog.get_logger()
+
+# Usage everywhere:
+log.info('tenant.provision.start', tenant_id=tenant.id, domain=tenant.domain, 
+plan=tenant.plan)
+log.error('tenant.provision.failed', tenant_id=tenant.id, error=str(exc))
+
+6.2 Sentry Error Tracking — P1
+Unhandled exceptions in the API and worker must be captured with full context (user ID, tenant 
+ID, request payload) and routed to Sentry for triage.
+
+# requirements.txt — add: sentry-sdk[fastapi]==2.28.0
+
+# app/main.py
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.rq import RqIntegration
+
+sentry_sdk.init(
+    dsn=settings.sentry_dsn,
+    integrations=[FastApiIntegration(), RqIntegration()],
+    environment=settings.environment,
+    traces_sample_rate=0.2,
+    send_default_pii=False,
+)
+
+6.3 Prometheus Metrics — P2
+Expose a /metrics endpoint for Prometheus scraping. Key metrics to instrument:
+•	erp_saas_tenants_total{status} — gauge: active, pending, failed, deleted
+•	erp_saas_provisioning_duration_seconds — histogram: time from job queued to active
+•	erp_saas_jobs_total{type, status} — counter: create, backup, delete
+•	erp_saas_bench_command_duration_seconds{command} — histogram: bench perf
+•	erp_saas_api_requests_total{method, path, status_code} — counter
+
+# requirements.txt — add: prometheus-fastapi-instrumentator==7.1.0
+
+# app/main.py
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app, endpoint='/metrics')
+
+
+7. UI/UX Hardening
+7.1 Landing Page — P1
+The current landing page is two lines of text and two buttons. It does not communicate the value 
+proposition, show pricing, or provide any social proof. A new landing page must cover:
+•	Hero section — headline, sub-headline, call to action (Get Started Free)
+•	Feature grid — 3 key benefits: instant setup, managed infrastructure, transparent pricing
+•	Pricing table — three tiers with feature comparison and Stripe checkout link
+•	How it works — 3-step visual flow: create account ? select plan + pay ? get your ERP 
+URL
+•	Footer — legal links, support email, company name
+
+Design Direction
+Use the established dark palette (#0b1220 background) with electric blue accents. The hero should 
+include the live domain pattern (yourname.erp.blenkotechnologies.co.tz) to make the product 
+concrete. Avoid generic SaaS clichés.
+
+7.2 Onboarding Flow — P1
+After signup, users land on a blank dashboard. There is no guidance. The onboarding flow must 
+walk them through:
+6.	Post-signup: redirect to /onboarding — welcome screen with progress indicator
+7.	Step 1: choose subdomain — live preview showing full URL as they type
+8.	Step 2: select plan — visual card comparison with prices
+9.	Step 3: payment — redirect to Stripe Checkout
+10.	Step 4: waiting room — animated progress bar, real-time log stream via WebSocket
+11.	Step 5: success — ERP URL with copy button + 'Open ERP' CTA
+
+7.3 Dashboard Improvements — P1
+The current TenantTable is functional but raw. The following changes are required:
+•	Status badge: colour-coded pill (green=active, yellow=provisioning, red=failed, 
+grey=deleted)
+•	Job progress panel: expandable row showing real-time log stream for in-progress jobs
+•	Empty state: illustrated prompt with 'Create your first ERP instance' CTA
+•	Backup history: per-tenant list of completed backup timestamps and download links
+•	Plan badge: show plan name with upgrade button if not enterprise
+•	Admin password panel: show generated password inline with 'Copy' button, auto-dismiss 
+after 30s
+•	Confirmation dialogs: all destructive actions (delete, reset password) require typed 
+confirmation
+
+7.4 Navigation & Auth Guards — P1
+The app has no persistent navigation. Pages are accessible directly without auth guards. 
+Required additions:
+•	Persistent top navigation bar: logo, nav links (Dashboard, Settings), user email, Logout 
+button
+•	Route guards: all /dashboard/* routes redirect to /login if no valid token
+•	Token expiry detection: 401 response triggers automatic redirect to /login with 'Session 
+expired' message
+•	Admin routes: /admin/* protected by role check, show 403 page if non-admin
+
+
+8. Data Integrity & Multi-Tenancy
+8.1 Idempotency Keys — P1
+The POST /tenants endpoint is not idempotent. A network retry after a partial write can create 
+duplicate tenant records. Add an idempotency key mechanism.
+
+# Client sends: X-Idempotency-Key: <uuid4>
+# Server checks Redis: idempotency:{key} ? cached response
+# On first call: process and cache result for 24 hours
+# On duplicate: return cached result with 200 (not 202)
+
+8.2 Tenant Status State Machine — P1
+Tenant status transitions must be enforced programmatically. Invalid transitions (e.g., active ? 
+provisioning) must be rejected to prevent stuck states.
+
+From State
+Allowed Transitions
+pending
+provisioning, failed (on webhook), deleted (on cancel)
+provisioning
+active, failed
+active
+suspended, deleting, failed
+suspended
+active (on unsuspend), deleting
+deleting
+deleted, failed
+failed
+pending (on manual retry), deleted
+deleted
+(terminal — no transitions)
+
+8.3 Backup System Hardening — P2
+Backups are currently fire-and-forget with no manifest, no retention policy, and no off-server 
+copy. The hardening plan:
+•	Create a backups table: id, tenant_id, job_id, file_path, file_size_bytes, created_at, 
+expires_at, s3_key
+•	After successful bench backup, parse output to capture backup file path
+•	Write record to backups table with expiry based on plan (7/30/90 days)
+•	Schedule nightly cron job (RQ scheduled job) to delete expired backup files and DB 
+records
+•	Add S3 upload step (boto3) — optional, enabled by BACKUP_S3_BUCKET env var
+•	Expose GET /tenants/{id}/backups endpoint returning backup manifest
+
+
+9. DevOps & Deployment
+9.1 Environment Management — P0
+The .env.example file contains the real MariaDB root password (Ctorch19). Secrets must never 
+be in version control, even in example files.
+•	Remove all real credentials from .env.example — use placeholder values like 
+<BENCH_DB_ROOT_PASSWORD>
+•	Add pre-commit hook: git-secrets or detect-secrets to block credential commits
+•	Production deployment must use Docker secrets or environment injection from a secrets 
+manager (Vault, AWS SSM, or similar)
+•	JWT_SECRET_KEY must be rotated before production launch — document the rotation 
+procedure
+
+Action Required
+The value Ctorch19 visible in .env.example and docker-compose.yml must be removed from the 
+repository immediately, and the MariaDB root password should be rotated if the repository has ever 
+been pushed to a remote.
+
+9.2 CI/CD Pipeline — P3
+A GitHub Actions workflow covering the full test and deploy lifecycle:
+
+# .github/workflows/ci.yml
+jobs:
+  test:
+    - pip install -r requirements.txt -r requirements-dev.txt
+    - pytest tests/ --cov=app --cov-fail-under=70
+    - alembic check  # fail if unapplied migrations
+    - bash tests/scripts/test_script_safety.sh
+  build:
+    - docker build ./provisioning-api
+    - docker build ./saas-ui
+  deploy:  # on push to main only
+    - ssh to server, docker compose pull && docker compose up -d
+
+9.3 Health Check Improvements — P2
+The current GET /health returns a static response. A real health check must verify all 
+dependencies:
+
+@app.get('/health')
+async def health(db: Session = Depends(get_db), redis = Depends(get_redis)):
+    checks = {}
+    try:
+        db.execute(text('SELECT 1'))
+        checks['postgres'] = 'ok'
+    except Exception as e:
+        checks['postgres'] = f'error: {e}'
+    try:
+        redis.ping()
+        checks['redis'] = 'ok'
+    except Exception as e:
+        checks['redis'] = f'error: {e}'
+    status = 'ok' if all(v == 'ok' for v in checks.values()) else 'degraded'
+    code = 200 if status == 'ok' else 503
+    return JSONResponse({'status': status, 'checks': checks}, status_code=code)
+
+
+10. Email Notifications
+10.1 Required Notification Events — P1
+Users must be notified of provisioning outcomes. Without this, a failed provisioning is silent and 
+the user has no recourse.
+
+Event
+Recipient
+Content
+Signup confirmed
+New user
+Welcome + login link
+Provisioning complete
+Tenant owner
+ERP URL + admin username
+Provisioning failed
+Tenant owner + Admin
+Error summary + support link
+Backup succeeded
+Tenant owner
+Timestamp + file size
+Payment failed
+Tenant owner
+Retry link + suspension warning
+Tenant suspended
+Tenant owner
+Reason + reactivation instructions
+Tenant deleted
+Tenant owner
+Confirmation + data retention 
+policy
+
+Implementation: add mailersend==2.3.0 or similar transactional email SDK. Template rendering 
+via Jinja2. Trigger from worker tasks post-state-change. Never block the main API thread.
+
+
+11. Documentation
+11.1 API Documentation — P2
+FastAPI auto-generates OpenAPI schema. Enhance it for developer consumers:
+•	Add response_model and responses={} for every endpoint, including 401, 403, 404, 422, 
+429
+•	Add openapi_extra with example payloads for all request bodies
+•	Document all job types and status values in schema descriptions
+•	Expose Swagger UI at /docs and ReDoc at /redoc (already built in — just verify 
+accessible)
+
+11.2 Operator Runbook — P2
+A runbook must cover the following procedures for on-call engineers:
+•	How to inspect a stuck provisioning job (Redis queue inspection commands)
+•	How to manually retry a failed tenant creation
+•	How to suspend/unsuspend a tenant from CLI
+•	How to restore a tenant from backup
+•	How to rotate the JWT secret key without logging out all users
+•	How to add a new ERPNext app to the allowlist
+•	How to run Alembic migrations manually
+•	How to drain the RQ queue safely before maintenance
+
+11.3 User Guide — P3
+A user-facing guide (hosted in-app or as a PDF) covering:
+•	Creating an account and selecting a plan
+•	Accessing your ERPNext instance for the first time
+•	How to reset the ERPNext Administrator password
+•	How to trigger a manual backup
+•	What happens when a subscription payment fails
+•	How to delete your ERP instance and data retention policy
+
+
+12. Recommended Implementation Sequence
+Work in sprints. Each sprint must ship to staging and pass smoke tests before the next begins.
+
+Sprint
+Theme
+Deliverables
+S1
+Security Foundation
+Alembic migrations, rate limiting, JWT revocation, security 
+headers, subdomain blocklist, remove credentials from repo
+S2
+Audit & Observability
+Audit log table, structlog, Sentry, Prometheus /metrics, 
+enhanced /health
+S3
+Billing Pipeline
+Stripe products/prices, checkout session flow, webhook 
+handler, plan enforcement, email notifications
+S4
+Worker Resilience
+Job retries + DLQ, idempotency keys, state machine, 
+WebSocket job stream
+S5
+UI Overhaul
+Landing page + pricing, onboarding flow, dashboard status 
+badges + job progress, nav + auth guards
+S6
+Data Durability
+Backup manifest table, retention cron, S3 upload, backup 
+history API + UI
+S7
+DevOps
+CI/CD GitHub Actions, detect-secrets hook, staging 
+environment, operator runbook
+S8
+Polish & Docs
+Admin panel logs viewer, OpenAPI examples, user guide, 
+performance testing
+
+
+13. Definition of Done — Enterprise Readiness
+The platform is considered enterprise-ready when ALL of the following are true:
+
+•	All P0 security items shipped and verified in production
+•	Stripe payments operational end-to-end in live mode
+•	Zero sites provisioned without successful payment confirmation
+•	Alembic migrations in place — zero create_all() calls remaining
+•	Rate limiting active on all public endpoints — verified via load test
+•	JWT tokens expire in ?15 minutes — revocation tested
+•	Audit log captures every state-changing action
+•	Sentry capturing errors from both API and worker processes
+•	Provisioning failure sends email to tenant owner within 60 seconds
+•	Backup runs successfully and manifest written to backups table
+•	All bench commands use validated inputs — no shell injection path exists
+•	/health returns 503 when postgres or redis is unreachable
+•	Test coverage ?70% on provisioning-api
+•	No hardcoded secrets in any tracked file
+•	Landing page communicates product, pricing, and onboarding path
+•	Onboarding flow takes a new user from signup to live ERP URL in under 3 minutes
+•	Operator runbook reviewed and executable by someone other than the author
+
+
+ERP SaaS Control Plane — Enterprise Hardening Roadmap
+Blenko Technologies — Internal Engineering Document — Confidential
+ERP SaaS — Enterprise Hardening Roadmap	CONFIDENTIAL
+Blenko Technologies — Internal Engineering Document	Page 1
+

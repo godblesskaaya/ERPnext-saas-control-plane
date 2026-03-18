@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { api } from "../../../domains/shared/lib/api";
+import { loadAuthHealthSnapshot, submitPasswordReset } from "../../../domains/auth/application/authUseCases";
 
 export default function ResetPasswordPage() {
   const searchParams = useSearchParams();
@@ -16,6 +16,26 @@ export default function ResetPasswordPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [apiHealth, setApiHealth] = useState("checking");
+  const [authHealth, setAuthHealth] = useState("checking");
+  const [billingHealth, setBillingHealth] = useState("checking");
+
+  useEffect(() => {
+    const loadHealth = async () => {
+      try {
+        const response = await fetch("/api/health", { cache: "no-store" });
+        setApiHealth(response.ok ? "ok" : "unavailable");
+      } catch {
+        setApiHealth("unavailable");
+      }
+
+      const health = await loadAuthHealthSnapshot();
+      setAuthHealth(health.auth.message);
+      setBillingHealth(health.billing.message);
+    };
+
+    void loadHealth();
+  }, []);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -37,8 +57,8 @@ export default function ResetPasswordPage() {
 
     setBusy(true);
     try {
-      const response = await api.resetPassword(token.trim(), newPassword);
-      setNotice(response.message || "Password reset successful. You can sign in now.");
+      const message = await submitPasswordReset(token, newPassword);
+      setNotice(message);
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
@@ -53,6 +73,21 @@ export default function ResetPasswordPage() {
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">Set new password / Weka nenosiri jipya</h1>
         <p className="text-sm text-slate-600">Use your one-time token and choose a new password for your account.</p>
+      </div>
+
+      <div className="rounded-2xl border border-amber-200/70 bg-white/80 p-4 text-sm text-slate-700">
+        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Diagnostics</p>
+        <div className="mt-2 grid gap-2 text-xs md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+            API: <span className="font-semibold">{apiHealth}</span>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+            Auth: <span className="font-semibold">{authHealth}</span>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+            Billing: <span className="font-semibold">{billingHealth}</span>
+          </div>
+        </div>
       </div>
 
       <form className="space-y-4" onSubmit={submit}>

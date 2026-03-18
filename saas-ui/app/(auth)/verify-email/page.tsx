@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { api } from "../../../domains/shared/lib/api";
+import { confirmEmailVerification, loadAuthHealthSnapshot } from "../../../domains/auth/application/authUseCases";
 
 export default function VerifyEmailPage() {
   const searchParams = useSearchParams();
@@ -14,6 +14,26 @@ export default function VerifyEmailPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [apiHealth, setApiHealth] = useState("checking");
+  const [authHealth, setAuthHealth] = useState("checking");
+  const [billingHealth, setBillingHealth] = useState("checking");
+
+  useEffect(() => {
+    const loadHealth = async () => {
+      try {
+        const response = await fetch("/api/health", { cache: "no-store" });
+        setApiHealth(response.ok ? "ok" : "unavailable");
+      } catch {
+        setApiHealth("unavailable");
+      }
+
+      const health = await loadAuthHealthSnapshot();
+      setAuthHealth(health.auth.message);
+      setBillingHealth(health.billing.message);
+    };
+
+    void loadHealth();
+  }, []);
 
   useEffect(() => {
     if (!initialToken) return;
@@ -23,9 +43,9 @@ export default function VerifyEmailPage() {
       setBusy(true);
       setError(null);
       try {
-        const result = await api.verifyEmail(initialToken);
+        const message = await confirmEmailVerification(initialToken);
         if (cancelled) return;
-        setNotice(result.message || "Email verified successfully. You can now continue.");
+        setNotice(message);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : "Unable to verify email.");
@@ -46,8 +66,8 @@ export default function VerifyEmailPage() {
     setError(null);
     setNotice(null);
     try {
-      const result = await api.verifyEmail(token.trim());
-      setNotice(result.message || "Email verified successfully. You can now continue.");
+      const message = await confirmEmailVerification(token);
+      setNotice(message);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to verify email.");
     } finally {
@@ -60,6 +80,21 @@ export default function VerifyEmailPage() {
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">Verify your email / Thibitisha barua pepe</h1>
         <p className="text-sm text-slate-600">Confirm your account email to unlock tenant creation and onboarding.</p>
+      </div>
+
+      <div className="rounded-2xl border border-amber-200/70 bg-white/80 p-4 text-sm text-slate-700">
+        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Diagnostics</p>
+        <div className="mt-2 grid gap-2 text-xs md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+            API: <span className="font-semibold">{apiHealth}</span>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+            Auth: <span className="font-semibold">{authHealth}</span>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+            Billing: <span className="font-semibold">{billingHealth}</span>
+          </div>
+        </div>
       </div>
 
       {!initialToken ? (

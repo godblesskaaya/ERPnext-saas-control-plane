@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import json
+from urllib.parse import parse_qs
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from datetime import datetime
 from sqlalchemy.orm import Session
@@ -7,10 +10,11 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.deps import get_current_user
-from app.models import Tenant, User
+from app.models import PaymentEvent, Tenant, TenantMembership, User
 from app.schemas import BillingInvoiceListResponse, BillingInvoiceOut, BillingPortalResponse, MessageResponse
 from app.domains.audit.service import record_audit_event
 from app.domains.support.notifications import notification_service
+from app.domains.support.platform_erp_client import PlatformERPClient
 from app.domains.billing.payment.factory import get_payment_gateway
 from app.domains.billing.payment.stripe_gateway import StripeGateway
 from app.domains.tenants.service import enqueue_provisioning_for_paid_tenant
@@ -23,6 +27,22 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 BAD_REQUEST_400_RESPONSE = {"description": "Bad request: provider mismatch or invalid provider route."}
 INTERNAL_500_RESPONSE = {"description": "Internal processing error while parsing or handling webhook event."}
 NOT_IMPLEMENTED_501_RESPONSE = {"description": "Billing portal is not supported for the active provider."}
+RATE_LIMIT_429_RESPONSE = {"description": "Too many requests. Retry after the rate-limit window."}
+
+
+@router.get(
+    "/health",
+    response_model=MessageResponse,
+)
+def billing_health(request: Request, db: Session = Depends(get_db)) -> MessageResponse:
+    record_audit_event(
+        db,
+        action="billing.health_check",
+        resource="billing",
+        actor_role="system",
+        request=request,
+    )
+    return MessageResponse(message="ok")
 
 BILLING_WEBHOOK_REQUEST_BODY = {
     "content": {
@@ -51,6 +71,30 @@ BILLING_WEBHOOK_REQUEST_BODY = {
                         "CCDapproval": "yes",
                     },
                 },
+                "selcomWebhookJson": {
+                    "summary": "Selcom webhook JSON payload",
+                    "value": {
+                        "result": "SUCCESS",
+                        "resultcode": "000",
+                        "order_id": "tenant-uuid",
+                        "transid": "T123442",
+                        "reference": "0281121212",
+                        "channel": "MPESA",
+                        "amount": "10000",
+                        "phone": "255700000000",
+                        "payment_status": "COMPLETED",
+                    },
+                },
+                "azamPayWebhookJson": {
+                    "summary": "AzamPay webhook JSON payload",
+                    "value": {
+                        "status": "SUCCESS",
+                        "transactionId": "AZM-TXN-12345",
+                        "externalId": "tenant-uuid",
+                        "msisdn": "255700000000",
+                        "channel": "MOBILE_MONEY",
+                    },
+                },
             }
         },
         "application/x-www-form-urlencoded": {
@@ -67,6 +111,86 @@ BILLING_WEBHOOK_REQUEST_BODY = {
 
 def _resolve_tenant_for_cancelled_subscription(db: Session, subscription_id: str) -> Tenant | None:
     return db.query(Tenant).filter(Tenant.stripe_subscription_id == subscription_id).first()
+
+
+def _to_minor_units(value: object) -> int | None:
+    if value is None:
+        return None
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return None
+    return int((amount * Decimal("100")).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def _sanitize_headers(headers: dict[str, str]) -> dict[str, str]:
+    blocked = {"authorization", "cookie", "set-cookie", "x-api-key"}
+    result: dict[str, str] = {}
+    for key, value in headers.items():
+        lower = key.lower()
+        if lower in blocked:
+            continue
+        result[lower] = value
+    return result
+
+
+def _decode_payload(payload: bytes, headers: dict[str, str]) -> dict:
+    text = payload.decode("utf-8", errors="replace")
+    content_type = (headers.get("content-type") or headers.get("Content-Type") or "").lower()
+    if "application/json" in content_type:
+        try:
+            parsed = json.loads(text or "{}")
+        except json.JSONDecodeError:
+            return {"raw": text}
+        if isinstance(parsed, dict):
+            return parsed
+        return {"value": parsed}
+    if "application/x-www-form-urlencoded" in content_type:
+        parsed_form = parse_qs(text, keep_blank_values=True)
+        return {key: values[0] if values else "" for key, values in parsed_form.items()}
+    return {"raw": text}
+
+
+def _resolve_processing_status(message: str) -> str:
+    if message.startswith("processed:"):
+        return "processed"
+    if message.startswith("ignored:"):
+        return "ignored"
+    return "unknown"
+
+
+def _record_payment_event(
+    *,
+    db: Session,
+    provider: str,
+    event_type: str,
+    processing_status: str,
+    http_status: int,
+    message: str,
+    tenant_id: str | None,
+    subscription_id: str | None,
+    customer_ref: str | None,
+    request_headers: dict[str, str],
+    payload: dict,
+) -> None:
+    try:
+        db.add(
+            PaymentEvent(
+                provider=provider,
+                event_type=event_type,
+                processing_status=processing_status,
+                tenant_id=tenant_id,
+                subscription_id=subscription_id,
+                customer_ref=customer_ref,
+                http_status=http_status,
+                message=message,
+                request_headers=request_headers,
+                payload=payload,
+            )
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 def _process_event(
@@ -104,6 +228,25 @@ def _process_event(
                 db.add(owner)
         elif tenant.payment_provider == "dpo":
             tenant.dpo_transaction_token = raw.get("TransactionToken") or raw.get("transaction_token") or tenant.dpo_transaction_token
+            tenant.payment_channel = tenant.payment_channel or "mobile_money"
+        elif tenant.payment_provider == "selcom":
+            tenant.dpo_transaction_token = (
+                raw.get("reference")
+                or raw.get("transid")
+                or raw.get("payment_token")
+                or tenant.dpo_transaction_token
+            )
+            channel = raw.get("channel")
+            tenant.payment_channel = str(channel).lower() if channel else (tenant.payment_channel or "mobile_money")
+        elif tenant.payment_provider == "azampay":
+            tenant.dpo_transaction_token = (
+                raw.get("transactionId")
+                or raw.get("transaction_id")
+                or raw.get("referenceId")
+                or tenant.dpo_transaction_token
+            )
+            channel = raw.get("channel") or raw.get("paymentChannel")
+            tenant.payment_channel = str(channel).lower() if channel else (tenant.payment_channel or "mobile_money")
         db.add(tenant)
         db.commit()
         db.refresh(tenant)
@@ -136,6 +279,10 @@ def _process_event(
 
         owner = db.get(User, tenant.owner_id)
         tenant.billing_status = "failed"
+        default_channel = "card"
+        if tenant.payment_provider in {"dpo", "selcom", "azampay"}:
+            default_channel = "mobile_money"
+        tenant.payment_channel = tenant.payment_channel or default_channel
         try:
             transition_tenant_status(tenant, "pending_payment")
         except InvalidTenantStatusTransition:
@@ -208,6 +355,18 @@ def create_billing_portal(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> BillingPortalResponse:
+    platform_client = PlatformERPClient()
+    if platform_client.is_configured():
+        record_audit_event(
+            db,
+            action="billing.portal_opened",
+            resource="users",
+            actor=current_user,
+            resource_id=current_user.id,
+            request=request,
+        )
+        return BillingPortalResponse(url=f"{platform_client.base_url}/app/sales-invoice")
+
     gateway = get_payment_gateway()
     settings = get_settings()
 
@@ -256,37 +415,73 @@ def list_billing_invoices(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> BillingInvoiceListResponse:
-    del request, db
-    gateway = get_payment_gateway()
-    if gateway.provider_name != "stripe":
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Invoice history not supported for provider")
-
-    stripe_gateway = StripeGateway()
-    if stripe_gateway.mock_mode:
-        return BillingInvoiceListResponse(invoices=[])
-
-    stripe = stripe_gateway._import_stripe()
-    if stripe is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Stripe SDK not available")
-
-    if not current_user.stripe_customer_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No billing customer is associated with this account")
-
-    stripe.api_key = get_settings().stripe_secret_key
-    items = stripe.Invoice.list(customer=current_user.stripe_customer_id, limit=20).get("data", [])
-    invoices = [
-        BillingInvoiceOut(
-            id=str(item.get("id")),
-            status=item.get("status"),
-            amount_due=item.get("amount_due"),
-            amount_paid=item.get("amount_paid"),
-            currency=item.get("currency"),
-            hosted_invoice_url=item.get("hosted_invoice_url"),
-            invoice_pdf=item.get("invoice_pdf"),
-            created_at=datetime.utcfromtimestamp(item.get("created")) if item.get("created") else None,
+    platform_client = PlatformERPClient()
+    if not platform_client.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Platform ERP billing is not configured.",
         )
-        for item in items
-    ]
+
+    query = (
+        db.query(Tenant)
+        .outerjoin(TenantMembership, TenantMembership.tenant_id == Tenant.id)
+        .filter(
+            (Tenant.owner_id == current_user.id)
+            | (TenantMembership.user_id == current_user.id)
+        )
+        .distinct()
+    )
+    tenants = query.order_by(Tenant.created_at.desc()).all()
+
+    invoices: list[BillingInvoiceOut] = []
+    for tenant in tenants:
+        if not tenant.platform_customer_id:
+            continue
+        items = platform_client.list_invoices(tenant.platform_customer_id, limit=20)
+        for item in items:
+            created_at = None
+            posting_date = item.get("posting_date")
+            if isinstance(posting_date, str) and posting_date:
+                try:
+                    created_at = datetime.fromisoformat(posting_date)
+                except ValueError:
+                    created_at = None
+            amount_due = _to_minor_units(item.get("outstanding_amount"))
+            amount_total = _to_minor_units(item.get("grand_total"))
+            amount_paid = None
+            if amount_total is not None and amount_due is not None:
+                amount_paid = max(amount_total - amount_due, 0)
+            invoice_name = str(item.get("name"))
+            invoices.append(
+                BillingInvoiceOut(
+                    id=invoice_name,
+                    status=item.get("status"),
+                    amount_due=amount_due,
+                    amount_paid=amount_paid,
+                    currency=item.get("currency"),
+                    collection_method="platform_erp",
+                    payment_method_types=None,
+                    metadata={
+                        "tenant_id": tenant.id,
+                        "tenant_domain": tenant.domain,
+                        "company_name": tenant.company_name,
+                        "customer_id": tenant.platform_customer_id,
+                        "payment_provider": "platform_erp",
+                    },
+                    hosted_invoice_url=platform_client.invoice_url(invoice_name),
+                    invoice_pdf=None,
+                    created_at=created_at,
+                )
+            )
+
+    record_audit_event(
+        db,
+        action="billing.invoices_viewed",
+        resource="billing_invoices",
+        actor=current_user,
+        request=request,
+        metadata={"count": len(invoices)},
+    )
     return BillingInvoiceListResponse(invoices=invoices)
 
 
@@ -307,20 +502,82 @@ async def billing_webhook_default_provider(
 
     gateway = get_payment_gateway()
     payload = await request.body()
+    request_headers = _sanitize_headers(dict(request.headers))
+    decoded_payload = _decode_payload(payload, request_headers)
     try:
         event = gateway.parse_webhook(payload, dict(request.headers))
     except ValueError as exc:
+        _record_payment_event(
+            db=db,
+            provider=gateway.provider_name,
+            event_type="parse_error",
+            processing_status="error",
+            http_status=status.HTTP_400_BAD_REQUEST,
+            message=str(exc),
+            tenant_id=None,
+            subscription_id=None,
+            customer_ref=None,
+            request_headers=request_headers,
+            payload=decoded_payload,
+        )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return _process_event(
-        request=request,
-        background_tasks=background_tasks,
+    try:
+        response = _process_event(
+            request=request,
+            background_tasks=background_tasks,
+            db=db,
+            event_type=event.event_type,
+            tenant_id=event.tenant_id,
+            subscription_id=event.subscription_id,
+            customer_ref=event.customer_ref,
+            raw=event.raw,
+        )
+    except HTTPException as exc:
+        db.rollback()
+        _record_payment_event(
+            db=db,
+            provider=gateway.provider_name,
+            event_type=event.event_type,
+            processing_status="error",
+            http_status=exc.status_code,
+            message=str(exc.detail),
+            tenant_id=event.tenant_id,
+            subscription_id=event.subscription_id,
+            customer_ref=event.customer_ref,
+            request_headers=request_headers,
+            payload=event.raw,
+        )
+        raise
+    except Exception as exc:
+        db.rollback()
+        _record_payment_event(
+            db=db,
+            provider=gateway.provider_name,
+            event_type=event.event_type,
+            processing_status="error",
+            http_status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=str(exc),
+            tenant_id=event.tenant_id,
+            subscription_id=event.subscription_id,
+            customer_ref=event.customer_ref,
+            request_headers=request_headers,
+            payload=event.raw,
+        )
+        raise
+    _record_payment_event(
         db=db,
+        provider=gateway.provider_name,
         event_type=event.event_type,
+        processing_status=_resolve_processing_status(response.message),
+        http_status=status.HTTP_200_OK,
+        message=response.message,
         tenant_id=event.tenant_id,
         subscription_id=event.subscription_id,
         customer_ref=event.customer_ref,
-        raw=event.raw,
+        request_headers=request_headers,
+        payload=event.raw,
     )
+    return response
 
 
 @router.post(
@@ -339,24 +596,101 @@ async def billing_webhook_for_provider(
     db: Session = Depends(get_db),
 ) -> MessageResponse:
     gateway = get_payment_gateway()
-    if provider.strip().lower() != gateway.provider_name:
+    normalized_provider = provider.strip().lower()
+    payload = await request.body()
+    request_headers = _sanitize_headers(dict(request.headers))
+    decoded_payload = _decode_payload(payload, request_headers)
+
+    if normalized_provider != gateway.provider_name:
+        message = f"This instance is configured for provider '{gateway.provider_name}'"
+        _record_payment_event(
+            db=db,
+            provider=normalized_provider,
+            event_type="provider_mismatch",
+            processing_status="rejected",
+            http_status=status.HTTP_400_BAD_REQUEST,
+            message=message,
+            tenant_id=None,
+            subscription_id=None,
+            customer_ref=None,
+            request_headers=request_headers,
+            payload=decoded_payload,
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"This instance is configured for provider '{gateway.provider_name}'",
+            detail=message,
         )
-
-    payload = await request.body()
     try:
         event = gateway.parse_webhook(payload, dict(request.headers))
     except ValueError as exc:
+        _record_payment_event(
+            db=db,
+            provider=normalized_provider,
+            event_type="parse_error",
+            processing_status="error",
+            http_status=status.HTTP_400_BAD_REQUEST,
+            message=str(exc),
+            tenant_id=None,
+            subscription_id=None,
+            customer_ref=None,
+            request_headers=request_headers,
+            payload=decoded_payload,
+        )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return _process_event(
-        request=request,
-        background_tasks=background_tasks,
+    try:
+        response = _process_event(
+            request=request,
+            background_tasks=background_tasks,
+            db=db,
+            event_type=event.event_type,
+            tenant_id=event.tenant_id,
+            subscription_id=event.subscription_id,
+            customer_ref=event.customer_ref,
+            raw=event.raw,
+        )
+    except HTTPException as exc:
+        db.rollback()
+        _record_payment_event(
+            db=db,
+            provider=normalized_provider,
+            event_type=event.event_type,
+            processing_status="error",
+            http_status=exc.status_code,
+            message=str(exc.detail),
+            tenant_id=event.tenant_id,
+            subscription_id=event.subscription_id,
+            customer_ref=event.customer_ref,
+            request_headers=request_headers,
+            payload=event.raw,
+        )
+        raise
+    except Exception as exc:
+        db.rollback()
+        _record_payment_event(
+            db=db,
+            provider=normalized_provider,
+            event_type=event.event_type,
+            processing_status="error",
+            http_status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=str(exc),
+            tenant_id=event.tenant_id,
+            subscription_id=event.subscription_id,
+            customer_ref=event.customer_ref,
+            request_headers=request_headers,
+            payload=event.raw,
+        )
+        raise
+    _record_payment_event(
         db=db,
+        provider=normalized_provider,
         event_type=event.event_type,
+        processing_status=_resolve_processing_status(response.message),
+        http_status=status.HTTP_200_OK,
+        message=response.message,
         tenant_id=event.tenant_id,
         subscription_id=event.subscription_id,
         customer_ref=event.customer_ref,
-        raw=event.raw,
+        request_headers=request_headers,
+        payload=event.raw,
     )
+    return response

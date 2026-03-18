@@ -89,11 +89,15 @@ def create_tenant_and_start_checkout(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Mock billing checkout is disabled in production mode",
         )
-    provider = getattr(checkout_session, "provider", "stripe")
+    provider = getattr(checkout_session, "provider", get_settings().active_payment_provider.strip().lower() or "azampay")
     tenant.payment_provider = provider
+    tenant.payment_channel = getattr(checkout_session, "payment_channel", None)
     if provider == "stripe":
         tenant.stripe_checkout_session_id = checkout_session.session_id
         tenant.dpo_transaction_token = None
+    elif provider in {"dpo", "selcom", "azampay"}:
+        tenant.dpo_transaction_token = checkout_session.session_id
+        tenant.stripe_checkout_session_id = None
     else:
         tenant.dpo_transaction_token = checkout_session.session_id
         tenant.stripe_checkout_session_id = None
@@ -118,6 +122,7 @@ def create_tenant_and_start_checkout(
             "plan": tenant.plan,
             "chosen_app": tenant.chosen_app,
             "payment_provider": tenant.payment_provider,
+            "payment_channel": tenant.payment_channel,
             "checkout_session_id": checkout_session.session_id,
         },
     )

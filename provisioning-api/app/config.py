@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     email_verification_token_expire_hours: int = 24
     password_reset_url_base: str = "http://localhost:3000/reset-password"
     password_reset_token_expire_minutes: int = 30
+    support_impersonation_url_base: str = "http://localhost:3000/impersonate"
+    support_impersonation_token_expire_minutes: int = 15
 
     tenant_domain_suffix: str = "erp.blenkotechnologies.co.tz"
     allowed_plans: str = "starter,business,enterprise"
@@ -73,7 +75,35 @@ class Settings(BaseSettings):
     stripe_price_starter: str = ""
     stripe_price_business: str = ""
     stripe_price_enterprise: str = ""
-    active_payment_provider: str = "stripe"  # stripe | dpo
+    active_payment_provider: str = "azampay"  # azampay | selcom | stripe | dpo
+    azampay_sandbox: bool = True
+    azampay_auth_base_url_sandbox: str = "https://authenticator-sandbox.azampay.co.tz"
+    azampay_auth_base_url_live: str = "https://authenticator.azampay.co.tz"
+    azampay_api_base_url_sandbox: str = "https://sandbox.azampay.co.tz"
+    azampay_api_base_url_live: str = "https://api.azampay.co.tz"
+    azampay_token_path: str = "/AppRegistration/GenerateToken"
+    azampay_checkout_path: str = "/api/v1/Partner/PostCheckout"
+    azampay_app_name: str = ""
+    azampay_client_id: str = ""
+    azampay_client_secret: str = ""
+    azampay_api_key: str = ""
+    azampay_vendor_id: str = ""
+    azampay_vendor_name: str = ""
+    azampay_currency: str = "TZS"
+    azampay_checkout_amount: str = "1.00"
+    azampay_language: str = "en"
+    azampay_request_origin: str = ""
+    selcom_base_url: str = "https://apigw.selcommobile.com"
+    selcom_api_key: str = ""
+    selcom_api_secret: str = ""
+    selcom_vendor: str = ""
+    selcom_currency: str = "TZS"
+    selcom_checkout_amount: str = "1.00"
+    selcom_payment_methods: str = "ALL"
+    selcom_default_buyer_phone: str = "255000000000"
+    selcom_checkout_path: str = "/v1/checkout/create-order-minimal"
+    selcom_order_status_path: str = "/v1/checkout/order-status"
+    selcom_webhook_url: str = ""
     dpo_company_token: str = ""
     dpo_service_type: str = ""
     dpo_payment_url: str = "https://secure.3gdirectpay.com/payv2.php"
@@ -91,11 +121,24 @@ class Settings(BaseSettings):
     allow_mock_billing: bool | None = None
     require_strict_webhook_verification: bool | None = None
 
+    mail_provider: str = "mailersend"  # mailersend | smtp
     mailersend_api_key: str = ""
     mail_from_email: str = "noreply@example.com"
     mail_from_name: str = "ERP SaaS"
     mail_support_email: str = "support@example.com"
     mail_timeout_seconds: float = 10.0
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    smtp_timeout_seconds: float = 10.0
+
+    billing_dunning_auto_enabled: bool = True
+    billing_dunning_auto_interval_minutes: int = 30
+    billing_dunning_auto_startup_delay_seconds: int = 20
+    billing_dunning_auto_lock_seconds: int = 90
 
     @property
     def allowed_plan_set(self) -> set[str]:
@@ -152,6 +195,11 @@ class Settings(BaseSettings):
         if self.require_strict_webhook_verification is not None:
             return self.require_strict_webhook_verification
         return self.is_production
+
+    @property
+    def resolved_mail_provider(self) -> str:
+        provider = (self.mail_provider or "").strip().lower()
+        return provider or "mailersend"
 
 
 @lru_cache(maxsize=1)

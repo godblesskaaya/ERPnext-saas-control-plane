@@ -20,7 +20,7 @@ class CheckoutSessionResult:
     session_id: str
     checkout_url: str
     customer_id: str
-    provider: str = "stripe"
+    provider: str = "azampay"
     mock_mode: bool = False
 
 

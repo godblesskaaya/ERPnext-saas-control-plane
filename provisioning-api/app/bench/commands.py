@@ -56,6 +56,12 @@ def build_backup_command(domain: str) -> list[str]:
     return _docker_compose_prefix() + ["bench", "--site", validated_domain, "backup"]
 
 
+def build_restore_command(domain: str, backup_path: str) -> list[str]:
+    validated_domain = validate_domain(domain)
+    command = _docker_compose_prefix() + ["bench", "--site", validated_domain, "restore", backup_path, "--force"]
+    return command
+
+
 def build_delete_site_command(domain: str) -> list[str]:
     validated_domain = validate_domain(domain)
     return _docker_compose_prefix() + ["bench", "drop-site", validated_domain, "--force", "--no-backup"]

@@ -3,15 +3,8 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { api } from "../../../domains/shared/lib/api";
-import { clearToken, getToken, saveToken } from "../../../domains/auth/auth";
-
-function safeRedirectPath(nextParam: string | null): string {
-  if (!nextParam || !nextParam.startsWith("/") || nextParam.startsWith("//")) {
-    return "/dashboard";
-  }
-  return nextParam;
-}
+import { loadAuthHealthSnapshot, loginWithPassword, safePostLoginRedirect } from "../../../domains/auth/application/authUseCases";
+import { clearToken, getToken } from "../../../domains/auth/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -22,9 +15,12 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [apiHealth, setApiHealth] = useState("checking");
+  const [authHealth, setAuthHealth] = useState("checking");
+  const [billingHealth, setBillingHealth] = useState("checking");
 
   const nextPath = useMemo(
-    () => safeRedirectPath(searchParams.get("next")),
+    () => safePostLoginRedirect(searchParams.get("next")),
     [searchParams],
   );
 
@@ -57,15 +53,31 @@ export default function LoginPage() {
     }
   }, [nextPath, router, searchParams]);
 
+  useEffect(() => {
+    const loadHealth = async () => {
+      try {
+        const response = await fetch("/api/health", { cache: "no-store" });
+        setApiHealth(response.ok ? "ok" : "unavailable");
+      } catch {
+        setApiHealth("unavailable");
+      }
+
+      const health = await loadAuthHealthSnapshot();
+      setAuthHealth(health.auth.message);
+      setBillingHealth(health.billing.message);
+    };
+
+    void loadHealth();
+  }, []);
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true);
     setError(null);
 
     try {
-      const token = await api.login(email, password);
-      saveToken(token.access_token);
-      router.replace(nextPath);
+      const result = await loginWithPassword({ email, password, nextPath });
+      router.replace(result.redirectPath);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -87,6 +99,21 @@ export default function LoginPage() {
           <li>• Clear plan pricing language with optional TZS context</li>
           <li>• Checkout messaging aligned to card and mobile-money compatible flows</li>
         </ul>
+      </div>
+
+      <div className="rounded-2xl border border-amber-200/70 bg-white/80 p-4 text-sm text-slate-700">
+        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Diagnostics</p>
+        <div className="mt-2 grid gap-2 text-xs md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+            API: <span className="font-semibold">{apiHealth}</span>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+            Auth: <span className="font-semibold">{authHealth}</span>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+            Billing: <span className="font-semibold">{billingHealth}</span>
+          </div>
+        </div>
       </div>
 
       {notice ? <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{notice}</p> : null}

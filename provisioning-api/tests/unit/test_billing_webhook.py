@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from app.config import get_settings
-from app.models import AuditLog, Job, Tenant, User
+from app.models import AuditLog, Job, PaymentEvent, Tenant, User
 
 
 class DummyRQJob:
@@ -12,6 +14,14 @@ class DummyRQJob:
 
 def fake_enqueue(*args, **kwargs):
     return DummyRQJob()
+
+
+@pytest.fixture(autouse=True)
+def force_stripe_provider_for_webhook_tests(monkeypatch):
+    monkeypatch.setenv("ACTIVE_PAYMENT_PROVIDER", "stripe")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @patch("app.domains.tenants.service.get_queue")
@@ -28,6 +38,7 @@ def test_checkout_completed_webhook_enqueues_provisioning_once(mock_get_queue, c
         plan="starter",
         status="pending_payment",
         billing_status="pending",
+        payment_provider="stripe",
     )
     db_session.add(user)
     db_session.flush()
@@ -73,6 +84,14 @@ def test_checkout_completed_webhook_enqueues_provisioning_once(mock_get_queue, c
         for row in db_session.query(AuditLog).filter(AuditLog.resource_id == tenant.id).order_by(AuditLog.created_at.asc()).all()
     ]
     assert payment_actions.count("billing.payment_succeeded") == 2
+    payment_events = (
+        db_session.query(PaymentEvent)
+        .filter(PaymentEvent.tenant_id == tenant.id, PaymentEvent.event_type == "payment.confirmed")
+        .order_by(PaymentEvent.created_at.asc())
+        .all()
+    )
+    assert len(payment_events) == 2
+    assert all(row.processing_status == "processed" for row in payment_events)
 
 
 def test_payment_failed_and_subscription_cancelled_audited(client, db_session):
@@ -86,6 +105,7 @@ def test_payment_failed_and_subscription_cancelled_audited(client, db_session):
         plan="business",
         status="pending_payment",
         billing_status="pending",
+        payment_provider="stripe",
         stripe_subscription_id="sub_cancel_1",
     )
     db_session.add(user)
@@ -122,6 +142,10 @@ def test_payment_failed_and_subscription_cancelled_audited(client, db_session):
     ]
     assert "billing.payment_failed" in actions
     assert "billing.subscription_cancelled" in actions
+    payment_events = db_session.query(PaymentEvent).order_by(PaymentEvent.created_at.asc()).all()
+    assert len(payment_events) == 2
+    assert {row.event_type for row in payment_events} == {"payment.failed", "subscription.cancelled"}
+    assert any(row.tenant_id == tenant.id for row in payment_events)
 
 
 def test_default_billing_webhook_disabled_in_production(monkeypatch, client):
@@ -135,7 +159,7 @@ def test_default_billing_webhook_disabled_in_production(monkeypatch, client):
     get_settings.cache_clear()
 
 
-def test_provider_webhook_rejects_unsigned_payload_in_strict_mode(monkeypatch, client):
+def test_provider_webhook_rejects_unsigned_payload_in_strict_mode(monkeypatch, client, db_session):
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.delenv("STRIPE_WEBHOOK_SECRET", raising=False)
     monkeypatch.delenv("REQUIRE_STRICT_WEBHOOK_VERIFICATION", raising=False)
@@ -147,5 +171,23 @@ def test_provider_webhook_rejects_unsigned_payload_in_strict_mode(monkeypatch, c
     )
     assert response.status_code == 400
     assert "webhook" in response.json()["detail"].lower() or "secret" in response.json()["detail"].lower()
+    parse_errors = db_session.query(PaymentEvent).filter(PaymentEvent.event_type == "parse_error").all()
+    assert len(parse_errors) == 1
+    assert parse_errors[0].provider == "stripe"
+    assert parse_errors[0].processing_status == "error"
 
     get_settings.cache_clear()
+
+
+def test_provider_webhook_mismatch_is_logged(client, db_session):
+    response = client.post(
+        "/billing/webhook/dpo",
+        json={"TransactionToken": "tok_1", "CompanyRef": "tenant_1"},
+    )
+    assert response.status_code == 400
+    assert "configured for provider" in response.json()["detail"]
+
+    mismatch = db_session.query(PaymentEvent).filter(PaymentEvent.event_type == "provider_mismatch").all()
+    assert len(mismatch) == 1
+    assert mismatch[0].provider == "dpo"
+    assert mismatch[0].processing_status == "rejected"

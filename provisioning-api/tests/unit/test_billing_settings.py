@@ -28,6 +28,10 @@ def test_settings_default_stripe_values_allow_offline_tests(monkeypatch) -> None
     monkeypatch.delenv("STRIPE_PRICE_STARTER", raising=False)
     monkeypatch.delenv("STRIPE_PRICE_BUSINESS", raising=False)
     monkeypatch.delenv("STRIPE_PRICE_ENTERPRISE", raising=False)
+    monkeypatch.setenv("AZAMPAY_APP_NAME", "")
+    monkeypatch.setenv("AZAMPAY_CLIENT_ID", "")
+    monkeypatch.setenv("AZAMPAY_CLIENT_SECRET", "")
+    monkeypatch.setenv("MAIL_PROVIDER", "mailersend")
 
     get_settings.cache_clear()
     settings = get_settings()
@@ -37,9 +41,17 @@ def test_settings_default_stripe_values_allow_offline_tests(monkeypatch) -> None
     assert settings.stripe_price_starter == ""
     assert settings.stripe_price_business == ""
     assert settings.stripe_price_enterprise == ""
-    assert settings.active_payment_provider == "stripe"
+    assert settings.active_payment_provider == "azampay"
+    assert settings.azampay_sandbox is True
+    assert settings.azampay_auth_base_url_sandbox == "https://authenticator-sandbox.azampay.co.tz"
+    assert settings.azampay_api_base_url_sandbox == "https://sandbox.azampay.co.tz"
+    assert settings.selcom_base_url == "https://apigw.selcommobile.com"
+    assert settings.selcom_api_key == ""
+    assert settings.selcom_api_secret == ""
+    assert settings.selcom_vendor == ""
     assert settings.dpo_company_token == ""
     assert settings.dpo_service_type == ""
+    assert settings.resolved_mail_provider == "mailersend"
     assert settings.mock_billing_allowed is True
     assert settings.default_billing_webhook_enabled is True
 

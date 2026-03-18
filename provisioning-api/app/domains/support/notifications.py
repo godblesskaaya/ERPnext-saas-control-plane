@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from email.message import EmailMessage
+from email.utils import formataddr
+import smtplib
 
 import httpx
 
@@ -8,7 +11,6 @@ from app.config import get_settings
 from app.logging_config import get_logger
 
 
-settings = get_settings()
 log = get_logger(__name__)
 
 
@@ -23,20 +25,25 @@ class NotificationMessage:
 class NotificationService:
     MAILERSEND_API_URL = "https://api.mailersend.com/v1/email"
 
+    @staticmethod
+    def _settings():
+        return get_settings()
+
     @property
     def enabled(self) -> bool:
-        return bool(settings.mailersend_api_key and settings.mail_from_email)
+        settings = self._settings()
+        if settings.resolved_mail_provider == "smtp":
+            if not settings.smtp_host or not settings.mail_from_email:
+                return False
+            if settings.smtp_username and not settings.smtp_password:
+                return False
+            return True
+        if settings.resolved_mail_provider == "mailersend":
+            return bool(settings.mailersend_api_key and settings.mail_from_email)
+        return False
 
-    def send(self, message: NotificationMessage) -> bool:
-        if not self.enabled:
-            log.info(
-                "notifications.skipped",
-                reason="mailersend_not_configured",
-                to_email=message.to_email,
-                subject=message.subject,
-            )
-            return False
-
+    def _send_via_mailersend(self, message: NotificationMessage) -> bool:
+        settings = self._settings()
         payload = {
             "from": {
                 "email": settings.mail_from_email,
@@ -54,20 +61,71 @@ class NotificationService:
             "Content-Type": "application/json",
         }
 
+        with httpx.Client(timeout=settings.mail_timeout_seconds) as client:
+            response = client.post(self.MAILERSEND_API_URL, json=payload, headers=headers)
+            response.raise_for_status()
+        return True
+
+    def _send_via_smtp(self, message: NotificationMessage) -> bool:
+        settings = self._settings()
+        email_message = EmailMessage()
+        email_message["From"] = formataddr((settings.mail_from_name, settings.mail_from_email))
+        email_message["To"] = message.to_email
+        email_message["Subject"] = message.subject
+        email_message.set_content(message.text)
+        if message.html:
+            email_message.add_alternative(message.html, subtype="html")
+
+        timeout = settings.smtp_timeout_seconds or settings.mail_timeout_seconds
+        if settings.smtp_use_ssl:
+            smtp_client = smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=timeout)
+        else:
+            smtp_client = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=timeout)
+
+        with smtp_client as server:
+            if settings.smtp_use_tls and not settings.smtp_use_ssl:
+                server.starttls()
+            if settings.smtp_username:
+                server.login(settings.smtp_username, settings.smtp_password)
+            server.send_message(email_message)
+        return True
+
+    def send(self, message: NotificationMessage) -> bool:
+        settings = self._settings()
+        provider = settings.resolved_mail_provider
+        if not self.enabled:
+            log.info(
+                "notifications.skipped",
+                reason=f"{provider}_not_configured",
+                to_email=message.to_email,
+                subject=message.subject,
+            )
+            return False
+
         try:
-            with httpx.Client(timeout=settings.mail_timeout_seconds) as client:
-                response = client.post(self.MAILERSEND_API_URL, json=payload, headers=headers)
-                response.raise_for_status()
+            if provider == "mailersend":
+                self._send_via_mailersend(message)
+            elif provider == "smtp":
+                self._send_via_smtp(message)
+            else:
+                log.info(
+                    "notifications.skipped",
+                    reason=f"unsupported_mail_provider:{provider}",
+                    to_email=message.to_email,
+                    subject=message.subject,
+                )
+                return False
         except Exception as exc:
             log.warning(
                 "notifications.send_failed",
                 to_email=message.to_email,
                 subject=message.subject,
+                provider=provider,
                 error=str(exc),
             )
             return False
 
-        log.info("notifications.sent", to_email=message.to_email, subject=message.subject)
+        log.info("notifications.sent", to_email=message.to_email, subject=message.subject, provider=provider)
         return True
 
     def send_signup_confirmed(self, email: str) -> bool:
@@ -132,6 +190,7 @@ class NotificationService:
         )
 
     def send_provisioning_failed(self, email: str, domain: str, error_summary: str) -> bool:
+        settings = self._settings()
         return self.send(
             NotificationMessage(
                 to_email=email,
@@ -169,6 +228,7 @@ class NotificationService:
         )
 
     def send_tenant_suspended(self, email: str, domain: str, reason: str) -> bool:
+        settings = self._settings()
         return self.send(
             NotificationMessage(
                 to_email=email,

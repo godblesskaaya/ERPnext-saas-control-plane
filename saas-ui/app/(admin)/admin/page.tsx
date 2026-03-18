@@ -64,6 +64,7 @@ export default function AdminPage() {
   const [requeueJobId, setRequeueJobId] = useState<string | null>(null);
   const [tenantSearch, setTenantSearch] = useState("");
   const [tenantStatusFilter, setTenantStatusFilter] = useState("all");
+  const [tenantPlanFilter, setTenantPlanFilter] = useState("all");
 
   const [deadLetters, setDeadLetters] = useState<DeadLetterJob[]>([]);
   const [deadLetterSupported, setDeadLetterSupported] = useState(true);
@@ -81,6 +82,15 @@ export default function AdminPage() {
   const [auditPage, setAuditPage] = useState(1);
   const [auditLimit] = useState(50);
   const [auditTotal, setAuditTotal] = useState(0);
+  const [auditExportBusy, setAuditExportBusy] = useState(false);
+  const [auditExportError, setAuditExportError] = useState<string | null>(null);
+
+  const [impersonationEmail, setImpersonationEmail] = useState("");
+  const [impersonationReason, setImpersonationReason] = useState("Support troubleshooting");
+  const [impersonationLink, setImpersonationLink] = useState<string | null>(null);
+  const [impersonationToken, setImpersonationToken] = useState<string | null>(null);
+  const [impersonationBusy, setImpersonationBusy] = useState(false);
+  const [impersonationError, setImpersonationError] = useState<string | null>(null);
   const { addNotification } = useNotifications();
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
   const [metricsSupported, setMetricsSupported] = useState(true);
@@ -93,7 +103,8 @@ export default function AdminPage() {
         tenantPage,
         tenantLimit,
         tenantStatusFilter === "all" ? undefined : tenantStatusFilter,
-        tenantSearch.trim()
+        tenantSearch.trim(),
+        tenantPlanFilter === "all" ? undefined : tenantPlanFilter
       );
       if (paged.supported) {
         setTenants(paged.data.data);
@@ -108,7 +119,7 @@ export default function AdminPage() {
       setTenantsError(getApiErrorMessage(err, "Failed to load admin tenants"));
       setTenants([]);
     }
-  }, [tenantLimit, tenantPage, tenantSearch, tenantStatusFilter]);
+  }, [tenantLimit, tenantPage, tenantPlanFilter, tenantSearch, tenantStatusFilter]);
 
   const loadDeadLetters = useCallback(async () => {
     try {
@@ -221,7 +232,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     setTenantPage(1);
-  }, [tenantSearch, tenantStatusFilter]);
+  }, [tenantPlanFilter, tenantSearch, tenantStatusFilter]);
 
   const suspendedCount = useMemo(
     () =>
@@ -301,6 +312,47 @@ export default function AdminPage() {
       );
     } finally {
       setBusyTenantId(null);
+    }
+  };
+
+  const exportAudit = async () => {
+    setAuditExportBusy(true);
+    setAuditExportError(null);
+    try {
+      await api.downloadAuditLogCsv(500);
+    } catch (err) {
+      setAuditExportError(getApiErrorMessage(err, "Failed to export audit log."));
+    } finally {
+      setAuditExportBusy(false);
+    }
+  };
+
+  const issueImpersonationLink = async () => {
+    const email = impersonationEmail.trim().toLowerCase();
+    const reason = impersonationReason.trim();
+    if (!email || !reason) {
+      setImpersonationError("Provide target email and reason.");
+      return;
+    }
+    setImpersonationBusy(true);
+    setImpersonationError(null);
+    try {
+      const result = await api.requestImpersonationLink(email, reason);
+      if (!result.supported) {
+        setImpersonationError("Impersonation endpoint is not available on this backend.");
+        return;
+      }
+      setImpersonationLink(result.data.url);
+      setImpersonationToken(result.data.token);
+      addNotification({
+        type: "warning",
+        title: "Impersonation link issued",
+        body: `Token ready for ${result.data.target_email}. Share securely and expire quickly.`,
+      });
+    } catch (err) {
+      setImpersonationError(getApiErrorMessage(err, "Failed to issue impersonation link."));
+    } finally {
+      setImpersonationBusy(false);
     }
   };
 
@@ -485,7 +537,7 @@ export default function AdminPage() {
 
         {tenantsError ? <p className="mb-2 text-sm text-red-400">{tenantsError}</p> : null}
 
-        <div className="mb-3 grid gap-2 md:grid-cols-[1.4fr_1fr]">
+        <div className="mb-3 grid gap-2 md:grid-cols-[1.2fr_1fr_1fr]">
           <input
             className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
             placeholder="Search by company, subdomain, or domain"
@@ -506,6 +558,16 @@ export default function AdminPage() {
             <option value="suspended">Suspended (all)</option>
             <option value="suspended_admin">Suspended (admin)</option>
             <option value="suspended_billing">Suspended (billing)</option>
+          </select>
+          <select
+            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+            value={tenantPlanFilter}
+            onChange={(event) => setTenantPlanFilter(event.target.value)}
+          >
+            <option value="all">All plans</option>
+            <option value="starter">Starter</option>
+            <option value="business">Business</option>
+            <option value="enterprise">Enterprise</option>
           </select>
         </div>
 
@@ -618,15 +680,27 @@ export default function AdminPage() {
       <div className="rounded-xl border border-slate-700 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Admin audit log</h2>
-          <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
-            onClick={() => {
-              void loadAuditLog();
-            }}
-          >
-            Refresh
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+              onClick={() => {
+                void exportAudit();
+              }}
+              disabled={auditExportBusy}
+            >
+              {auditExportBusy ? "Exporting..." : "Export CSV"}
+            </button>
+            <button
+              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+              onClick={() => {
+                void loadAuditLog();
+              }}
+            >
+              Refresh
+            </button>
+          </div>
         </div>
+        {auditExportError ? <p className="mb-3 text-sm text-red-400">{auditExportError}</p> : null}
 
         {!auditSupported ? (
           <p className="text-sm text-slate-300">Audit log endpoint is not available on this backend.</p>
@@ -687,6 +761,44 @@ export default function AdminPage() {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-700 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Support impersonation links</h2>
+          <p className="text-xs text-slate-400">Short-lived, audited access for guided troubleshooting.</p>
+        </div>
+        <div className="grid gap-2 md:grid-cols-[1.2fr_1.8fr_auto]">
+          <input
+            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+            placeholder="target-user@example.com"
+            value={impersonationEmail}
+            onChange={(event) => setImpersonationEmail(event.target.value)}
+          />
+          <input
+            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+            placeholder="Reason for support access"
+            value={impersonationReason}
+            onChange={(event) => setImpersonationReason(event.target.value)}
+          />
+          <button
+            className="rounded border border-slate-600 px-3 py-2 text-xs hover:bg-slate-800 disabled:opacity-60"
+            onClick={() => {
+              void issueImpersonationLink();
+            }}
+            disabled={impersonationBusy}
+          >
+            {impersonationBusy ? "Issuing..." : "Issue link"}
+          </button>
+        </div>
+        {impersonationError ? <p className="mt-2 text-sm text-red-400">{impersonationError}</p> : null}
+        {impersonationLink ? (
+          <div className="mt-3 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100">
+            <p className="font-semibold">Impersonation link ready</p>
+            <p className="mt-1 break-all">{impersonationLink}</p>
+            {impersonationToken ? <p className="mt-1 break-all text-amber-200">Token: {impersonationToken}</p> : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="rounded-xl border border-slate-700 p-4">

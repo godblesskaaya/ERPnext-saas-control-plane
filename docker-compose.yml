@@ -30,7 +30,51 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       PASSWORD_RESET_URL_BASE: ${PASSWORD_RESET_URL_BASE:-https://erp.blenkotechnologies.co.tz/reset-password}
       PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRE_MINUTES:-30}
-      SAAS_UI_ORIGINS: ${SAAS_UI_ORIGINS:-https://erp.blenkotechnologies.co.tz}
+      SAAS_UI_ORIGINS: ${SAAS_UI_ORIGINS:-https://erp.blenkotechnologies.co.tz,https://www.erp.blenkotechnologies.co.tz}
+      PLATFORM_ERP_BASE_URL: ${PLATFORM_ERP_BASE_URL:-https://blenko.erp.blenkotechnologies.co.tz}
+      PLATFORM_ERP_API_KEY: ${PLATFORM_ERP_API_KEY:-}
+      PLATFORM_ERP_API_SECRET: ${PLATFORM_ERP_API_SECRET:-}
+      ACTIVE_PAYMENT_PROVIDER: ${ACTIVE_PAYMENT_PROVIDER:-azampay}
+      AZAMPAY_SANDBOX: ${AZAMPAY_SANDBOX:-true}
+      AZAMPAY_AUTH_BASE_URL_SANDBOX: ${AZAMPAY_AUTH_BASE_URL_SANDBOX:-https://authenticator-sandbox.azampay.co.tz}
+      AZAMPAY_AUTH_BASE_URL_LIVE: ${AZAMPAY_AUTH_BASE_URL_LIVE:-https://authenticator.azampay.co.tz}
+      AZAMPAY_API_BASE_URL_SANDBOX: ${AZAMPAY_API_BASE_URL_SANDBOX:-https://sandbox.azampay.co.tz}
+      AZAMPAY_API_BASE_URL_LIVE: ${AZAMPAY_API_BASE_URL_LIVE:-https://api.azampay.co.tz}
+      AZAMPAY_TOKEN_PATH: ${AZAMPAY_TOKEN_PATH:-/AppRegistration/GenerateToken}
+      AZAMPAY_CHECKOUT_PATH: ${AZAMPAY_CHECKOUT_PATH:-/api/v1/Partner/PostCheckout}
+      AZAMPAY_APP_NAME: ${AZAMPAY_APP_NAME:-}
+      AZAMPAY_CLIENT_ID: ${AZAMPAY_CLIENT_ID:-}
+      AZAMPAY_CLIENT_SECRET: ${AZAMPAY_CLIENT_SECRET:-}
+      AZAMPAY_API_KEY: ${AZAMPAY_API_KEY:-}
+      AZAMPAY_VENDOR_ID: ${AZAMPAY_VENDOR_ID:-}
+      AZAMPAY_VENDOR_NAME: ${AZAMPAY_VENDOR_NAME:-}
+      AZAMPAY_CURRENCY: ${AZAMPAY_CURRENCY:-TZS}
+      AZAMPAY_CHECKOUT_AMOUNT: ${AZAMPAY_CHECKOUT_AMOUNT:-1.00}
+      AZAMPAY_LANGUAGE: ${AZAMPAY_LANGUAGE:-en}
+      AZAMPAY_REQUEST_ORIGIN: ${AZAMPAY_REQUEST_ORIGIN:-}
+      SELCOM_BASE_URL: ${SELCOM_BASE_URL:-https://apigw.selcommobile.com}
+      SELCOM_API_KEY: ${SELCOM_API_KEY:-}
+      SELCOM_API_SECRET: ${SELCOM_API_SECRET:-}
+      SELCOM_VENDOR: ${SELCOM_VENDOR:-}
+      SELCOM_CURRENCY: ${SELCOM_CURRENCY:-TZS}
+      SELCOM_CHECKOUT_AMOUNT: ${SELCOM_CHECKOUT_AMOUNT:-1.00}
+      SELCOM_PAYMENT_METHODS: ${SELCOM_PAYMENT_METHODS:-ALL}
+      SELCOM_DEFAULT_BUYER_PHONE: ${SELCOM_DEFAULT_BUYER_PHONE:-255000000000}
+      SELCOM_CHECKOUT_PATH: ${SELCOM_CHECKOUT_PATH:-/v1/checkout/create-order-minimal}
+      SELCOM_ORDER_STATUS_PATH: ${SELCOM_ORDER_STATUS_PATH:-/v1/checkout/order-status}
+      SELCOM_WEBHOOK_URL: ${SELCOM_WEBHOOK_URL:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_STARTER: ${STRIPE_PRICE_STARTER:-}
+      STRIPE_PRICE_BUSINESS: ${STRIPE_PRICE_BUSINESS:-}
+      STRIPE_PRICE_ENTERPRISE: ${STRIPE_PRICE_ENTERPRISE:-}
+      DPO_COMPANY_TOKEN: ${DPO_COMPANY_TOKEN:-}
+      DPO_SERVICE_TYPE: ${DPO_SERVICE_TYPE:-}
+      DPO_PAYMENT_URL: ${DPO_PAYMENT_URL:-https://secure.3gdirectpay.com/payv2.php}
+      DPO_API_URL: ${DPO_API_URL:-https://secure.3gdirectpay.com/API/v6/}
+      BILLING_CHECKOUT_SUCCESS_URL: ${BILLING_CHECKOUT_SUCCESS_URL:-https://erp.blenkotechnologies.co.tz/onboarding?payment=success}
+      BILLING_CHECKOUT_CANCEL_URL: ${BILLING_CHECKOUT_CANCEL_URL:-https://erp.blenkotechnologies.co.tz/onboarding?payment=cancelled}
+      BILLING_PORTAL_RETURN_URL: ${BILLING_PORTAL_RETURN_URL:-https://erp.blenkotechnologies.co.tz/dashboard?billing=return}
       BENCH_EXEC_MODE: ${BENCH_EXEC_MODE:-docker-compose}
       BENCH_WORKDIR: ${BENCH_WORKDIR:-/workspace}
       BENCH_COMPOSE_FILE: ${BENCH_COMPOSE_FILE:-/workspace/docker-compose.yml}
@@ -48,11 +92,20 @@ services:
       BACKUP_S3_REGION: ${BACKUP_S3_REGION:-}
       BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-backups}
       BACKUP_S3_STRICT: ${BACKUP_S3_STRICT:-false}
+      MAIL_PROVIDER: ${MAIL_PROVIDER:-smtp}
       MAILERSEND_API_KEY: ${MAILERSEND_API_KEY:-}
       MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-ERP SaaS}
       MAIL_SUPPORT_EMAIL: ${MAIL_SUPPORT_EMAIL:-support@blenkotechnologies.co.tz}
       MAIL_TIMEOUT_SECONDS: ${MAIL_TIMEOUT_SECONDS:-10}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      SMTP_USE_SSL: ${SMTP_USE_SSL:-false}
+      SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-10}
+      EXPOSE_METRICS: "true"
       EXPOSE_API_DOCS: "true"
       EXPOSE_OPENAPI_SCHEMA: "true"
     depends_on:
@@ -66,12 +119,11 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
-      - "traefik.http.routers.saas-api.rule=Host(`erp.blenkotechnologies.co.tz`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.saas-api.rule=(Host(`erp.blenkotechnologies.co.tz`,`www.erp.blenkotechnologies.co.tz`) || HostRegexp(`{subdomain:[a-z0-9-]+}.erp.blenkotechnologies.co.tz`)) && PathPrefix(`/api`)"
       - "traefik.http.routers.saas-api.entrypoints=websecure"
       - "traefik.http.routers.saas-api.tls.certresolver=letsencrypt"
       - "traefik.http.routers.saas-api.priority=11000"
       - "traefik.http.routers.saas-api.service=saas-api-svc"
-      - "traefik.http.middlewares.saas-api-strip.stripprefix.prefixes=/api"
       - "traefik.http.middlewares.saas-https-redirect.redirectscheme.scheme=https"
       - "traefik.http.middlewares.saas-https-redirect.redirectscheme.permanent=true"
       - "traefik.http.middlewares.saas-security-headers.headers.stsSeconds=31536000"
@@ -81,8 +133,8 @@ services:
       - "traefik.http.middlewares.saas-security-headers.headers.contentTypeNosniff=true"
       - "traefik.http.middlewares.saas-security-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
       - "traefik.http.middlewares.saas-security-headers.headers.contentSecurityPolicy=default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
-      - "traefik.http.routers.saas-api.middlewares=saas-security-headers,saas-api-strip"
-      - "traefik.http.routers.saas-api-http.rule=Host(`erp.blenkotechnologies.co.tz`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.saas-api.middlewares=saas-security-headers"
+      - "traefik.http.routers.saas-api-http.rule=(Host(`erp.blenkotechnologies.co.tz`,`www.erp.blenkotechnologies.co.tz`) || HostRegexp(`{subdomain:[a-z0-9-]+}.erp.blenkotechnologies.co.tz`)) && PathPrefix(`/api`)"
       - "traefik.http.routers.saas-api-http.entrypoints=web"
       - "traefik.http.routers.saas-api-http.priority=11000"
       - "traefik.http.routers.saas-api-http.middlewares=saas-https-redirect"
@@ -103,7 +155,51 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       PASSWORD_RESET_URL_BASE: ${PASSWORD_RESET_URL_BASE:-https://erp.blenkotechnologies.co.tz/reset-password}
       PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRE_MINUTES:-30}
-      SAAS_UI_ORIGINS: ${SAAS_UI_ORIGINS:-https://erp.blenkotechnologies.co.tz}
+      SAAS_UI_ORIGINS: ${SAAS_UI_ORIGINS:-https://erp.blenkotechnologies.co.tz,https://www.erp.blenkotechnologies.co.tz}
+      PLATFORM_ERP_BASE_URL: ${PLATFORM_ERP_BASE_URL:-https://blenko.erp.blenkotechnologies.co.tz}
+      PLATFORM_ERP_API_KEY: ${PLATFORM_ERP_API_KEY:-}
+      PLATFORM_ERP_API_SECRET: ${PLATFORM_ERP_API_SECRET:-}
+      ACTIVE_PAYMENT_PROVIDER: ${ACTIVE_PAYMENT_PROVIDER:-azampay}
+      AZAMPAY_SANDBOX: ${AZAMPAY_SANDBOX:-true}
+      AZAMPAY_AUTH_BASE_URL_SANDBOX: ${AZAMPAY_AUTH_BASE_URL_SANDBOX:-https://authenticator-sandbox.azampay.co.tz}
+      AZAMPAY_AUTH_BASE_URL_LIVE: ${AZAMPAY_AUTH_BASE_URL_LIVE:-https://authenticator.azampay.co.tz}
+      AZAMPAY_API_BASE_URL_SANDBOX: ${AZAMPAY_API_BASE_URL_SANDBOX:-https://sandbox.azampay.co.tz}
+      AZAMPAY_API_BASE_URL_LIVE: ${AZAMPAY_API_BASE_URL_LIVE:-https://api.azampay.co.tz}
+      AZAMPAY_TOKEN_PATH: ${AZAMPAY_TOKEN_PATH:-/AppRegistration/GenerateToken}
+      AZAMPAY_CHECKOUT_PATH: ${AZAMPAY_CHECKOUT_PATH:-/api/v1/Partner/PostCheckout}
+      AZAMPAY_APP_NAME: ${AZAMPAY_APP_NAME:-}
+      AZAMPAY_CLIENT_ID: ${AZAMPAY_CLIENT_ID:-}
+      AZAMPAY_CLIENT_SECRET: ${AZAMPAY_CLIENT_SECRET:-}
+      AZAMPAY_API_KEY: ${AZAMPAY_API_KEY:-}
+      AZAMPAY_VENDOR_ID: ${AZAMPAY_VENDOR_ID:-}
+      AZAMPAY_VENDOR_NAME: ${AZAMPAY_VENDOR_NAME:-}
+      AZAMPAY_CURRENCY: ${AZAMPAY_CURRENCY:-TZS}
+      AZAMPAY_CHECKOUT_AMOUNT: ${AZAMPAY_CHECKOUT_AMOUNT:-1.00}
+      AZAMPAY_LANGUAGE: ${AZAMPAY_LANGUAGE:-en}
+      AZAMPAY_REQUEST_ORIGIN: ${AZAMPAY_REQUEST_ORIGIN:-}
+      SELCOM_BASE_URL: ${SELCOM_BASE_URL:-https://apigw.selcommobile.com}
+      SELCOM_API_KEY: ${SELCOM_API_KEY:-}
+      SELCOM_API_SECRET: ${SELCOM_API_SECRET:-}
+      SELCOM_VENDOR: ${SELCOM_VENDOR:-}
+      SELCOM_CURRENCY: ${SELCOM_CURRENCY:-TZS}
+      SELCOM_CHECKOUT_AMOUNT: ${SELCOM_CHECKOUT_AMOUNT:-1.00}
+      SELCOM_PAYMENT_METHODS: ${SELCOM_PAYMENT_METHODS:-ALL}
+      SELCOM_DEFAULT_BUYER_PHONE: ${SELCOM_DEFAULT_BUYER_PHONE:-255000000000}
+      SELCOM_CHECKOUT_PATH: ${SELCOM_CHECKOUT_PATH:-/v1/checkout/create-order-minimal}
+      SELCOM_ORDER_STATUS_PATH: ${SELCOM_ORDER_STATUS_PATH:-/v1/checkout/order-status}
+      SELCOM_WEBHOOK_URL: ${SELCOM_WEBHOOK_URL:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_STARTER: ${STRIPE_PRICE_STARTER:-}
+      STRIPE_PRICE_BUSINESS: ${STRIPE_PRICE_BUSINESS:-}
+      STRIPE_PRICE_ENTERPRISE: ${STRIPE_PRICE_ENTERPRISE:-}
+      DPO_COMPANY_TOKEN: ${DPO_COMPANY_TOKEN:-}
+      DPO_SERVICE_TYPE: ${DPO_SERVICE_TYPE:-}
+      DPO_PAYMENT_URL: ${DPO_PAYMENT_URL:-https://secure.3gdirectpay.com/payv2.php}
+      DPO_API_URL: ${DPO_API_URL:-https://secure.3gdirectpay.com/API/v6/}
+      BILLING_CHECKOUT_SUCCESS_URL: ${BILLING_CHECKOUT_SUCCESS_URL:-https://erp.blenkotechnologies.co.tz/onboarding?payment=success}
+      BILLING_CHECKOUT_CANCEL_URL: ${BILLING_CHECKOUT_CANCEL_URL:-https://erp.blenkotechnologies.co.tz/onboarding?payment=cancelled}
+      BILLING_PORTAL_RETURN_URL: ${BILLING_PORTAL_RETURN_URL:-https://erp.blenkotechnologies.co.tz/dashboard?billing=return}
       BENCH_EXEC_MODE: ${BENCH_EXEC_MODE:-docker-compose}
       BENCH_WORKDIR: ${BENCH_WORKDIR:-/workspace}
       BENCH_COMPOSE_FILE: ${BENCH_COMPOSE_FILE:-/workspace/docker-compose.yml}
@@ -121,11 +217,19 @@ services:
       BACKUP_S3_REGION: ${BACKUP_S3_REGION:-}
       BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-backups}
       BACKUP_S3_STRICT: ${BACKUP_S3_STRICT:-false}
+      MAIL_PROVIDER: ${MAIL_PROVIDER:-smtp}
       MAILERSEND_API_KEY: ${MAILERSEND_API_KEY:-}
       MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-ERP SaaS}
       MAIL_SUPPORT_EMAIL: ${MAIL_SUPPORT_EMAIL:-support@blenkotechnologies.co.tz}
       MAIL_TIMEOUT_SECONDS: ${MAIL_TIMEOUT_SECONDS:-10}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      SMTP_USE_SSL: ${SMTP_USE_SSL:-false}
+      SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-10}
     depends_on:
       postgres:
         condition: service_healthy
@@ -140,8 +244,14 @@ services:
       context: ./saas-ui
       args:
         NEXT_PUBLIC_API_BASE_URL: ${SAAS_PUBLIC_API_BASE_URL:-/api}
+        API_PROXY_TARGET: ${SAAS_API_PROXY_TARGET:-http://api:8000}
+        NEXT_PUBLIC_PLATFORM_DOMAIN: ${SAAS_PLATFORM_DOMAIN:-erp.blenkotechnologies.co.tz}
+        NEXT_PUBLIC_TENANT_DOMAIN_SUFFIX: ${SAAS_TENANT_DOMAIN_SUFFIX:-erp.blenkotechnologies.co.tz}
     environment:
       NEXT_PUBLIC_API_BASE_URL: ${SAAS_PUBLIC_API_BASE_URL:-/api}
+      API_PROXY_TARGET: ${SAAS_API_PROXY_TARGET:-http://api:8000}
+      NEXT_PUBLIC_PLATFORM_DOMAIN: ${SAAS_PLATFORM_DOMAIN:-erp.blenkotechnologies.co.tz}
+      NEXT_PUBLIC_TENANT_DOMAIN_SUFFIX: ${SAAS_TENANT_DOMAIN_SUFFIX:-erp.blenkotechnologies.co.tz}
     depends_on:
       api:
         condition: service_started

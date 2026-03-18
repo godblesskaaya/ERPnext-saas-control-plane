@@ -5,7 +5,7 @@ import time
 from datetime import UTC, datetime
 from unittest.mock import patch
 
-from app.models import AuditLog
+from app.models import AuditLog, User
 from app.security import decode_access_token
 from app.token_store import get_token_store
 
@@ -184,3 +184,52 @@ def test_reset_password_expired_token(client):
         json={"token": "expired-reset-token-value-123", "new_password": "Newpass123!"},
     )
     assert expired.status_code == 400
+
+
+def test_impersonation_exchange_rejects_invalid_token(client):
+    response = client.post("/auth/impersonate", json={"token": "invalid-impersonation-token-value-123"})
+    assert response.status_code == 400
+
+
+@patch("app.domains.support.admin_router.secrets.token_urlsafe", return_value="impersonation-token-for-tests")
+def test_admin_can_issue_and_consume_impersonation_link(mock_token, client, db_session):
+    del mock_token
+    client.post("/auth/signup", json={"email": "admin-imp@example.com", "password": "Secret123!"})
+    client.post("/auth/signup", json={"email": "target-imp@example.com", "password": "Secret123!"})
+
+    admin = db_session.query(User).filter(User.email == "admin-imp@example.com").one()
+    admin.role = "admin"
+    target = db_session.query(User).filter(User.email == "target-imp@example.com").one()
+    db_session.add_all([admin, target])
+    db_session.commit()
+
+    admin_login = client.post("/auth/login", json={"email": "admin-imp@example.com", "password": "Secret123!"})
+    admin_headers = {"Authorization": f"Bearer {admin_login.json()['access_token']}"}
+
+    issued = client.post(
+        "/admin/impersonation-links",
+        headers=admin_headers,
+        json={"target_email": "target-imp@example.com", "reason": "Investigate provisioning issue"},
+    )
+    assert issued.status_code == 200
+    payload = issued.json()
+    assert payload["target_email"] == "target-imp@example.com"
+    assert payload["token"] == "impersonation-token-for-tests"
+    assert "token=impersonation-token-for-tests" in payload["url"]
+
+    store = get_token_store()
+    key = "impersonation:" + hashlib.sha256("impersonation-token-for-tests".encode("utf-8")).hexdigest()
+    assert store.exists(key) == 1
+
+    exchanged = client.post("/auth/impersonate", json={"token": "impersonation-token-for-tests"})
+    assert exchanged.status_code == 200
+    access_token = exchanged.json()["access_token"]
+    access_payload = decode_access_token(access_token)
+    assert access_payload["sub"] == target.id
+    assert access_payload["impersonated_by"] == admin.id
+    assert store.exists(key) == 0
+
+    actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
+    assert "admin.impersonation_link_issued" in actions
+    assert "auth.impersonation_consumed" in actions
+    assert "admin.impersonation_session_issued" in actions

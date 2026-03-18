@@ -63,6 +63,8 @@ class StripeGateway(PaymentGateway):
                 checkout_url=f"https://mock-billing.local/checkout/{session_id}",
                 customer_ref=customer_ref,
                 provider=self.provider_name,
+                payment_channel="card",
+                payment_method_types=["card"],
                 mock_mode=True,
             )
 
@@ -100,6 +102,8 @@ class StripeGateway(PaymentGateway):
             checkout_url=session["url"],
             customer_ref=customer_ref,
             provider=self.provider_name,
+            payment_channel="card",
+            payment_method_types=["card"],
             mock_mode=False,
         )
 

@@ -3,11 +3,13 @@ import type {
   AuditLogEntry,
   BackupManifestEntry,
   DomainMapping,
+  ImpersonationLink,
   TenantMember,
   BillingPortalResponse,
   BillingInvoiceListResponse,
   MetricsSummary,
   DeadLetterJob,
+  DunningItem,
   Job,
   MessageResponse,
   OptionalEndpointResult,
@@ -18,6 +20,8 @@ import type {
   Tenant,
   TenantCreatePayload,
   TenantCreateResponse,
+  TenantSummary,
+  TenantReadiness,
   TenantUpdatePayload,
   UserProfile,
 } from "./types";
@@ -26,6 +30,8 @@ const SESSION_EXPIRED_EVENT = "erp-saas:session-expired";
 
 function resolveApiBase(): string {
   const configured = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").trim();
+  const platformDomain = (process.env.NEXT_PUBLIC_PLATFORM_DOMAIN ?? "erp.blenkotechnologies.co.tz").trim();
+  const tenantSuffix = (process.env.NEXT_PUBLIC_TENANT_DOMAIN_SUFFIX ?? "erp.blenkotechnologies.co.tz").trim();
 
   if (!configured) {
     return "/api";
@@ -39,12 +45,25 @@ function resolveApiBase(): string {
     if (isLocalConfigured && !isLocalBrowser) {
       return "/api";
     }
+
+    const hostname = window.location.hostname;
+    const isPlatformDomain =
+      hostname === platformDomain || hostname === `www.${platformDomain}`;
+    const isTenantSubdomain =
+      tenantSuffix && hostname.endsWith(`.${tenantSuffix}`) && !isPlatformDomain;
+    if (isTenantSubdomain && !configured.startsWith("http")) {
+      const protocol = window.location.protocol === "http:" ? "http" : "https";
+      return `${protocol}://${platformDomain}/api`;
+    }
   }
 
   return configured;
 }
 
 const API_BASE = resolveApiBase();
+
+const auditExportUrl = (limit = 500) =>
+  `${API_BASE}/admin/audit-log/export?limit=${encodeURIComponent(String(limit))}`;
 
 type ApiErrorBody = {
   detail?: string;
@@ -289,6 +308,57 @@ export function onSessionExpired(listener: () => void): () => void {
   return () => window.removeEventListener(SESSION_EXPIRED_EVENT, wrapped);
 }
 
+function appendQueryValues(query: URLSearchParams, key: string, value?: string | string[]) {
+  if (!value) return;
+  const values = Array.isArray(value) ? value : [value];
+  values
+    .flatMap((item) => String(item).split(","))
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .forEach((item) => query.append(key, item));
+}
+
+async function downloadAuditLogCsv(limit = 500): Promise<void> {
+  const token = getToken();
+  const headers = new Headers();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(auditExportUrl(limit), {
+    method: "GET",
+    headers,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const body = await parseResponseBody(response);
+    if (response.status === 401) {
+      notifySessionExpired();
+    }
+    throw new ApiRequestError(parseErrorMessage(body, response.status), {
+      status: response.status,
+      body,
+      path: "/admin/audit-log/export",
+      sessionExpired: response.status === 401,
+    });
+  }
+  if (typeof window === "undefined") {
+    return;
+  }
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  try {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "audit-log.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } finally {
+    window.URL.revokeObjectURL(url);
+  }
+}
+
 export const api = {
   signup: (email: string, password: string) =>
     request<UserProfile>("/auth/signup", { method: "POST", body: JSON.stringify({ email, password }) }),
@@ -325,10 +395,23 @@ export const api = {
 
   listTenants: () => request<Tenant[]>("/tenants"),
 
-  listTenantsPaged: (page = 1, limit = 20, status?: string, search?: string) => {
+  listTenantsPaged: (
+    page = 1,
+    limit = 20,
+    status?: string | string[],
+    search?: string,
+    plan?: string,
+    billingStatus?: string | string[],
+    paymentChannel?: string | string[],
+    filterMode: "and" | "or" = "and"
+  ) => {
     const query = new URLSearchParams({ page: String(page), limit: String(limit) });
-    if (status) query.set("status", status);
+    appendQueryValues(query, "status", status);
+    appendQueryValues(query, "billing_status", billingStatus);
+    appendQueryValues(query, "payment_channel", paymentChannel);
     if (search) query.set("search", search);
+    if (plan) query.set("plan", plan);
+    if (filterMode !== "and") query.set("filter_mode", filterMode);
     return requestOptionalEndpoint<PaginatedResult<Tenant>>(`/tenants/paged?${query.toString()}`);
   },
 
@@ -336,6 +419,9 @@ export const api = {
 
   createTenant: (payload: TenantCreatePayload, idempotencyKey = createIdempotencyKey()) =>
     createTenantWithCompatibility(payload, idempotencyKey),
+
+  renewCheckout: (tenantId: string) =>
+    requestOptionalEndpoint<TenantCreateResponse>(`/tenants/${tenantId}/checkout/renew`, { method: "POST" }),
 
   updateTenant: (id: string, payload: TenantUpdatePayload) =>
     requestOptionalEndpoint<Tenant>(`/tenants/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
@@ -346,6 +432,12 @@ export const api = {
   backupTenant: (id: string) => request<Job>(`/tenants/${id}/backup`, { method: "POST" }),
 
   deleteTenant: (id: string) => request<Job>(`/tenants/${id}`, { method: "DELETE" }),
+
+  restoreTenant: (id: string, backupId: string) =>
+    requestOptionalEndpoint<Job>(`/tenants/${id}/restore`, {
+      method: "POST",
+      body: JSON.stringify({ backup_id: backupId }),
+    }),
 
   retryTenant: (id: string) => requestOptionalEndpoint<Job>(`/tenants/${id}/retry`, { method: "POST" }),
 
@@ -359,12 +451,37 @@ export const api = {
 
   listAllTenants: () => request<Tenant[]>("/admin/tenants"),
 
-  listAllTenantsPaged: (page = 1, limit = 50, status?: string, search?: string) => {
+  listAllTenantsPaged: (
+    page = 1,
+    limit = 50,
+    status?: string | string[],
+    search?: string,
+    plan?: string,
+    billingStatus?: string | string[],
+    paymentChannel?: string | string[],
+    filterMode: "and" | "or" = "and"
+  ) => {
     const query = new URLSearchParams({ page: String(page), limit: String(limit) });
-    if (status) query.set("status", status);
+    appendQueryValues(query, "status", status);
+    appendQueryValues(query, "billing_status", billingStatus);
+    appendQueryValues(query, "payment_channel", paymentChannel);
     if (search) query.set("search", search);
+    if (plan) query.set("plan", plan);
+    if (filterMode !== "and") query.set("filter_mode", filterMode);
     return requestOptionalEndpoint<PaginatedResult<Tenant>>(`/admin/tenants/paged?${query.toString()}`);
   },
+
+  requestImpersonationLink: (targetEmail: string, reason: string) =>
+    requestOptionalEndpoint<ImpersonationLink>("/admin/impersonation-links", {
+      method: "POST",
+      body: JSON.stringify({ target_email: targetEmail, reason }),
+    }),
+
+  exchangeImpersonationToken: (token: string) =>
+    request<{ access_token: string; token_type: string }>("/auth/impersonate", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
 
   listDeadLetterJobs: () => requestOptionalEndpoint<DeadLetterJob[]>("/admin/jobs/dead-letter"),
 
@@ -384,6 +501,11 @@ export const api = {
   },
 
   listTenantBackups: (tenantId: string) => requestOptionalEndpoint<BackupManifestEntry[]>(`/tenants/${tenantId}/backups`),
+
+  getTenantSummary: (tenantId: string) => requestOptionalEndpoint<TenantSummary>(`/tenants/${tenantId}/summary`),
+
+  getTenantReadiness: (tenantId: string) =>
+    requestOptionalEndpoint<TenantReadiness>(`/tenants/${tenantId}/readiness`),
 
   listTenantAuditLog: (tenantId: string, page = 1, limit = 50) =>
     requestOptionalEndpoint<PaginatedResult<AuditLogEntry>>(
@@ -437,13 +559,47 @@ export const api = {
   listAuditLog: (page = 1, limit = 50) =>
     requestOptionalEndpoint<PaginatedResult<AuditLogEntry>>(`/admin/audit-log?page=${page}&limit=${limit}`),
 
+  downloadAuditLogCsv,
+
+  auditExportUrl,
+
   listSupportNotes: (tenantId: string) =>
     requestOptionalEndpoint<SupportNote[]>(`/admin/support-notes?tenant_id=${encodeURIComponent(tenantId)}`),
 
-  createSupportNote: (tenantId: string, category: string, note: string) =>
+  listSupportNotesAll: () => requestOptionalEndpoint<SupportNote[]>(`/admin/support-notes`),
+
+  listBillingDunning: () => requestOptionalEndpoint<DunningItem[]>(`/admin/billing/dunning`),
+
+  runBillingDunningCycle: (dryRun = false) =>
+    requestOptionalEndpoint<MessageResponse>(
+      `/admin/billing/dunning/run?dry_run=${encodeURIComponent(String(dryRun))}`,
+      { method: "POST" }
+    ),
+
+  rebuildPlatformAssets: () =>
+    requestOptionalEndpoint<MessageResponse>("/admin/maintenance/assets/build", { method: "POST" }),
+
+  syncTenantTLS: (primeCerts = false) =>
+    requestOptionalEndpoint<MessageResponse>(
+      `/admin/maintenance/tls/sync?prime_certs=${encodeURIComponent(String(primeCerts))}`,
+      { method: "POST" }
+    ),
+
+  createSupportNote: (
+    tenantId: string,
+    category: string,
+    note: string,
+    extras?: { owner_name?: string; owner_contact?: string; sla_due_at?: string; status?: string }
+  ) =>
     requestOptionalEndpoint<SupportNote>(`/admin/support-notes`, {
       method: "POST",
-      body: JSON.stringify({ tenant_id: tenantId, category, note }),
+      body: JSON.stringify({ tenant_id: tenantId, category, note, ...(extras ?? {}) }),
+    }),
+
+  updateSupportNote: (noteId: string, payload: Partial<SupportNote>) =>
+    requestOptionalEndpoint<SupportNote>(`/admin/support-notes/${encodeURIComponent(noteId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
     }),
 
   getBillingPortal: () => requestOptionalEndpoint<BillingPortalResponse>("/billing/portal"),
@@ -451,4 +607,8 @@ export const api = {
   listBillingInvoices: () => requestOptionalEndpoint<BillingInvoiceListResponse>("/billing/invoices"),
 
   getAdminMetrics: () => requestOptionalEndpoint<MetricsSummary>("/admin/metrics"),
+
+  authHealth: () => requestOptionalEndpoint<MessageResponse>("/auth/health"),
+
+  billingHealth: () => requestOptionalEndpoint<MessageResponse>("/billing/health"),
 };

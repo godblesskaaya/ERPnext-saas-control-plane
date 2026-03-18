@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -7,7 +8,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from redis import Redis
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -111,12 +112,16 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SecurityHeadersMiddleware)
+tenant_suffix = settings.tenant_domain_suffix.strip(".")
+tenant_origin_regex = rf"^https://([a-z0-9-]+\.)?{re.escape(tenant_suffix)}$" if tenant_suffix else None
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.saas_ui_origin_list,
+    allow_origin_regex=tenant_origin_regex,
     allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "X-Idempotency-Key", "Accept", "X-Requested-With"],
 )
 init_metrics(app, enabled=settings.metrics_enabled)
 
@@ -150,6 +155,12 @@ def health(db: Session = Depends(get_db), redis: Redis = Depends(get_redis_conne
 
 
 app.add_api_route(f"{API_PREFIX}/health", health, methods=["GET"])
+
+
+if settings.metrics_enabled and API_PREFIX:
+    @app.get(f"{API_PREFIX}/metrics", include_in_schema=False)
+    def metrics_alias() -> RedirectResponse:
+        return RedirectResponse(url="/metrics", status_code=307)
 
 
 app.include_router(auth_router.router, prefix=API_PREFIX)

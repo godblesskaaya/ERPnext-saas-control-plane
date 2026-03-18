@@ -38,6 +38,7 @@ def get_current_user(
 
     request.state.current_user = user
     request.state.access_token_payload = payload
+    request.state.impersonated_by = payload.get("impersonated_by")
     return user
 
 

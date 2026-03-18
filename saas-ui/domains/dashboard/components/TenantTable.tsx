@@ -21,6 +21,8 @@ type Props = {
   emptyStateBody?: string;
   emptyStateActionLabel?: string;
   emptyStateActionHref?: string;
+  filterLabel?: string;
+  showPaymentChannel?: boolean;
 };
 
 type ConfirmAction = {
@@ -86,6 +88,8 @@ function formatDate(value?: string | null): string {
 
 function getBillingLabel(tenant: Tenant): string {
   if (tenant.billing_status?.trim()) return tenant.billing_status;
+  if (tenant.platform_customer_id) return "platform_customer_linked";
+  if (tenant.payment_provider && tenant.payment_provider !== "stripe") return tenant.payment_provider;
   if (tenant.stripe_subscription_id) return "subscribed";
   if (tenant.stripe_checkout_session_id) return "checkout_created";
   return "n/a";
@@ -106,6 +110,8 @@ export function TenantTable({
   emptyStateBody,
   emptyStateActionLabel,
   emptyStateActionHref,
+  filterLabel,
+  showPaymentChannel = false,
 }: Props) {
   const [expandedTenantId, setExpandedTenantId] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
@@ -134,6 +140,14 @@ export function TenantTable({
     [tenants]
   );
   const liveCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "active").length, [tenants]);
+  const channelCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    tenants.forEach((tenant) => {
+      const channel = tenant.payment_channel ?? "unknown";
+      counts[channel] = (counts[channel] ?? 0) + 1;
+    });
+    return counts;
+  }, [tenants]);
 
   const remainingSeconds = useMemo(() => {
     if (!passwordExpiry) return 0;
@@ -241,6 +255,22 @@ export function TenantTable({
 
   return (
     <div className="space-y-4">
+      {filterLabel ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          {filterLabel}
+        </div>
+      ) : null}
+      {showPaymentChannel ? (
+        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(channelCounts).map(([channel, count]) => (
+              <span key={channel} className="rounded-full border border-slate-200 px-2 py-1 text-xs">
+                {channel.replace(/_/g, " ")}: <span className="font-semibold">{count}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {passwordResult ? (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm">
           <p className="font-semibold text-emerald-900">Administrator password reset complete</p>
@@ -289,6 +319,7 @@ export function TenantTable({
               <th className="p-2.5">Package / focus</th>
               <th className="p-2.5">Health</th>
               <th className="p-2.5">Billing</th>
+              {showPaymentChannel ? <th className="p-2.5">Channel</th> : null}
               <th className="p-2.5">Created</th>
               <th className="p-2.5">Quick actions</th>
             </tr>
@@ -335,6 +366,11 @@ export function TenantTable({
                       {job ? <p className="mt-1 text-xs text-slate-500">Job: {job.status}</p> : null}
                     </td>
                     <td className="p-2.5 text-xs text-slate-600">{getBillingLabel(tenant)}</td>
+                    {showPaymentChannel ? (
+                      <td className="p-2.5 text-xs text-slate-600">
+                        {tenant.payment_channel ? tenant.payment_channel.replace(/_/g, " ") : "—"}
+                      </td>
+                    ) : null}
                     <td className="p-2.5 text-xs text-slate-600">{formatDate(tenant.created_at)}</td>
                     <td className="p-2.5">
                       <div className="flex flex-wrap gap-1.5">

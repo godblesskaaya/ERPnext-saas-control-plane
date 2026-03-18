@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { JobLogPanel } from "../../../../domains/shared/components/JobLogPanel";
@@ -9,30 +9,32 @@ import type {
   AuditLogEntry,
   BackupManifestEntry,
   DomainMapping,
+  Job,
   SupportNote,
   Tenant,
   TenantMember,
+  TenantSummary,
   UserProfile,
 } from "../../../../domains/shared/lib/types";
 
 function statusClass(status: string): string {
   const normalized = status.toLowerCase();
-  if (normalized === "active") return "bg-emerald-500/20 text-emerald-300";
+  if (normalized === "active") return "bg-emerald-100 text-emerald-800";
   if (["provisioning", "pending", "deleting", "upgrading", "restoring", "pending_deletion"].includes(normalized)) {
-    return "bg-amber-500/20 text-amber-300";
+    return "bg-amber-100 text-amber-800";
   }
-  if (normalized === "failed") return "bg-red-500/20 text-red-300";
-  if (normalized === "deleted") return "bg-slate-500/20 text-slate-300";
-  if (["suspended", "suspended_admin", "suspended_billing"].includes(normalized)) return "bg-orange-500/20 text-orange-300";
-  return "bg-sky-500/20 text-sky-300";
+  if (normalized === "failed") return "bg-red-100 text-red-700";
+  if (normalized === "deleted") return "bg-slate-200 text-slate-600";
+  if (["suspended", "suspended_admin", "suspended_billing"].includes(normalized)) return "bg-orange-100 text-orange-800";
+  return "bg-sky-100 text-sky-800";
 }
 
 function domainStatusClass(status: string): string {
   const normalized = status.toLowerCase();
-  if (normalized === "verified") return "bg-emerald-500/20 text-emerald-300";
-  if (normalized === "pending") return "bg-amber-500/20 text-amber-300";
-  if (normalized === "failed") return "bg-red-500/20 text-red-300";
-  return "bg-slate-700 text-slate-200";
+  if (normalized === "verified") return "bg-emerald-100 text-emerald-800";
+  if (normalized === "pending") return "bg-amber-100 text-amber-800";
+  if (normalized === "failed") return "bg-red-100 text-red-700";
+  return "bg-slate-100 text-slate-700";
 }
 
 function formatTimestamp(value?: string | null): string {
@@ -40,6 +42,17 @@ function formatTimestamp(value?: string | null): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
+}
+
+function formatCurrencyAmount(amount?: number | null, currency?: string | null): string {
+  if (amount === null || amount === undefined) return "—";
+  const code = (currency || "usd").toUpperCase();
+  const normalized = amount / 100;
+  try {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: code }).format(normalized);
+  } catch {
+    return `${normalized.toFixed(2)} ${code}`;
+  }
 }
 
 function resolveBackupDownload(entry: BackupManifestEntry): string | null {
@@ -68,6 +81,7 @@ function nextActionByStatus(status: string): string {
 export default function TenantDetailPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const id = params.id;
   const jobId = searchParams.get("job") || undefined;
 
@@ -103,7 +117,26 @@ export default function TenantDetailPage() {
   const [supportNotesError, setSupportNotesError] = useState<string | null>(null);
   const [supportNoteCategory, setSupportNoteCategory] = useState("note");
   const [supportNoteText, setSupportNoteText] = useState("");
+  const [supportNoteOwner, setSupportNoteOwner] = useState("");
+  const [supportNoteContact, setSupportNoteContact] = useState("");
+  const [supportNoteDueAt, setSupportNoteDueAt] = useState("");
+  const [supportNoteStatus, setSupportNoteStatus] = useState("open");
+  const [supportNoteFilter, setSupportNoteFilter] = useState("all");
   const [savingSupportNote, setSavingSupportNote] = useState(false);
+  const [actionReason, setActionReason] = useState("");
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [recentJobs, setRecentJobs] = useState<Job[]>([]);
+  const [recentJobsError, setRecentJobsError] = useState<string | null>(null);
+  const [recentJobsSupported, setRecentJobsSupported] = useState(true);
+  const [tenantSummary, setTenantSummary] = useState<TenantSummary | null>(null);
+  const [tenantSummaryError, setTenantSummaryError] = useState<string | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<BackupManifestEntry | null>(null);
+  const [restoreConfirm, setRestoreConfirm] = useState("");
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
 
   const loadTenant = useCallback(async () => {
     if (!id) return;
@@ -236,6 +269,41 @@ export default function TenantDetailPage() {
     }
   }, [currentUser?.role, id]);
 
+  const loadRecentJobs = useCallback(async () => {
+    if (!id) return;
+    try {
+      const result = await api.listAdminJobs(40);
+      if (!result.supported) {
+        setRecentJobsSupported(false);
+        setRecentJobs([]);
+        setRecentJobsError(null);
+        return;
+      }
+      setRecentJobsSupported(true);
+      const filtered = (result.data ?? []).filter((job) => job.tenant_id === id).slice(0, 5);
+      setRecentJobs(filtered);
+      setRecentJobsError(null);
+    } catch (err) {
+      setRecentJobsError(getApiErrorMessage(err, "Failed to load recent jobs"));
+    }
+  }, [id]);
+
+  const loadTenantSummary = useCallback(async () => {
+    if (!id) return;
+    try {
+      const result = await api.getTenantSummary(id);
+      if (!result.supported) {
+        setTenantSummary(null);
+        setTenantSummaryError("Tenant summary endpoint not available.");
+        return;
+      }
+      setTenantSummary(result.data);
+      setTenantSummaryError(null);
+    } catch (err) {
+      setTenantSummaryError(getApiErrorMessage(err, "Failed to load tenant summary"));
+    }
+  }, [id]);
+
   useEffect(() => {
     void loadTenant();
     void loadBackups();
@@ -243,11 +311,59 @@ export default function TenantDetailPage() {
     void loadMembers();
     void loadDomains();
     void loadCurrentUser();
-  }, [loadAuditLog, loadBackups, loadDomains, loadMembers, loadTenant, loadCurrentUser]);
+    void loadRecentJobs();
+    void loadTenantSummary();
+  }, [
+    loadAuditLog,
+    loadBackups,
+    loadDomains,
+    loadMembers,
+    loadTenant,
+    loadCurrentUser,
+    loadRecentJobs,
+    loadTenantSummary,
+  ]);
 
   useEffect(() => {
     void loadSupportNotes();
   }, [loadSupportNotes]);
+
+  const buildSupportNoteExtras = () => {
+    const extras: { owner_name?: string; owner_contact?: string; sla_due_at?: string; status?: string } = {};
+    if (supportNoteOwner.trim()) extras.owner_name = supportNoteOwner.trim();
+    if (supportNoteContact.trim()) extras.owner_contact = supportNoteContact.trim();
+    if (supportNoteDueAt) {
+      const parsed = new Date(supportNoteDueAt);
+      if (!Number.isNaN(parsed.getTime())) {
+        extras.sla_due_at = parsed.toISOString();
+      }
+    }
+    if (supportNoteStatus.trim()) {
+      extras.status = supportNoteStatus.trim();
+    }
+    return extras;
+  };
+
+  const getSlaState = (note: SupportNote) => {
+    if (note.sla_state) return note.sla_state;
+    if (note.status === "resolved") return "resolved";
+    if (!note.sla_due_at) return "unscheduled";
+    const due = new Date(note.sla_due_at);
+    if (Number.isNaN(due.getTime())) return "unscheduled";
+    const now = new Date();
+    if (due < now) return "breached";
+    const diffHours = (due.getTime() - now.getTime()) / (1000 * 60 * 60);
+    if (diffHours <= 24) return "due_soon";
+    return "on_track";
+  };
+
+  const filteredSupportNotes = useMemo(() => {
+    if (supportNoteFilter === "all") return supportNotes;
+    if (["breached", "due_soon", "on_track", "unscheduled"].includes(supportNoteFilter)) {
+      return supportNotes.filter((note) => getSlaState(note) === supportNoteFilter);
+    }
+    return supportNotes.filter((note) => (note.status ?? "open") === supportNoteFilter);
+  }, [supportNoteFilter, supportNotes]);
 
   useEffect(() => {
     setAuditPage(1);
@@ -268,58 +384,280 @@ export default function TenantDetailPage() {
 
   return (
     <section className="space-y-6">
-      <div className="rounded-xl border border-slate-700 bg-slate-900/50 p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-2">
-            <h1 className="text-2xl font-semibold">{tenant.company_name}</h1>
-            <p>
-              Health:{" "}
-              <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusClass(tenant.status)}`}>
-                {tenant.status}
-              </span>
-            </p>
-            <p>
-              Workspace URL:{" "}
-              <a href={`https://${tenant.domain}`} target="_blank" rel="noreferrer" className="text-blue-300 hover:text-blue-200">
-                {tenant.domain}
-              </a>
+      <div id="overview" className="rounded-3xl border border-amber-200/70 bg-white/80 p-6 shadow-sm">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+          <div>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Tenant workspace</p>
+                <h1 className="text-3xl font-semibold text-slate-900">{tenant.company_name}</h1>
+                <p className="text-sm text-slate-600">Control-plane operational view for this customer workspace.</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href={`https://${tenant.domain}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-full bg-[#0d6a6a] px-4 py-2 text-xs font-semibold text-white"
+                >
+                  Open workspace
+                </a>
+                {tenant.status.toLowerCase() === "failed" ? (
+                  <button
+                    className="rounded-full border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:border-amber-400 disabled:opacity-60"
+                    disabled={retrying}
+                    onClick={() => void retryProvisioning()}
+                  >
+                    {retrying ? "Retrying..." : "Retry provisioning"}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Status</p>
+            <p className="mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold text-slate-700">
+              {tenant.status}
             </p>
           </div>
-          <a
-            href={`https://${tenant.domain}`}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded border border-slate-600 px-3 py-1.5 text-xs hover:bg-slate-800"
-          >
-            Open workspace
-          </a>
-          {tenant.status.toLowerCase() === "failed" ? (
-            <button
-              className="rounded border border-amber-500 px-3 py-1.5 text-xs text-amber-200 hover:bg-amber-500/20 disabled:opacity-60"
-              disabled={retrying}
-              onClick={() => void retryProvisioning()}
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Plan</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">{tenant.plan ?? "—"}</p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Primary domain</p>
+            <a
+              href={`https://${tenant.domain}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 block text-sm font-semibold text-[#0d6a6a] hover:text-[#0b5a5a]"
             >
-              {retrying ? "Retrying..." : "Retry provisioning"}
-            </button>
-          ) : null}
+              {tenant.domain}
+            </a>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Payment channel</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">{tenant.payment_channel ?? "—"}</p>
+          </div>
+            </div>
+
+            <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              Next step: {nextActionByStatus(tenant.status)}
+            </p>
+          </div>
+
+          <aside className="space-y-3 rounded-3xl border border-amber-200/70 bg-white/80 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Quick actions</p>
+            <div className="space-y-2 text-xs text-slate-600">
+              <button
+                className="w-full rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-amber-200 hover:bg-amber-50"
+                onClick={() => navigator.clipboard.writeText(tenant.domain)}
+              >
+                Copy domain
+              </button>
+              {isAdmin ? (
+                <>
+                  <input
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
+                    placeholder="Reason (optional)"
+                    value={actionReason}
+                    onChange={(event) => setActionReason(event.target.value)}
+                  />
+                  <button
+                    className="w-full rounded-full border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:border-red-300 disabled:opacity-60"
+                    disabled={actionBusy}
+                    onClick={async () => {
+                      if (!tenant) return;
+                      setActionBusy(true);
+                      setActionError(null);
+                      setActionNotice(null);
+                      try {
+                        const result = await api.suspendTenant(tenant.id, actionReason.trim() || undefined);
+                        if (!result.supported) {
+                          setActionError("Suspend action is not enabled on this backend.");
+                          return;
+                        }
+                        setActionNotice("Tenant suspended successfully.");
+                        await loadTenant();
+                      } catch (err) {
+                        setActionError(getApiErrorMessage(err, "Failed to suspend tenant."));
+                      } finally {
+                        setActionBusy(false);
+                      }
+                    }}
+                  >
+                    Suspend tenant
+                  </button>
+                  <button
+                    className="w-full rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 hover:border-emerald-300 disabled:opacity-60"
+                    disabled={actionBusy}
+                    onClick={async () => {
+                      if (!tenant) return;
+                      setActionBusy(true);
+                      setActionError(null);
+                      setActionNotice(null);
+                      try {
+                        const result = await api.unsuspendTenant(tenant.id, actionReason.trim() || undefined);
+                        if (!result.supported) {
+                          setActionError("Unsuspend action is not enabled on this backend.");
+                          return;
+                        }
+                        setActionNotice("Tenant unsuspended successfully.");
+                        await loadTenant();
+                      } catch (err) {
+                        setActionError(getApiErrorMessage(err, "Failed to unsuspend tenant."));
+                      } finally {
+                        setActionBusy(false);
+                      }
+                    }}
+                  >
+                    Unsuspend tenant
+                  </button>
+                </>
+              ) : null}
+              {actionNotice ? (
+                <p className="rounded-2xl border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">
+                  {actionNotice}
+                </p>
+              ) : null}
+              {actionError ? (
+                <p className="rounded-2xl border border-red-200 bg-red-50 p-2 text-xs text-red-700">{actionError}</p>
+              ) : null}
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent operations</p>
+                {tenantSummaryError ? (
+                  <p className="mt-2 text-xs text-red-600">{tenantSummaryError}</p>
+                ) : null}
+                {recentJobsError ? (
+                  <p className="mt-2 text-xs text-red-600">{recentJobsError}</p>
+                ) : !recentJobsSupported ? (
+                  <p className="mt-2 text-xs text-slate-500">Job history not available.</p>
+                ) : recentJobs.length ? (
+                  <div className="mt-2 space-y-2 text-xs text-slate-600">
+                    {recentJobs.map((job) => (
+                      <div key={job.id} className="rounded-xl border border-slate-200 px-2 py-1">
+                        <p className="text-xs font-semibold text-slate-700">{job.type}</p>
+                        <p className="text-[11px] text-slate-500">{formatTimestamp(job.created_at)}</p>
+                        <p className="text-[11px] text-slate-500">Status: {job.status}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">No recent jobs yet.</p>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest backup</p>
+                {tenantSummary?.last_backup ? (
+                  <div className="mt-2 text-xs text-slate-600">
+                    <p className="font-semibold text-slate-700">{formatTimestamp(tenantSummary.last_backup.created_at)}</p>
+                    <p className="text-[11px] text-slate-500">
+                      {tenantSummary.last_backup.file_size_bytes
+                        ? `${tenantSummary.last_backup.file_size_bytes} bytes`
+                        : "Size unknown"}
+                    </p>
+                  </div>
+                ) : sortedBackups.length ? (
+                  <div className="mt-2 text-xs text-slate-600">
+                    <p className="font-semibold text-slate-700">
+                      {formatTimestamp(typeof sortedBackups[0].created_at === "string" ? sortedBackups[0].created_at : null)}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {sortedBackups[0].file_size_bytes ? `${sortedBackups[0].file_size_bytes} bytes` : "Size unknown"}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">No backup history yet.</p>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest invoice</p>
+                {tenantSummary?.last_invoice ? (
+                  <div className="mt-2 space-y-1 text-xs text-slate-600">
+                    <p className="font-semibold text-slate-700">
+                      {formatCurrencyAmount(tenantSummary.last_invoice.amount_due, tenantSummary.last_invoice.currency)}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Status: {tenantSummary.last_invoice.status || "unknown"}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {formatTimestamp(tenantSummary.last_invoice.created_at || undefined)}
+                    </p>
+                    {tenantSummary.last_invoice.hosted_invoice_url ? (
+                      <a
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:text-amber-800"
+                        href={tenantSummary.last_invoice.hosted_invoice_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View invoice
+                      </a>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">No invoice data yet.</p>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest activity</p>
+                {tenantSummary?.last_audit ? (
+                  <div className="mt-2 text-xs text-slate-600">
+                    <p className="font-semibold text-slate-700">{tenantSummary.last_audit.action}</p>
+                    <p className="text-[11px] text-slate-500">
+                      {formatTimestamp(tenantSummary.last_audit.created_at)}
+                    </p>
+                  </div>
+                ) : auditLog.length ? (
+                  <div className="mt-2 text-xs text-slate-600">
+                    <p className="font-semibold text-slate-700">{auditLog[0].action}</p>
+                    <p className="text-[11px] text-slate-500">{formatTimestamp(auditLog[0].created_at)}</p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">No activity logged yet.</p>
+                )}
+              </div>
+            </div>
+          </aside>
         </div>
-        <p className="mt-3 rounded border border-slate-700 bg-slate-950/50 p-3 text-xs text-slate-300">
-          Next step: {nextActionByStatus(tenant.status)}
-        </p>
       </div>
 
+      <nav className="flex flex-wrap gap-2 rounded-3xl border border-amber-200/70 bg-white/80 p-3 text-xs text-slate-700">
+        {[
+          ["overview", "Overview"],
+          ["jobs", "Jobs"],
+          ["backups", "Backups"],
+          ["domains", "Domains"],
+          ["team", "Team"],
+          ["activity", "Activity log"],
+          ["support", "Support notes"],
+        ].map(([id, label]) => (
+          <a
+            key={id}
+            href={`#${id}`}
+            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-amber-200 hover:bg-amber-50"
+          >
+            {label}
+          </a>
+        ))}
+      </nav>
+
       {jobId ? (
-        <div className="space-y-2 rounded-xl border border-slate-700 bg-slate-900/40 p-4">
-          <h2 className="text-lg font-semibold">Realtime job progress</h2>
+        <div id="jobs" className="space-y-2 rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+          <h2 className="text-lg font-semibold text-slate-900">Realtime job progress</h2>
           <JobLogPanel jobId={jobId} />
         </div>
       ) : null}
 
-      <div className="space-y-2 rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+      <div id="backups" className="space-y-2 rounded-3xl border border-amber-200/70 bg-white/80 p-6">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Recovery backups</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Recovery backups</h2>
           <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-amber-300"
             onClick={() => {
               void loadBackups();
             }}
@@ -329,53 +667,128 @@ export default function TenantDetailPage() {
         </div>
 
         {!backupsSupported ? (
-          <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
+          <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             Backup history endpoint is not available on this backend yet.
           </p>
         ) : sortedBackups.length ? (
-          <div className="overflow-x-auto rounded border border-slate-700">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-900/60">
-                <tr>
-                  <th className="p-2 text-left">Created</th>
-                  <th className="p-2 text-left">Backup file</th>
-                  <th className="p-2 text-left">Size</th>
-                  <th className="p-2 text-left">Expires</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedBackups.map((entry, index) => {
-                  const link = resolveBackupDownload(entry);
-                  return (
-                    <tr key={`${entry.id ?? entry.job_id ?? "backup"}-${index}`} className="border-t border-slate-700">
-                      <td className="p-2">{formatTimestamp(typeof entry.created_at === "string" ? entry.created_at : null)}</td>
-                      <td className="p-2">
-                        {link ? (
-                          <a href={link} target="_blank" rel="noreferrer" className="text-blue-300 hover:text-blue-200">
-                            {String(entry.file_path ?? "Download backup")}
-                          </a>
-                        ) : (
-                          <span className="text-slate-400">{String(entry.file_path ?? "Unavailable")}</span>
-                        )}
-                      </td>
-                      <td className="p-2">{typeof entry.file_size_bytes === "number" ? `${entry.file_size_bytes} bytes` : "—"}</td>
-                      <td className="p-2">{formatTimestamp(typeof entry.expires_at === "string" ? entry.expires_at : null)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th className="p-2 text-left">Created</th>
+                    <th className="p-2 text-left">Backup file</th>
+                    <th className="p-2 text-left">Size</th>
+                    <th className="p-2 text-left">Expires</th>
+                    <th className="p-2 text-left">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedBackups.map((entry, index) => {
+                    const link = resolveBackupDownload(entry);
+                    return (
+                      <tr key={`${entry.id ?? entry.job_id ?? "backup"}-${index}`} className="border-t border-slate-200">
+                        <td className="p-2">{formatTimestamp(typeof entry.created_at === "string" ? entry.created_at : null)}</td>
+                        <td className="p-2">
+                          {link ? (
+                            <a href={link} target="_blank" rel="noreferrer" className="text-[#0d6a6a] hover:text-[#0b5a5a]">
+                              {String(entry.file_path ?? "Download backup")}
+                            </a>
+                          ) : (
+                            <span className="text-slate-400">{String(entry.file_path ?? "Unavailable")}</span>
+                          )}
+                        </td>
+                        <td className="p-2">{typeof entry.file_size_bytes === "number" ? `${entry.file_size_bytes} bytes` : "—"}</td>
+                        <td className="p-2">{formatTimestamp(typeof entry.expires_at === "string" ? entry.expires_at : null)}</td>
+                        <td className="p-2">
+                          <button
+                            className="rounded-full border border-amber-200 px-3 py-1 text-xs text-slate-700 hover:border-amber-300 disabled:opacity-60"
+                            disabled={!entry.id || restoreBusy}
+                            onClick={() => {
+                              setRestoreTarget(entry);
+                              setRestoreConfirm("");
+                              setRestoreError(null);
+                              setRestoreNotice(null);
+                            }}
+                          >
+                            Restore
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {restoreTarget ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-semibold text-slate-900">Confirm restore</p>
+                <p className="mt-1 text-xs text-slate-700">
+                  Restoring will overwrite the current tenant database with the selected backup. Type{" "}
+                  <span className="font-semibold">RESTORE</span> to continue.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <input
+                    className="rounded-xl border border-amber-200 bg-white px-3 py-1.5 text-xs text-slate-700"
+                    value={restoreConfirm}
+                    onChange={(event) => setRestoreConfirm(event.target.value)}
+                    placeholder="RESTORE"
+                  />
+                  <button
+                    className="rounded-full bg-[#0d6a6a] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                    disabled={restoreConfirm.trim() !== "RESTORE" || restoreBusy || !restoreTarget.id || !tenant}
+                    onClick={async () => {
+                      if (!tenant || !restoreTarget.id) return;
+                      setRestoreBusy(true);
+                      setRestoreError(null);
+                      setRestoreNotice(null);
+                      try {
+                        const result = await api.restoreTenant(tenant.id, restoreTarget.id);
+                        if (!result.supported) {
+                          setRestoreError("Restore endpoint is not available on this backend.");
+                          return;
+                        }
+                        setRestoreNotice("Restore queued. Monitor job logs for progress.");
+                        setRestoreTarget(null);
+                        setRestoreConfirm("");
+                        if (result.data?.id) {
+                          router.push(`/tenants/${tenant.id}?job=${result.data.id}`);
+                        }
+                      } catch (err) {
+                        setRestoreError(getApiErrorMessage(err, "Failed to queue restore"));
+                      } finally {
+                        setRestoreBusy(false);
+                      }
+                    }}
+                  >
+                    {restoreBusy ? "Queuing..." : "Confirm restore"}
+                  </button>
+                  <button
+                    className="rounded-full border border-amber-200 px-3 py-1.5 text-xs text-slate-700 hover:border-amber-300"
+                    onClick={() => {
+                      setRestoreTarget(null);
+                      setRestoreConfirm("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+                {restoreError ? <p className="mt-2 text-xs text-red-700">{restoreError}</p> : null}
+                {restoreNotice ? <p className="mt-2 text-xs text-emerald-800">{restoreNotice}</p> : null}
+              </div>
+            ) : null}
+          </>
         ) : (
-          <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
+          <p className="rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
             No backup records yet. Trigger a backup from dashboard when you need a restore point.
           </p>
         )}
       </div>
 
-      <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+      <div id="domains" className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Custom domains</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Custom domains</h2>
           <button
             className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
             onClick={() => {
@@ -532,11 +945,11 @@ export default function TenantDetailPage() {
         )}
       </div>
 
-      <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+      <div id="team" className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Team</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Team</h2>
           <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-amber-300"
             onClick={() => {
               void loadMembers();
             }}
@@ -546,24 +959,24 @@ export default function TenantDetailPage() {
         </div>
 
         {!membersSupported ? (
-          <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
+          <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             Team management is not available on this backend yet.
           </p>
         ) : membersError ? (
-          <p className="text-sm text-red-400">{membersError}</p>
+          <p className="text-sm text-red-600">{membersError}</p>
         ) : (
           <div className="space-y-4">
-            <div className="rounded border border-slate-700 bg-slate-950/60 p-3">
-              <h3 className="text-sm font-semibold text-slate-200">Invite teammate</h3>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <h3 className="text-sm font-semibold text-slate-900">Invite teammate</h3>
               <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                 <input
-                  className="w-full flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                  className="w-full flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
                   placeholder="Email address"
                   value={inviteEmail}
                   onChange={(event) => setInviteEmail(event.target.value)}
                 />
                 <select
-                  className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
                   value={inviteRole}
                   onChange={(event) => setInviteRole(event.target.value)}
                 >
@@ -574,7 +987,7 @@ export default function TenantDetailPage() {
                   ))}
                 </select>
                 <button
-                  className="rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-60"
                   disabled={inviting || !inviteEmail.trim()}
                   onClick={async () => {
                     if (!id) return;
@@ -603,9 +1016,9 @@ export default function TenantDetailPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded border border-slate-700">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-900/60">
+                <thead className="bg-slate-50 text-slate-600">
                   <tr>
                     <th className="p-2 text-left">Email</th>
                     <th className="p-2 text-left">Role</th>
@@ -616,20 +1029,20 @@ export default function TenantDetailPage() {
                 <tbody>
                   {members.length === 0 ? (
                     <tr>
-                      <td className="p-3 text-sm text-slate-400" colSpan={4}>
+                      <td className="p-3 text-sm text-slate-500" colSpan={4}>
                         No team members yet.
                       </td>
                     </tr>
                   ) : (
                     members.map((member) => (
-                      <tr key={member.id} className="border-t border-slate-700">
-                        <td className="p-2 text-xs text-slate-200">{member.user_email || member.user_id}</td>
+                      <tr key={member.id} className="border-t border-slate-200">
+                        <td className="p-2 text-xs text-slate-700">{member.user_email || member.user_id}</td>
                         <td className="p-2 text-xs">
                           {member.role === "owner" ? (
-                            <span className="rounded bg-slate-800 px-2 py-1 text-xs text-slate-200">owner</span>
+                            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">owner</span>
                           ) : (
                             <select
-                              className="rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100"
+                              className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
                               value={member.role}
                               onChange={async (event) => {
                                 if (!id) return;
@@ -659,13 +1072,13 @@ export default function TenantDetailPage() {
                             </select>
                           )}
                         </td>
-                        <td className="p-2 text-xs text-slate-400">{formatTimestamp(member.created_at)}</td>
+                        <td className="p-2 text-xs text-slate-500">{formatTimestamp(member.created_at)}</td>
                         <td className="p-2 text-xs">
                           {member.role === "owner" ? (
                             <span className="text-slate-500">Owner</span>
                           ) : (
                             <button
-                              className="rounded border border-slate-600 px-2 py-1 text-xs text-red-300 hover:bg-slate-800 disabled:opacity-60"
+                              className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:border-red-300 disabled:opacity-60"
                               disabled={removingMemberId === member.id}
                               onClick={async () => {
                                 if (!id) return;
@@ -699,11 +1112,11 @@ export default function TenantDetailPage() {
         )}
       </div>
 
-      <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+      <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Custom domains</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Custom domains</h2>
           <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-amber-300"
             onClick={() => {
               void loadDomains();
             }}
@@ -711,30 +1124,30 @@ export default function TenantDetailPage() {
             Refresh
           </button>
         </div>
-        <p className="mb-3 text-xs text-slate-400">
-          Add a branded domain. Point a CNAME record at <span className="text-slate-200">{tenant.domain}</span>, then verify
+        <p className="mb-3 text-xs text-slate-600">
+          Add a branded domain. Point a CNAME record at <span className="font-semibold text-slate-900">{tenant.domain}</span>, then verify
           once DNS has propagated.
         </p>
 
         {!domainsSupported ? (
-          <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
+          <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             Custom domain management is not available on this backend yet.
           </p>
         ) : domainsError ? (
-          <p className="text-sm text-red-400">{domainsError}</p>
+          <p className="text-sm text-red-600">{domainsError}</p>
         ) : (
           <div className="space-y-4">
-            <div className="rounded border border-slate-700 bg-slate-950/60 p-3">
-              <h3 className="text-sm font-semibold text-slate-200">Add custom domain</h3>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <h3 className="text-sm font-semibold text-slate-900">Add custom domain</h3>
               <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                 <input
-                  className="w-full flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                  className="w-full flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
                   placeholder="e.g. erp.example.com"
                   value={domainInput}
                   onChange={(event) => setDomainInput(event.target.value)}
                 />
                 <button
-                  className="rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                  className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-60"
                   disabled={addingDomain || !domainInput.trim()}
                   onClick={async () => {
                     if (!id) return;
@@ -760,9 +1173,9 @@ export default function TenantDetailPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto rounded border border-slate-700">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
               <table className="min-w-full text-sm">
-                <thead className="bg-slate-900/60">
+                <thead className="bg-slate-50 text-slate-600">
                   <tr>
                     <th className="p-2 text-left">Domain</th>
                     <th className="p-2 text-left">Status</th>
@@ -775,26 +1188,26 @@ export default function TenantDetailPage() {
                 <tbody>
                   {domains.length === 0 ? (
                     <tr>
-                      <td className="p-3 text-sm text-slate-400" colSpan={6}>
+                      <td className="p-3 text-sm text-slate-500" colSpan={6}>
                         No custom domains added yet.
                       </td>
                     </tr>
                   ) : (
                     domains.map((domain) => (
-                      <tr key={domain.id} className="border-t border-slate-700">
-                        <td className="p-2 text-xs text-slate-200">{domain.domain}</td>
+                      <tr key={domain.id} className="border-t border-slate-200">
+                        <td className="p-2 text-xs text-slate-700">{domain.domain}</td>
                         <td className="p-2 text-xs">
-                          <span className={`rounded px-2 py-1 text-xs ${domainStatusClass(domain.status)}`}>
+                          <span className={`rounded-full px-2 py-1 text-xs ${domainStatusClass(domain.status)}`}>
                             {domain.status}
                           </span>
                         </td>
-                        <td className="p-2 text-xs text-slate-400">{formatTimestamp(domain.created_at)}</td>
-                        <td className="p-2 text-xs text-slate-400">{formatTimestamp(domain.verified_at)}</td>
-                        <td className="p-2 text-xs text-slate-400">{domain.verification_token}</td>
+                        <td className="p-2 text-xs text-slate-500">{formatTimestamp(domain.created_at)}</td>
+                        <td className="p-2 text-xs text-slate-500">{formatTimestamp(domain.verified_at)}</td>
+                        <td className="p-2 text-xs text-slate-500">{domain.verification_token}</td>
                         <td className="p-2 text-xs">
                           <div className="flex flex-wrap gap-2">
                             <button
-                              className="rounded border border-slate-600 px-2 py-1 text-xs text-emerald-200 hover:bg-slate-800 disabled:opacity-60"
+                              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 hover:border-emerald-300 disabled:opacity-60"
                               disabled={domain.status === "verified" || verifyingDomainId === domain.id}
                               onClick={async () => {
                                 if (!id) return;
@@ -817,7 +1230,7 @@ export default function TenantDetailPage() {
                               {verifyingDomainId === domain.id ? "Verifying..." : "Verify"}
                             </button>
                             <button
-                              className="rounded border border-slate-600 px-2 py-1 text-xs text-red-300 hover:bg-slate-800 disabled:opacity-60"
+                              className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:border-red-300 disabled:opacity-60"
                               disabled={removingDomainId === domain.id}
                               onClick={async () => {
                                 if (!id) return;
@@ -852,11 +1265,11 @@ export default function TenantDetailPage() {
       </div>
 
       {isAdmin ? (
-        <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+        <div id="support" className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold">Support notes</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Support notes</h2>
             <button
-              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+              className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-amber-300"
               onClick={() => {
                 void loadSupportNotes();
               }}
@@ -864,24 +1277,40 @@ export default function TenantDetailPage() {
               Refresh
             </button>
           </div>
-          <p className="mb-3 text-xs text-slate-400">
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+            <span>Filter:</span>
+            {["all", "open", "monitoring", "resolved", "due_soon", "breached"].map((option) => (
+              <button
+                key={option}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                  supportNoteFilter === option
+                    ? "border-emerald-300 bg-emerald-100 text-emerald-800"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-amber-200 hover:bg-amber-50"
+                }`}
+                onClick={() => setSupportNoteFilter(option)}
+              >
+                {option.replace("_", " ")}
+              </button>
+            ))}
+          </div>
+          <p className="mb-3 text-xs text-slate-500">
             Internal notes are visible to platform admins only. Use them to track incidents, billing context, or key follow-ups.
           </p>
 
           {!supportNotesSupported ? (
-            <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
+            <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               Support notes are not available on this backend yet.
             </p>
           ) : supportNotesError ? (
-            <p className="text-sm text-red-400">{supportNotesError}</p>
+            <p className="text-sm text-red-600">{supportNotesError}</p>
           ) : (
             <div className="space-y-4">
-              <div className="rounded border border-slate-700 bg-slate-950/60 p-3">
-                <h3 className="text-sm font-semibold text-slate-200">Add support note</h3>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <h3 className="text-sm font-semibold text-slate-900">Add support note</h3>
                 <div className="mt-2 flex flex-col gap-2">
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <select
-                      className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
                       value={supportNoteCategory}
                       onChange={(event) => setSupportNoteCategory(event.target.value)}
                     >
@@ -890,15 +1319,49 @@ export default function TenantDetailPage() {
                       <option value="follow_up">Follow-up</option>
                       <option value="billing">Billing</option>
                     </select>
+                    <select
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                      value={supportNoteStatus}
+                      onChange={(event) => setSupportNoteStatus(event.target.value)}
+                    >
+                      {["open", "monitoring", "resolved"].map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                      placeholder="Owner name"
+                      value={supportNoteOwner}
+                      onChange={(event) => setSupportNoteOwner(event.target.value)}
+                    />
+                    <input
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                      placeholder="Contact (phone/WhatsApp/email)"
+                      value={supportNoteContact}
+                      onChange={(event) => setSupportNoteContact(event.target.value)}
+                    />
+                    <input
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                      type="datetime-local"
+                      value={supportNoteDueAt}
+                      onChange={(event) => setSupportNoteDueAt(event.target.value)}
+                    />
                     <button
-                      className="rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                      className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-60"
                       disabled={savingSupportNote || !supportNoteText.trim()}
                       onClick={async () => {
                         if (!id) return;
                         setSavingSupportNote(true);
                         setSupportNotesError(null);
                         try {
-                          const result = await api.createSupportNote(id, supportNoteCategory, supportNoteText.trim());
+                          const result = await api.createSupportNote(
+                            id,
+                            supportNoteCategory,
+                            supportNoteText.trim(),
+                            buildSupportNoteExtras()
+                          );
                           if (!result.supported) {
                             setSupportNotesError("Support note endpoint is not available on this backend.");
                             return;
@@ -915,8 +1378,24 @@ export default function TenantDetailPage() {
                       {savingSupportNote ? "Saving..." : "Save note"}
                     </button>
                   </div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                    <span>Filter notes:</span>
+                    {["all", "open", "monitoring", "resolved", "due_soon", "breached"].map((option) => (
+                      <button
+                        key={option}
+                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                          supportNoteFilter === option
+                            ? "border-emerald-300 bg-emerald-100 text-emerald-800"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-amber-200 hover:bg-amber-50"
+                        }`}
+                        onClick={() => setSupportNoteFilter(option)}
+                      >
+                        {option.replace("_", " ")}
+                      </button>
+                    ))}
+                  </div>
                   <textarea
-                    className="min-h-[90px] w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+                    className="min-h-[90px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
                     placeholder="Record the support context, decisions, and next steps."
                     value={supportNoteText}
                     onChange={(event) => setSupportNoteText(event.target.value)}
@@ -926,20 +1405,58 @@ export default function TenantDetailPage() {
 
               <div className="space-y-3">
                 {supportNotes.length === 0 ? (
-                  <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
+                  <p className="rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
                     No support notes yet.
                   </p>
                 ) : (
-                  supportNotes.map((note) => (
-                    <div key={note.id} className="rounded border border-slate-700 bg-slate-950/60 p-3 text-sm">
+                  filteredSupportNotes.map((note) => (
+                    <div key={note.id} className="rounded-2xl border border-slate-200 bg-white p-3 text-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="rounded bg-slate-800 px-2 py-1 text-xs text-slate-200">{note.category}</span>
-                        <span className="text-xs text-slate-400">{formatTimestamp(note.created_at)}</span>
+                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">{note.category}</span>
+                        <span className="text-xs text-slate-500">{formatTimestamp(note.created_at)}</span>
                       </div>
-                      <p className="mt-2 text-slate-200">{note.note}</p>
-                      <p className="mt-2 text-xs text-slate-400">
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                        <span>Status: {note.status ?? "open"}</span>
+                        <span className="rounded-full border border-slate-200 px-2 py-0.5">
+                          SLA: {getSlaState(note).replace("_", " ")}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-slate-700">{note.note}</p>
+                      <p className="mt-2 text-xs text-slate-500">
+                        Owner: {note.owner_name || "—"} {note.owner_contact ? `• ${note.owner_contact}` : ""}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        SLA due: {note.sla_due_at ? formatTimestamp(note.sla_due_at) : "—"}
+                      </p>
+                      <p className="mt-2 text-xs text-slate-500">
                         {note.author_email || note.author_role || "admin"} • {note.author_role}
                       </p>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                        <button
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-amber-200 hover:bg-amber-50 disabled:opacity-60"
+                          disabled={savingSupportNote}
+                          onClick={async () => {
+                            if (!note.id) return;
+                            setSavingSupportNote(true);
+                            try {
+                              const result = await api.updateSupportNote(note.id, {
+                                status: note.status === "resolved" ? "open" : "resolved",
+                              });
+                              if (!result.supported) {
+                                setSupportNotesSupported(false);
+                                return;
+                              }
+                              await loadSupportNotes();
+                            } catch (err) {
+                              setSupportNotesError(getApiErrorMessage(err, "Failed to update support note"));
+                            } finally {
+                              setSavingSupportNote(false);
+                            }
+                          }}
+                        >
+                          {note.status === "resolved" ? "Reopen" : "Mark resolved"}
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}
@@ -949,11 +1466,11 @@ export default function TenantDetailPage() {
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
+      <div id="activity" className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Activity log</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Activity log</h2>
           <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
+            className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-amber-300"
             onClick={() => {
               void loadAuditLog();
             }}
@@ -963,15 +1480,15 @@ export default function TenantDetailPage() {
         </div>
 
         {!auditSupported ? (
-          <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
+          <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             Activity log endpoint is not available on this backend yet.
           </p>
         ) : auditError ? (
-          <p className="text-sm text-red-400">{auditError}</p>
+          <p className="text-sm text-red-600">{auditError}</p>
         ) : auditLog.length ? (
-          <div className="overflow-x-auto rounded border border-slate-700">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
             <table className="min-w-full text-sm">
-              <thead className="bg-slate-900/60">
+              <thead className="bg-slate-50 text-slate-600">
                 <tr>
                   <th className="p-2 text-left">Time</th>
                   <th className="p-2 text-left">Actor</th>
@@ -981,38 +1498,38 @@ export default function TenantDetailPage() {
               </thead>
               <tbody>
                 {auditLog.map((entry) => (
-                  <tr key={entry.id} className="border-t border-slate-700">
-                    <td className="p-2 text-xs text-slate-300">{formatTimestamp(entry.created_at)}</td>
-                    <td className="p-2 text-xs text-slate-300">
+                  <tr key={entry.id} className="border-t border-slate-200">
+                    <td className="p-2 text-xs text-slate-700">{formatTimestamp(entry.created_at)}</td>
+                    <td className="p-2 text-xs text-slate-700">
                       {entry.actor_email || entry.actor_id || entry.actor_role}
                     </td>
                     <td className="p-2 text-xs">{entry.action}</td>
-                    <td className="p-2 text-xs text-slate-400">{entry.ip_address || "—"}</td>
+                    <td className="p-2 text-xs text-slate-500">{entry.ip_address || "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         ) : (
-          <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
+          <p className="rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
             No activity recorded yet.
           </p>
         )}
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
           <span>
             Page {auditPage} of {auditTotalPages} • {auditTotal} events
           </span>
           <div className="flex gap-2">
             <button
-              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-amber-200 hover:bg-amber-50 disabled:opacity-60"
               disabled={auditPage <= 1}
               onClick={() => setAuditPage((prev) => Math.max(1, prev - 1))}
             >
               Previous
             </button>
             <button
-              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-amber-200 hover:bg-amber-50 disabled:opacity-60"
               disabled={auditPage >= auditTotalPages}
               onClick={() => setAuditPage((prev) => Math.min(auditTotalPages, prev + 1))}
             >
@@ -1022,111 +1539,7 @@ export default function TenantDetailPage() {
         </div>
       </div>
 
-      {isAdmin ? (
-        <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold">Support notes</h2>
-            <button
-              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
-              onClick={() => {
-                void loadSupportNotes();
-              }}
-            >
-              Refresh
-            </button>
-          </div>
-
-          {!supportNotesSupported ? (
-            <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
-              Support notes are not available on this backend yet.
-            </p>
-          ) : supportNotesError ? (
-            <p className="text-sm text-red-400">{supportNotesError}</p>
-          ) : (
-            <div className="space-y-4">
-              <div className="rounded border border-slate-700 bg-slate-950/60 p-3">
-                <h3 className="text-sm font-semibold text-slate-200">Add note</h3>
-                <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                  <select
-                    className="rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-                    value={supportNoteCategory}
-                    onChange={(event) => setSupportNoteCategory(event.target.value)}
-                  >
-                    {["note", "incident", "risk"].map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    className="w-full flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-                    placeholder="What happened, next steps, or key context"
-                    value={supportNoteText}
-                    onChange={(event) => setSupportNoteText(event.target.value)}
-                  />
-                  <button
-                    className="rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                    disabled={savingSupportNote || !supportNoteText.trim()}
-                    onClick={async () => {
-                      if (!id) return;
-                      setSavingSupportNote(true);
-                      setSupportNotesError(null);
-                      try {
-                        const result = await api.createSupportNote(id, supportNoteCategory, supportNoteText.trim());
-                        if (!result.supported) {
-                          setSupportNotesSupported(false);
-                          return;
-                        }
-                        setSupportNoteText("");
-                        await loadSupportNotes();
-                      } catch (err) {
-                        setSupportNotesError(getApiErrorMessage(err, "Failed to add support note"));
-                      } finally {
-                        setSavingSupportNote(false);
-                      }
-                    }}
-                  >
-                    {savingSupportNote ? "Saving..." : "Save"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto rounded border border-slate-700">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-900/60">
-                    <tr>
-                      <th className="p-2 text-left">Time</th>
-                      <th className="p-2 text-left">Author</th>
-                      <th className="p-2 text-left">Category</th>
-                      <th className="p-2 text-left">Note</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {supportNotes.length === 0 ? (
-                      <tr>
-                        <td className="p-3 text-sm text-slate-400" colSpan={4}>
-                          No support notes yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      supportNotes.map((note) => (
-                        <tr key={note.id} className="border-t border-slate-700">
-                          <td className="p-2 text-xs text-slate-300">{formatTimestamp(note.created_at)}</td>
-                          <td className="p-2 text-xs text-slate-300">{note.author_email || note.author_role}</td>
-                          <td className="p-2 text-xs text-slate-300">{note.category}</td>
-                          <td className="p-2 text-xs text-slate-200">{note.note}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      ) : null}
-
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
     </section>
   );
 }

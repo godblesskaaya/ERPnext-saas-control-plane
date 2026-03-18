@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { api } from "../../../domains/shared/lib/api";
-import { saveToken } from "../../../domains/auth/auth";
+import { useEffect, useState } from "react";
+import { loadAuthHealthSnapshot, signupAndLogin } from "../../../domains/auth/application/authUseCases";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -13,6 +12,26 @@ export default function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [apiHealth, setApiHealth] = useState("checking");
+  const [authHealth, setAuthHealth] = useState("checking");
+  const [billingHealth, setBillingHealth] = useState("checking");
+
+  useEffect(() => {
+    const loadHealth = async () => {
+      try {
+        const response = await fetch("/api/health", { cache: "no-store" });
+        setApiHealth(response.ok ? "ok" : "unavailable");
+      } catch {
+        setApiHealth("unavailable");
+      }
+
+      const health = await loadAuthHealthSnapshot();
+      setAuthHealth(health.auth.message);
+      setBillingHealth(health.billing.message);
+    };
+
+    void loadHealth();
+  }, []);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -21,9 +40,7 @@ export default function SignupPage() {
     setNotice(null);
 
     try {
-      await api.signup(email, password);
-      const token = await api.login(email, password);
-      saveToken(token.access_token);
+      await signupAndLogin({ email, password, persistToken: true });
       setNotice("Account created. Please verify your email from your inbox before creating a workspace.");
       router.push("/dashboard?verifyEmail=1");
     } catch (err) {
@@ -47,6 +64,21 @@ export default function SignupPage() {
           <li>• Checkout language is suitable for teams using card or mobile-money compatible payment providers.</li>
           <li>• Interface copy is intentionally easy to follow for Swahili and English speaking teams.</li>
         </ul>
+      </div>
+
+      <div className="rounded-2xl border border-amber-200/70 bg-white/80 p-4 text-sm text-slate-700">
+        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Diagnostics</p>
+        <div className="mt-2 grid gap-2 text-xs md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+            API: <span className="font-semibold">{apiHealth}</span>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+            Auth: <span className="font-semibold">{authHealth}</span>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+            Billing: <span className="font-semibold">{billingHealth}</span>
+          </div>
+        </div>
       </div>
 
       <form className="space-y-4" onSubmit={submit}>

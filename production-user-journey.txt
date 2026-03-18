@@ -1,0 +1,362 @@
+Biashara Cloud – SaaS Platform
+Product Requirements & Engineering Design Document
+Full Production User Journey  •  v1.0  •  March 2026
+
+Authors	Product Manager + Senior Engineer
+Scope	Biashara Cloud – saas-ui (Next.js 15 / React 19) + backend API contract
+Status	DRAFT – for engineering review
+Audience	Engineering, QA, DevOps, Customer Success
+ 
+1. Executive Summary
+Biashara Cloud is a multi-tenant ERP SaaS platform targeting SME and mid-market businesses operating in Tanzania. The current codebase implements the core happy-path: signup, onboarding, tenant creation, and basic admin oversight. This document maps the complete production user journey, captures all missing functional requirements, edge cases, failure and recovery flows, and operational features required before a general-availability launch.
+The analysis is grounded in the existing Next.js 15 frontend (saas-ui), the API contract inferred from lib/api.ts, and the product positioning as a Tanzania-first, mobile-friendly, TZS-aware business operations platform.
+2. Complete User Journey Map
+The platform serves three distinct actor types, each with a distinct journey.
+2.1 Actor Map
+Actor	Entry Point	Primary Goals	Key Pain Points Today
+New Visitor / Prospect	Landing page (/)	Evaluate plans, understand value, sign up	No live demo, no TZS pricing confirmation
+Workspace Owner (user)	Signup → Onboarding → Dashboard	Create & manage tenant(s), monitor provisioning	No re-entry to abandoned onboarding, no tenant switching
+Branch / Team Operator	Workspace URL (ERP app)	Run daily sales, stock, finance operations	Out of scope for saas-ui, but URL access must be reliable
+Platform Admin	/admin (role=admin JWT)	Oversee all tenants, intervene in failures, inspect jobs	No bulk actions, no audit log, no alert routing
+Billing System (automated)	Webhook endpoints (POST)	Confirm payment, trigger provisioning	No webhook handler in frontend; backend must expose it
+
+2.2 New Visitor Journey
+Step 1 – Discovery & Evaluation
+1.	Lands on / (landing page) – reads outcomes, pricing, trust signals.
+2.	Clicks 'View plans' → scrolled to #pricing section.
+3.	Reads plan cards – needs TZS estimate and clear feature comparison.
+4.	Clicks 'Start your setup' → /signup.
+Step 2 – Signup
+5.	Enters email + password (min 8 chars).
+6.	Backend creates user account, returns JWT on auto-login.
+7.	Redirected to /onboarding?welcome=1.
+Missing: Email Verification Flow
+•	User receives verification email with a token link.
+•	Unverified users see a banner on dashboard; tenant creation is gated or flagged.
+•	Resend verification link button required on dashboard and login.
+•	Token expiry (24h) with re-send capability.
+2.3 Workspace Owner Journey
+Phase A – Onboarding (5-step wizard)
+Step	Current Behaviour	Gap / Required Enhancement
+1 – Business Details	Enter company name + subdomain	Subdomain conflict check (real-time), min 3 chars, DNS-safe chars only
+2 – Plan Selection	Choose Starter / Business / Enterprise; select chosen_app for Business	Plan upgrade/downgrade path; chosen_app mismatch on older backends (retry handled)
+3 – Payment	Redirect to checkout (DPO / Stripe)	Checkout timeout, popup blocker, user closes tab mid-payment
+4 – Provisioning (Polling)	Status polling every 5 s, progress bar	Polling continues if tab is closed (must survive re-open), failed state with actionable error
+5 – Success	Display workspace URL, copy button, CTA to dashboard	URL not yet DNS-propagated; need 'still warming up' message if first request fails
+
+Phase B – Tenant Management (Dashboard)
+8.	View all tenants in table with health, plan, billing status.
+9.	Create additional workspace via TenantCreateForm.
+10.	Trigger manual backup → job tracked in table.
+11.	Reset admin password → 30-second visible credential (clipboard).
+12.	Delete workspace → requires typing subdomain in uppercase for confirmation.
+13.	Inspect job logs via expandable row → JobLogPanel (WebSocket + polling fallback).
+Phase C – Tenant Detail View
+14.	View provisioning history, real-time job progress (via ?job= param).
+15.	Browse backup history with download links and expiry dates.
+16.	Next-action guidance based on current status.
+2.4 Platform Admin Journey
+17.	Login with admin-role JWT → /admin visible in nav.
+18.	Admin Control Center: attention lane, metric cards, execution monitor.
+19.	Tenant intervention panel: all tenants across all owners.
+20.	Suspend tenant (confirmation modal required but currently just window.confirm).
+21.	Inspect dead-letter queue for failed background jobs.
+22.	Inspect per-job logs via 'Inspect logs' button.
+Critical gaps: no unsuspend, no requeue dead-letter jobs, no audit trail, no alerting.
+3. Missing Functional Requirements
+3.1 Authentication & Identity
+ID	Requirement	Priority	Notes
+AUTH-01	Email verification gate: users must verify email before tenant creation or within 72h of signup.	P0	Backend must expose POST /auth/verify-email and GET /auth/resend-verification.
+AUTH-02	Password reset flow: forgot-password page → email magic link → set new password.	P0	No current /forgot-password route exists.
+AUTH-03	Session refresh / silent token renewal before expiry to avoid mid-task logout.	P1	Frontend should call refresh endpoint when token is <10 min from expiry.
+AUTH-04	Multi-account support: one user email can be linked to multiple tenant workspaces.	P1	Dashboard already shows multiple tenants but no tenant-switching UI.
+AUTH-05	OAuth2 sign-in (Google) for faster onboarding.	P2	Nice-to-have; defers to post-GA.
+AUTH-06	Account deletion: GDPR/data erasure request flow.	P1	Legal requirement for any EU-accessible SaaS.
+
+3.2 Onboarding & Tenant Creation
+ID	Requirement	Priority	Notes
+ONB-01	Subdomain availability check: real-time debounced API call (400ms) with green/red indicator.	P0	Currently only validated client-side by format; server conflict returns 409 which shows generic error.
+ONB-02	Resume interrupted onboarding: if tenant exists in pending/provisioning state, redirect to that step instead of starting fresh.	P0	User refreshing at step 4 currently loses context.
+ONB-03	Payment webhook handler: POST /webhooks/payment endpoint to advance tenant from pending_payment to provisioning automatically.	P0	Currently relies on user clicking 'I already completed payment'.
+ONB-04	Stripe/DPO checkout timeout: if checkout session expires (typically 30 min), show expiry screen with 'Create new checkout' CTA.	P1	checkout_url is stored once and never refreshed.
+ONB-05	Provisioning failure recovery: 'Retry provisioning' button on failed tenants that re-queues the job.	P1	Admin can see failure but user has no self-service recovery path.
+ONB-06	Enterprise plan inquiry form: 'Contact us' flow instead of checkout, capturing name, company size, and use-case.	P2	Currently Enterprise plan has no CTA after selection.
+ONB-07	Onboarding progress persistence across browser sessions (store step + tenantId in localStorage / cookie).	P1	Closing the tab during provisioning polling means user has to find tenant in dashboard.
+
+3.3 Dashboard & Tenant Operations
+ID	Requirement	Priority	Notes
+DASH-01	Tenant search and filter: filter by status, plan, date range; search by company name or subdomain.	P1	Table becomes unmanageable at 10+ tenants.
+DASH-02	Pagination or virtual scroll for tenant table (page size 20, server-side).	P1	listTenants currently returns all records unbounded.
+DASH-03	Tenant plan upgrade/downgrade: in-dashboard plan change with prorated billing confirmation.	P1	No edit-tenant endpoint currently defined.
+DASH-04	Scheduled backup: configure cron schedule (daily/weekly) per tenant; view next scheduled time.	P2	Only manual backup exists today.
+DASH-05	Backup restore trigger: POST /tenants/:id/restore from a selected backup manifest entry.	P1	Backups are listed but not restorable from UI.
+DASH-06	Tenant notes / internal CRM: free-text note field per tenant for support context.	P2	Useful for multi-operator teams.
+DASH-07	Export tenant list as CSV (company, plan, status, created_at, domain).	P2	Operational reporting need.
+DASH-08	Notification centre: in-app toast + notification panel for job completions, failures, billing events.	P1	Currently no push feedback after async operations.
+
+3.4 Billing & Payment
+ID	Requirement	Priority	Notes
+BILL-01	Billing portal link: 'Manage billing' button that opens Stripe/DPO self-service portal in a new tab.	P1	No way for users to update cards, view invoices, or cancel subscriptions.
+BILL-02	Invoice history page: list of past invoices with download PDF links.	P1	Tax compliance requirement.
+BILL-03	Failed payment handling: show dunning banner on dashboard if subscription payment fails; link to billing portal.	P1	Currently billing_status is shown in table but no user-facing action.
+BILL-04	Plan trial period: 14-day free trial for Starter/Business before payment required.	P2	Reduces friction in a price-sensitive market.
+BILL-05	TZS invoicing option: display and issue invoices in TZS for local compliance.	P2	Currently TZS is shown as approximate guidance only.
+
+3.5 Admin Platform
+ID	Requirement	Priority	Notes
+ADM-01	Unsuspend tenant: POST /admin/tenants/:id/unsuspend endpoint and UI button.	P0	Suspend exists but there is no reverse action.
+ADM-02	Requeue dead-letter job: POST /admin/jobs/dead-letter/:id/requeue button in recovery queue.	P1	Dead-letter jobs are visible but not actionable.
+ADM-03	Admin audit log: immutable log of all admin actions (suspend, delete, password reset) with timestamp and actor email.	P0	Legal / compliance requirement.
+ADM-04	Impersonate tenant owner: admin can log in as a tenant owner to debug issues (with audit trail).	P2	Common support tool; requires backend token-exchange endpoint.
+ADM-05	Bulk operations: select multiple tenants → bulk suspend / bulk export.	P2	Operational efficiency at scale.
+ADM-06	Alert configuration: set thresholds (e.g., provisioning >15 min → email alert to ops team).	P1	Currently requires manual dashboard polling.
+ADM-07	Admin dashboard metrics: historical charts – tenants created per week, provisioning success rate, backup frequency.	P2	Operational intelligence.
+ADM-08	Role hierarchy: add 'support' role with read-only admin access (no suspend/delete).	P1	Currently only 'admin' and regular user roles exist.
+
+4. Edge Cases
+4.1 Subdomain & Identity Conflicts
+•	User types subdomain, backend returns 409 (conflict): show inline error 'That subdomain is already taken' and clear the field.
+•	Subdomain passes client validation but fails on backend due to DNS reservation (e.g., 'www', 'api', 'mail'): backend must maintain a blocklist; frontend must surface the message verbatim.
+•	Two concurrent onboarding tabs for the same user submitting identical subdomains: idempotency key (X-Idempotency-Key header already implemented) must deduplicate; second request should return the same tenant.
+•	Company name contains special characters (Arabic, Swahili diacritics): subdomain sanitizer already strips non-[a-z0-9-] chars, but company_name must accept Unicode up to 255 chars.
+4.2 Payment & Checkout Edge Cases
+•	User opens checkout in new tab, completes payment, then closes tab: on returning to the original tab (still on 'waiting' step), polling should pick up the status change within 5 s and advance.
+•	Checkout session expires (Stripe: 24h, DPO: varies): display 'Your payment link has expired' with a 'Generate new link' button that calls POST /tenants/:id/checkout/renew.
+•	Payment succeeds but webhook is delayed >60 s: user presses 'I already completed payment'; frontend moves to polling. Backend must reconcile payment state asynchronously.
+•	Duplicate payment: user pays twice due to back-navigation. Checkout provider must enforce idempotency; backend must reject second charge and return the same checkout_session_id.
+•	Currency conversion: DPO charges in TZS, Stripe in USD. Displayed TZS estimate on plan cards must note it is approximate and subject to exchange rate at time of charge.
+4.3 Provisioning Edge Cases
+•	Provisioning succeeds partially (app installed but SSL cert pending): tenant status may be 'active' but domain not yet reachable. Need sub-status or readiness probe endpoint GET /tenants/:id/readiness.
+•	Provisioning worker crashes mid-run, job stuck in 'running' state with no progress for >10 min: backend dead-letter timeout should move job; frontend should surface 'Provisioning is taking longer than expected – contact support' after 15 min of polling with no state change.
+•	chosen_app value not supported by current backend version: existing retry-without-chosen_app logic handles 422, but user sees no explanation. Add a soft warning: 'The selected business focus was not applied; your workspace defaults to Core Operations.'
+•	Subdomain normalisation divergence: frontend normalises subdomain to [a-z0-9-] but backend applies different rules. The preview domain shown at step 1 may differ from the actual provisioned domain. Backend should return the canonical domain in the tenant object (already done) and the success screen must show tenant.domain, not the locally-computed value.
+•	ERP app first-boot latency: newly provisioned ERPNext can take 3-5 min after status='active' before the HTTP endpoint responds. Workspace URL should open in a new tab with a friendly loading page, not immediately 404.
+4.4 Session & Authentication Edge Cases
+•	JWT expires while user is filling out the onboarding form: on submit, API returns 401. Currently the error is displayed as a generic failure. Must detect sessionExpired, save form state to sessionStorage, redirect to /login?next=/onboarding, and restore form state on return.
+•	User has multiple browser tabs open; token is cleared in one tab (logout): SESSION_EXPIRED_EVENT broadcast via custom window event already implemented but only listened to in DashboardPage. Must be applied globally (e.g., in a root layout effect or in middleware).
+•	Token with role='admin' is used but the ROLE_COOKIE has expired or been cleared: middleware falls back to decoding the token payload directly (already implemented), but ROLE_COOKIE and TOKEN_COOKIE TTLs must stay in sync. If they diverge, the nav link may not appear while the page still loads.
+•	Admin route accessed with a valid but non-admin token: middleware correctly returns 403 HTML page. But direct navigation via the browser address bar shows a raw HTML error page, not the branded 403. The forbiddenHtml() helper should reference the design system styling.
+4.5 Network & Connectivity Edge Cases
+•	Low-bandwidth connection (common on 3G/4G in Tanzania): large bundle sizes cause slow TTFB. Consider code splitting at route level, lazy-loading admin page, and adding a loading skeleton for the tenant table.
+•	WebSocket (job log streaming) not available (corporate proxy, firewall): ws.onerror handler already falls back to polling – this path must be tested. Polling interval should back off exponentially (5s → 10s → 30s) for terminal states.
+•	User offline mid-operation: fetch throws NetworkError. The request helper wraps fetch but does not distinguish network failures from API errors. Add a navigator.onLine check and an 'You appear to be offline – changes will not be saved' banner.
+•	API base URL resolveApiBase() guard: prevents localhost API calls from production browser context. Edge case: internal VPN user accessing production UI from a machine where localhost:PORT is running a dev API. The guard correctly falls back to /api in this case – verify reverse proxy is configured to handle /api prefix.
+5. Failure & Recovery Flows
+5.1 Failure Classification
+Category	Example	Detection	Owner
+Transient API failure	500 on POST /tenants (DB timeout)	HTTP 5xx response	Frontend retry + user retry CTA
+Permanent API failure	422 invalid payload	HTTP 4xx response	Frontend form validation improvement
+Payment failure	Card declined / checkout timeout	webhook / polling	User self-service via billing portal
+Provisioning failure	Docker container OOM / DNS failure	Job status = 'failed'	Ops alert + user retry + admin intervention
+Partial provisioning	App installed, SSL pending	Readiness probe	Auto-retry SSL cert; show status to user
+Job stream failure	WebSocket disconnect mid-stream	ws.onerror	Silent fallback to polling (already coded)
+Session expiry	JWT exp reached	401 response / JWT decode	Re-auth redirect preserving intent
+Network offline	No connectivity	NetworkError / navigator.onLine	Offline banner, queue retry on reconnect
+Data inconsistency	Tenant 'active' but ERP not responding	Readiness probe / 404 on workspace URL	Automated health check + ops alert
+
+5.2 Detailed Recovery Flows
+RF-01: Provisioning Failure (User Flow)
+23.	Polling detects status = 'failed'.
+24.	Progress bar turns red; error message displays backend error string (or generic fallback).
+25.	'Retry provisioning' button calls POST /tenants/:id/retry → creates new job.
+26.	If retry also fails after 2 attempts, button changes to 'Contact support' linking to support channel.
+27.	Admin is notified via alert (RF-05) regardless of user action.
+RF-02: Interrupted Onboarding (User Returns)
+28.	User returns to /onboarding after closing the tab.
+29.	Frontend checks for persisted tenantId in localStorage (set at submitTenant).
+30.	If found, calls GET /tenants/:id to restore current status.
+31.	Step is restored: 'payment' if checkout_url exists and status=pending_payment; 'waiting' if provisioning; 'success' if active.
+32.	If tenantId is stale or deleted, localStorage entry is cleared and wizard resets to step 1.
+RF-03: Payment Webhook Delay
+33.	User completes payment on DPO/Stripe; webhook has not arrived.
+34.	User clicks 'I already completed payment'; step advances to 'waiting'.
+35.	Polling begins. Backend reconciles payment within 60 s (async job).
+36.	If not reconciled after 5 min, polling shows 'Payment verification taking longer than expected – please contact support if you were charged.'
+37.	Once webhook arrives, backend updates status → polling picks up within 5 s.
+RF-04: Admin Password Reset – Credential Visibility
+38.	Admin clicks 'Reset admin login'; confirmation modal requires typing SUBDOMAIN in uppercase.
+39.	On confirm, result.admin_password is displayed for 30 s (countdown timer already implemented).
+40.	Copy-to-clipboard button with visual feedback.
+41.	After 30 s, credential is zeroed from DOM; user must reset again if needed.
+42.	All resets are written to audit log (ADM-03).
+RF-05: Ops Alert Routing (New)
+43.	Backend emits structured events: provisioning_failed, job_stuck (>15 min), payment_webhook_missed (>10 min).
+44.	Alert service sends email/Slack notification to ops team with tenant_id, company_name, and error snippet.
+45.	Admin Control Center 'Attention lane' badge turns amber/red and shows count of unresolved alerts.
+46.	Admin can mark alert as 'acknowledged' or 'resolved' from the panel.
+5.3 Error Message Standards
+All user-facing errors must follow this hierarchy:
+47.	Specific actionable message: 'Subdomain 'acme' is already taken. Please choose a different one.'
+48.	Categorised fallback: 'Provisioning failed. Please try again or contact support.'
+49.	Generic last resort: 'Something went wrong. Please refresh and try again.' (never expose raw stack traces)
+Backend error strings (detail / message / error fields) may be surfaced directly only if they are user-safe. Engineering must maintain a list of safe-to-surface error codes.
+6. Operational Features
+6.1 Observability & Monitoring
+Feature	Description	Implementation Notes
+Frontend error tracking	Capture unhandled Promise rejections and React render errors via error boundary + Sentry (or equivalent).	Wrap layout in <ErrorBoundary>. Filter PII from payloads. Set environment tag (production/staging).
+API latency logging	Log time-to-first-byte for all API calls; surface P95 in ops dashboard.	Instrument request() helper with performance.now() timestamps. POST to /internal/metrics or use OpenTelemetry.
+Tenant health dashboard	Admin page showing % active tenants, P95 provisioning time, backup success rate, dead-letter queue depth over time.	Backend must expose GET /admin/metrics with aggregated time-series data.
+Real-time alerting	Email/Slack alerts for: provisioning failures, dead-letter growth >10, billing webhook delay >10 min.	Backend webhook fan-out to alert service. Admin can configure thresholds in UI (ADM-06).
+Audit log viewer	Admin page listing all privileged actions (suspend, delete, password reset, impersonate) with actor, timestamp, and IP.	Immutable append-only log. Pagination required. Export to CSV.
+
+6.2 Performance & Scalability
+Concern	Current State	Required Change
+Tenant list unbounded	GET /tenants returns all records	Add ?page=&limit= params; update listTenants() call; add pagination controls to TenantTable
+Admin tenant list unbounded	GET /admin/tenants returns all records	Same as above; default limit 50
+Polling interval fixed at 5s	Window.setInterval at 5s forever	Implement exponential back-off: 5s → 10s → 20s → 30s cap; stop polling after 30 min with 'timeout' message
+Job log streaming kept open	WebSocket stays open indefinitely	Close WebSocket on terminal status; garbage-collect log lines older than session
+Bundle size	No code splitting beyond Next.js defaults	Dynamically import admin page (next/dynamic); lazy load JobLogPanel and TenantCreateForm
+Image optimisation	No images currently	When adding brand assets, use next/image with priority flag for LCP elements
+
+6.3 Security Hardening
+Control	Current State	Required Change
+CSRF protection	Cookie is SameSite=Lax; API uses Bearer token in header	Adequate for same-origin API calls. Document the threat model. Add SameSite=Strict if no cross-origin form POSTs needed.
+Token storage	localStorage + cookie (dual storage)	Document decision. localStorage is XSS-susceptible; consider httpOnly cookie exclusively if Next.js API routes proxy all backend calls.
+Password strength	Min 8 chars only (HTML attribute)	Add client-side strength meter; enforce complexity on backend (uppercase, number, special char).
+Admin action confirmation	window.confirm() for suspend	Replace all window.confirm() calls with branded modal dialogs (consistent with delete/reset modals).
+Rate limiting	Not implemented in frontend	Backend must implement rate limiting on /auth/login, /auth/signup, /tenants (POST). Frontend should detect 429 and show retry-after countdown.
+Input sanitisation	Subdomain normalised; company name unrestricted	Enforce max lengths on all inputs (company_name: 255 chars, subdomain: 63 chars). Strip leading/trailing whitespace server-side.
+Webhook secret validation	No webhook handler in frontend scope	Backend must validate HMAC signature on all incoming payment webhooks before processing.
+
+6.4 Accessibility & Internationalisation
+Area	Gap	Required Action
+ARIA labels	Interactive elements (buttons, inputs) lack aria-label in several components	Add aria-label to all icon-only buttons; associate form inputs with labels via htmlFor/id pairs.
+Keyboard navigation	Modal dialogs (TenantTable confirm) trap focus incorrectly	Implement focus trap within modals; close on Escape; return focus to trigger on close.
+Colour contrast	Muted text (text-slate-400 on dark bg) may fail WCAG AA	Audit all text/background combinations; adjust muted text to at least 4.5:1 contrast ratio.
+Language toggle	English only; brand claims Swahili/English friendly	Add i18n framework (next-intl); translate core onboarding and error strings to Swahili.
+Timezone	Dates rendered with toLocaleString() (browser timezone)	Add user preference for timezone (default: Africa/Dar_es_Salaam / EAT UTC+3); store in user profile.
+Currency display	TZS shown as approximate inline text	Centralise TZS formatting utility; respect locale number formats (e.g., 1,000,000 vs 1.000.000).
+
+7. Updated System Design & API Contract
+7.1 New API Endpoints Required
+Endpoint	Method	Purpose	Request / Response Notes
+POST /auth/verify-email	POST	AUTH-01: Verify email token	Body: { token }. Returns 200 or 400 invalid/expired.
+POST /auth/resend-verification	POST	AUTH-01: Resend verification email	Auth required. Rate-limited to 3/hour.
+POST /auth/forgot-password	POST	AUTH-02: Initiate password reset	Body: { email }. Always returns 200 (no user enumeration).
+POST /auth/reset-password	POST	AUTH-02: Complete password reset	Body: { token, new_password }.
+POST /auth/refresh	POST	AUTH-03: Refresh JWT	Body: { refresh_token }. Returns new access_token.
+GET /tenants/:id/readiness	GET	ONB check: ERP reachable?	Returns { ready: bool, message: str }.
+POST /tenants/:id/retry	POST	ONB-05: Retry failed provisioning	Returns new Job. Max 3 retries enforced server-side.
+POST /tenants/:id/checkout/renew	POST	ONB-04: Renew expired checkout	Returns new { checkout_url, checkout_session_id }.
+PATCH /tenants/:id	PATCH	DASH-03: Update plan / metadata	Body: Partial<TenantCreatePayload>. Returns updated Tenant.
+POST /tenants/:id/restore	POST	DASH-05: Restore from backup	Body: { backup_id }. Returns Job.
+GET /tenants?page=&limit=&status=	GET	DASH-01/02: Paginated tenant list	Returns { data: Tenant[], total: number, page: number }.
+POST /admin/tenants/:id/unsuspend	POST	ADM-01: Unsuspend tenant	Returns { supported, data: MessageResponse }.
+POST /admin/jobs/dead-letter/:id/requeue	POST	ADM-02: Requeue dead-letter job	Returns { supported, data: Job }.
+GET /admin/audit-log	GET	ADM-03: Audit log with pagination	Returns paginated AuditLogEntry[].
+GET /admin/metrics	GET	OPS: Aggregated platform metrics	Returns MetricsSummary with time-series data.
+POST /webhooks/payment	POST	BILL-03: Payment event handler	Validates HMAC; updates tenant billing_status and triggers provisioning.
+
+7.2 New Frontend Types Required
+Add the following to lib/types.ts:
+•	PaginatedResult<T> = { data: T[]; total: number; page: number; limit: number }
+•	AuditLogEntry = { id, actor_email, action, target_id, target_type, metadata, created_at }
+•	MetricsSummary = { provisioning_success_rate, avg_provisioning_seconds, dead_letter_count, active_tenants, ... }
+•	TenantReadiness = { ready: boolean; message: string }
+•	NotificationItem = { id, type: 'success'|'warning'|'error', title, body, read, created_at }
+•	UserProfile = { id, email, email_verified, timezone, created_at }
+7.3 Frontend Architecture Changes
+Component / File	Change Required
+lib/api.ts	Add paginated listTenants(page, limit, filters), retryTenant(), renewCheckout(), updateTenant(), restoreBackup(), listAuditLog(), getMetrics(), requeueDeadLetter(), unsuspendTenant().
+lib/types.ts	Add PaginatedResult<T>, AuditLogEntry, MetricsSummary, TenantReadiness, NotificationItem, UserProfile.
+app/layout.tsx	Add global SessionExpiryListener component; add NotificationBell to header nav; add ErrorBoundary wrapper.
+app/onboarding/page.tsx	Persist { tenantId, step, checkoutUrl } to localStorage on state change; restore on mount.
+components/TenantTable.tsx	Add pagination controls; replace window.confirm(suspend) with modal; add filter/search bar.
+components/TenantCreateForm.tsx	Add real-time subdomain availability indicator (debounced GET /tenants/check-subdomain).
+app/forgot-password/page.tsx	New page: email input → success screen.
+app/reset-password/page.tsx	New page: token from query param + new password form.
+app/account/page.tsx	New page: profile settings (timezone, email change, password change, delete account).
+app/admin/page.tsx	Add unsuspend button; add requeue button on dead-letter jobs; replace window.confirm with modal; add audit log tab.
+middleware.ts	Add /forgot-password and /reset-password to public routes; add /account to protected routes.
+
+7.4 Deployment & Infrastructure
+Concern	Recommendation
+Environment variables	NEXT_PUBLIC_API_BASE_URL (already), add NEXT_PUBLIC_TENANT_DOMAIN_SUFFIX, NEXT_PUBLIC_SENTRY_DSN, NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY.
+Reverse proxy	Nginx/Caddy must proxy /api → backend, /ws → WebSocket backend. TLS termination required for wss:// job streaming.
+Cookie security	Set Secure flag on all cookies in production (already conditional on HTTPS); add __Host- prefix to prevent subdomain cookie injection.
+CSP header	Add Content-Security-Policy header: restrict script-src to self + Stripe/DPO CDNs; report-uri to error tracking endpoint.
+Health check	Expose /healthz route (Next.js rewrites → backend) for container orchestrator liveness probe.
+Dockerfile	Pin Node version (currently node:22-alpine – good); add non-root USER; add HEALTHCHECK instruction.
+
+8. Prioritised Delivery Roadmap
+Phase 1 – Production Readiness (Weeks 1–3)
+Must-haves before any paid customer onboards.
+Ticket	Work Item	Owner
+AUTH-01	Email verification gate + resend	Backend + Frontend
+AUTH-02	Forgot / reset password flow	Backend + Frontend
+ONB-01	Real-time subdomain availability check	Backend + Frontend
+ONB-02	Resume interrupted onboarding	Frontend
+ONB-03	Payment webhook handler	Backend
+ADM-01	Unsuspend tenant endpoint + UI button	Backend + Admin UI
+ADM-03	Admin audit log (append-only)	Backend + Admin UI
+SEC	Replace all window.confirm() with modals	Frontend
+SEC	Rate limiting on auth + tenant creation endpoints	Backend
+SEC	Input max-length enforcement (client + server)	Full-stack
+
+Phase 2 – Operational Completeness (Weeks 4–6)
+Needed for sustainable operations at 50+ tenants.
+Ticket	Work Item	Owner
+ONB-05	Retry provisioning button (user + admin)	Full-stack
+ONB-07	Onboarding state persistence in localStorage	Frontend
+DASH-01/02	Paginated + filterable tenant table	Full-stack
+DASH-08	In-app notification centre (toast + panel)	Frontend
+BILL-01	Billing portal link (Stripe/DPO self-service)	Backend + Frontend
+BILL-03	Failed payment dunning banner	Frontend
+ADM-02	Requeue dead-letter job button	Backend + Admin UI
+ADM-06	Ops alert routing (email/Slack on failures)	Backend + DevOps
+OBS	Frontend error tracking (Sentry)	Frontend + DevOps
+PERF	Polling exponential back-off	Frontend
+
+Phase 3 – Growth & Scale (Weeks 7–10)
+Enhancements that improve retention, NPS, and operator efficiency.
+Ticket	Work Item	Owner
+AUTH-04	Multi-tenant account (workspace switcher in nav)	Full-stack
+DASH-03	Plan upgrade / downgrade in dashboard	Full-stack
+DASH-05	Restore from backup trigger	Full-stack
+BILL-02	Invoice history page	Full-stack
+ADM-04	Admin impersonation with audit trail	Full-stack
+ADM-07/08	Admin metrics dashboard + support role	Full-stack
+I18N	Swahili translations for onboarding + errors	Frontend + Content
+A11Y	Full WCAG 2.1 AA audit and remediation	Frontend + Design
+PERF	Route-level code splitting; lazy admin page	Frontend
+ONB-04	Checkout session renewal flow	Full-stack
+
+9. Open Questions & Decisions Required
+#	Question	Options	Decision By
+OQ-01	Token storage strategy: localStorage (current) vs httpOnly cookie-only. HttpOnly cookies require Next.js API route proxying all backend requests.	A) Keep dual storage (current)
+B) Move to httpOnly cookie only via /api proxy	Security review
+OQ-02	Payment providers: DPO and Stripe both referenced. Is there a single provider or should UI handle both provider flows?	A) Single provider per deployment (env var)
+B) Multi-provider with provider detection	Product + Business
+OQ-03	Subdomain DNS management: who provisions the DNS record – the backend, a third-party service, or manually?	A) Automated via Cloudflare API
+B) Manual ops task
+C) Wildcard DNS (*.erp.domain.com)	DevOps
+OQ-04	ERP app readiness probe: should the saas-ui frontend call GET /tenants/:id/readiness or should this be a direct HTTP probe to the workspace URL?	A) Backend readiness probe endpoint
+B) Frontend fetch to workspace URL (CORS risk)	Engineering
+OQ-05	Swahili translation: machine translation or native translator review?	A) Machine translation (faster)
+B) Native reviewer (higher quality)	Product + Marketing
+OQ-06	Enterprise plan flow: contact-form-only or allow self-service creation with deferred payment?	A) Contact form only
+B) Create tenant, defer billing	Sales + Product
+
+Appendix A – Current Happy Path Gap Summary
+Quick-reference of what the current codebase does vs. what production requires.
+Area	Current	Production Required
+Email verification	None – any email can create tenants immediately	Verify before tenant creation; resend flow
+Password reset	None – no /forgot-password route	Full reset-password email flow
+Onboarding resume	Resets to step 1 on reload	Restore from localStorage + API state
+Subdomain conflict	Generic API error message	Real-time check with inline indicator
+Payment webhook	Manual user confirmation only	Automated webhook → provisioning trigger
+Provisioning retry	No user-facing retry option	Retry button + max-retry guard
+Tenant unsuspend	No reverse for suspend action	Unsuspend endpoint + admin UI button
+Audit log	None	Immutable log of all admin actions
+Tenant pagination	All tenants loaded in one request	Paginated + filterable API + UI
+Notifications	No async feedback after operations	In-app notification centre + toast
+Error messages	Some raw API errors surfaced	Classified, actionable, user-safe messages
+Offline handling	NetworkError thrown, unhandled	Offline banner + queued retry
+Dead-letter requeue	Visible but not actionable	Requeue button in admin recovery queue
+Billing portal	No link to manage subscription	Deep link to Stripe/DPO portal
+Accessibility	Basic semantic HTML only	WCAG 2.1 AA; focus trap; ARIA labels
+i18n / Swahili	English only (some Swahili phrases)	Full i18n with Swahili translation option
+
+
+Biashara Cloud  •  Internal Product Document  •  Confidential  •  March 2026
+

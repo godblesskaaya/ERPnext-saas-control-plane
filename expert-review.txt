@@ -1,0 +1,1198 @@
+Your SaaS is not “ERPNext with a UI on top.”
+It is a platform with several bounded domains:
+
+identity and access
+
+tenant lifecycle / provisioning
+
+tenant operations / management
+
+billing and subscriptions
+
+support and internal admin
+
+observability / audit / compliance
+
+platform configuration / policy
+
+If these concerns get mixed, the system becomes messy fast.
+So let’s separate them properly.
+
+1. What the control plane actually is
+
+The control plane is the system that manages customer ERP instances.
+
+It should not contain tenant business data like invoices, stock, HR, payroll from customer tenants. That belongs inside each tenant ERPNext site.
+
+The control plane owns:
+
+who the customer is
+
+what plan they are on
+
+what site belongs to them
+
+whether the site exists, is suspended, active, or deleted
+
+when billing renews
+
+what operations are allowed
+
+what backups exist
+
+what custom domains are mapped
+
+what audit trail exists
+
+what support actions were taken
+
+So the control plane is the platform brain.
+
+2. Top-level domain decomposition
+
+A good separation is this:
+
+A. Identity & Access
+
+Who is using the SaaS control plane, and what can they do?
+
+B. Tenant Registry
+
+The source of truth for tenants and instances.
+
+C. Provisioning
+
+Creates, updates, upgrades, suspends, restores, and deletes ERPNext sites.
+
+D. Tenant Management
+
+Allows tenant admins to operate their instance after provisioning.
+
+E. Billing & Subscription
+
+Owns plans, pricing, invoices, payments, renewals, dunning, suspension triggers.
+
+F. Platform ERP Integration
+
+Uses your internal ERPNext site for finance, invoicing, CRM, and internal ops.
+
+G. Support & Admin Operations
+
+Tools for your team to inspect, assist, or intervene.
+
+H. Audit, Monitoring & Policy
+
+Tracks actions, platform health, quotas, and policy enforcement.
+
+That’s the clean structure.
+
+3. Identity & Access domain
+
+This is the entry point into the control plane.
+
+Main responsibilities
+
+signup
+
+login
+
+email verification
+
+password reset
+
+session management
+
+tenant membership
+
+roles and permissions
+
+Actor types
+
+You likely need these actors:
+
+Platform Super Admin
+
+Can see everything across the platform.
+
+Platform Support/Admin Operator
+
+Can inspect tenants, run approved operational actions, view logs, help with support.
+
+Billing Admin
+
+Can manage plans, invoices, payment issues, subscription states.
+
+Tenant Owner
+
+The primary customer account for one tenant.
+
+Tenant Admin
+
+Additional users in the customer organization who can manage their SaaS account.
+
+Tenant Billing Contact
+
+May only access billing and invoices.
+
+Tenant Technical Contact
+
+May manage domains, backups, integrations, and operational settings.
+
+Main features
+
+self-signup
+
+invite team members
+
+role-based access control
+
+organization membership
+
+optional 2FA for control plane
+
+session revocation
+
+login activity history
+
+Important design note
+
+This identity layer is for the SaaS portal, not for the tenant ERP itself.
+
+A tenant admin may have:
+
+one account in the SaaS control plane
+
+another admin user inside their ERPNext tenant
+
+Those are separate systems, even if linked.
+
+4. Tenant Registry domain
+
+This is the canonical record of every tenant and site.
+
+It is the heart of the control plane.
+
+It should answer:
+
+who owns this site?
+
+what is the site domain?
+
+which bench/node hosts it?
+
+what plan is it on?
+
+what state is it in?
+
+what version is it on?
+
+when was it created?
+
+what custom domains belong to it?
+
+what backups exist?
+
+is it active, suspended, pending deletion?
+
+Core entities
+Organization / Customer Account
+
+The customer as a commercial entity.
+
+Tenant
+
+The provisioned product environment.
+
+Site
+
+The actual ERPNext site domain and technical identity.
+
+Tenant Membership
+
+Which users belong to which tenant and in what role.
+
+Plan Subscription
+
+What commercial package the tenant is using.
+
+Environment / Runtime Placement
+
+Which bench, host, or cluster the site runs on.
+
+Domain Mapping
+
+Wildcard subdomain and optional custom domains.
+
+Suggested tenant states
+
+Use explicit lifecycle states. This matters a lot.
+
+draft
+
+pending_provisioning
+
+provisioning
+
+active
+
+provisioning_failed
+
+suspended_billing
+
+suspended_admin
+
+restoring
+
+upgrading
+
+pending_deletion
+
+deleted
+
+This lets every part of the platform behave predictably.
+
+5. Provisioning domain
+
+This is the automation engine.
+
+In your setup, provisioning is centered around bench new-site, but the domain is broader than just that command.
+
+Responsibilities
+
+create site
+
+install apps
+
+apply default settings
+
+create default users
+
+seed initial config
+
+bind the site to the customer account
+
+run health checks
+
+mark site as ready
+
+retry or roll back on failure
+
+Provisioning workflow
+
+A proper workflow looks like this:
+
+Step 1: Request validation
+
+Check:
+
+subdomain availability
+
+plan eligibility
+
+billing state
+
+customer email verified
+
+domain policy rules
+
+Step 2: Job creation
+
+Create a provisioning job record.
+
+Step 3: Site creation
+
+Run:
+
+bench new-site
+
+install-app erpnext
+
+any required custom apps
+
+Step 4: Bootstrap
+
+Optional setup:
+
+company creation wizard
+
+locale/timezone defaults
+
+starter data
+
+API user or integration keys
+
+feature flags based on plan
+
+Step 5: Health verification
+
+Check:
+
+site resolves by host
+
+login page loads
+
+database connection works
+
+workers are healthy
+
+Step 6: Finalization
+
+Mark tenant active and notify customer.
+
+Provisioning sub-features
+
+This domain should also own:
+
+Re-provision / retry failed setup
+
+For failed jobs.
+
+Clone environment
+
+Later useful for staging/demo.
+
+Upgrade app set
+
+Install or remove apps based on plan.
+
+Change runtime placement
+
+Move tenant to another bench/node later.
+
+Domain attach
+
+Add verified custom domains.
+
+Deprovision
+
+Gracefully suspend, archive, or delete.
+
+Important architectural rule
+
+Provisioning must be job-based, not request-thread based.
+
+The API should create jobs, and workers should perform the actual operations.
+
+That gives you:
+
+retries
+
+logs
+
+progress tracking
+
+failure handling
+
+non-blocking UI
+
+6. Tenant Management domain
+
+This is what the customer actually touches after signup.
+
+Provisioning creates the tenant.
+Management is the day-to-day portal for operating it.
+
+Tenant admin features
+Instance overview
+
+Show:
+
+domain
+
+status
+
+plan
+
+created date
+
+version
+
+region/host
+
+uptime summary
+
+Access actions
+
+open ERP
+
+reset admin password workflow
+
+invite control-plane teammates
+
+view tenant admin contacts
+
+Domain management
+
+see default subdomain
+
+add custom domain
+
+verify DNS
+
+remove custom domain
+
+choose primary domain
+
+Backup and restore
+
+list backups
+
+create on-demand backup
+
+restore from a selected backup
+
+download metadata
+
+see retention
+
+Maintenance actions
+
+restart site services if applicable
+
+request upgrade
+
+apply config changes
+
+enable maintenance mode
+
+see recent operations
+
+Usage visibility
+
+storage consumed
+
+users count
+
+last backup date
+
+background job health
+
+maybe email volume later
+
+Security controls
+
+rotate API keys
+
+manage webhooks
+
+view access logs to control plane
+
+configure IP restrictions later if needed
+
+What tenant admins should NOT control
+
+They should not be able to:
+
+run arbitrary shell commands
+
+pick runtime host directly
+
+inspect other tenants
+
+access raw system logs beyond scoped logs
+
+modify billing state directly
+
+bypass plan restrictions
+
+That boundary matters.
+
+7. Billing & Subscription domain
+
+This needs strict separation because billing logic becomes messy if merged into provisioning.
+
+This domain decides whether a tenant is entitled to exist and at what level.
+
+Responsibilities
+
+plans
+
+subscriptions
+
+pricing
+
+invoicing
+
+payment collection
+
+renewals
+
+grace periods
+
+failed payment handling
+
+upgrades/downgrades
+
+credit notes / refunds
+
+tax settings
+
+suspension policies
+
+Main entities
+Product Plan
+
+Starter, Pro, Enterprise, etc.
+
+Subscription
+
+The active commercial agreement.
+
+Billing Account
+
+Who is billed.
+
+Invoice
+
+Commercial document for charges.
+
+Payment
+
+Settlement of invoice.
+
+Adjustment
+
+Credits, prorations, discounts, refunds.
+
+Dunning State
+
+Retry and overdue handling.
+
+Feature areas
+Plan catalog
+
+monthly/annual
+
+included quotas
+
+overage rules
+
+optional add-ons
+
+Subscription lifecycle
+
+trial
+
+active
+
+past_due
+
+grace_period
+
+suspended
+
+canceled
+
+Billing actions
+
+create first invoice
+
+collect payment
+
+retry failed payment
+
+issue renewal invoice
+
+change plan mid-cycle
+
+prorate
+
+suspend after grace
+
+Finance visibility for tenant admin
+
+current plan
+
+billing cycle
+
+invoices
+
+payment history
+
+overdue alerts
+
+Important relationship with provisioning
+
+Billing should not directly run shell actions.
+
+Instead, billing emits entitlement decisions like:
+
+allow provisioning
+
+suspend tenant
+
+unsuspend tenant
+
+restrict new backups
+
+deny upgrades
+
+Provisioning or policy modules then execute operational effects.
+
+That separation avoids chaos.
+
+8. Platform ERP integration domain
+
+This is where your dedicated internal ERPNext site comes in.
+
+This site should be treated as the system of record for commercial and internal business operations, not as the technical control plane database.
+
+That distinction is important.
+
+Use the Platform ERP for:
+
+CRM leads/customers
+
+quotations if needed
+
+sales invoices
+
+payment entries
+
+subscriptions
+
+finance reporting
+
+receivables
+
+taxes
+
+support or internal ops workflows if useful
+
+Do not use Platform ERP as:
+
+the only technical tenant registry
+
+the job queue
+
+the source of runtime state
+
+the operational event store
+
+the only place that knows site status
+
+Because operational state changes fast and needs strict technical modeling.
+
+So the right pattern is:
+
+Control plane database
+
+System of record for technical platform state.
+
+Platform ERP site
+
+System of record for financial/commercial business records.
+
+Integration examples
+
+When a user signs up:
+
+create customer/account in control plane
+
+optionally create Customer record in Platform ERP
+
+When subscription is activated:
+
+create/update Subscription in Platform ERP
+
+generate invoice there
+
+When payment is confirmed:
+
+billing module updates control plane entitlement
+
+Platform ERP records invoice/payment
+
+When tenant is suspended for non-payment:
+
+control plane marks tenant suspended_billing
+
+Platform ERP stores the financial trail
+
+So this is an integration boundary, not a collapse into one system.
+
+9. Support & internal admin domain
+
+This is often forgotten early, then becomes painful later.
+
+Your team needs operational tools.
+
+Internal support features
+
+search tenant by domain, email, customer name
+
+view current state and history
+
+view provisioning logs
+
+view recent management actions
+
+impersonation or secure magic-link access to SaaS portal, if you choose
+
+trigger approved actions:
+
+reprovision retry
+
+suspend / unsuspend
+
+backup now
+
+restore
+
+password reset flow
+
+re-send welcome email
+
+Internal notes and case tracking
+
+Very useful:
+
+support notes
+
+incident notes
+
+risk flags
+
+internal tags
+
+This can be inside your control plane, or partly inside Platform ERP if you prefer.
+
+Separation rule
+
+Support tools must be scoped and auditable.
+
+Every support action should produce an audit log:
+
+who did it
+
+when
+
+why
+
+what tenant it affected
+
+previous state
+
+new state
+
+10. Audit, compliance, and policy domain
+
+This is one of the most important cross-cutting areas.
+
+Audit log should cover:
+
+signup
+
+email verification
+
+provisioning request
+
+provisioning success/failure
+
+tenant suspension
+
+billing state change
+
+domain addition/removal
+
+backup creation/restore
+
+support interventions
+
+plan changes
+
+login/security events
+
+Policy engine should cover:
+
+who can create how many tenants
+
+which plans allow which features
+
+who can restore backups
+
+who can add custom domains
+
+suspension rules
+
+deletion grace period
+
+naming/domain restrictions
+
+Why explicit policy matters
+
+Without explicit policy, business rules end up scattered:
+
+some in UI
+
+some in billing
+
+some in API
+
+some in scripts
+
+That gets dangerous fast.
+
+A policy layer centralizes platform rules.
+
+11. Observability and platform health domain
+
+This is not the same as tenant management.
+
+This is for you, the platform operator.
+
+Platform observability features
+
+provisioning job queue depth
+
+failed jobs
+
+average provisioning time
+
+backup success/failure rate
+
+disk usage by host
+
+DB health
+
+Redis health
+
+Traefik health
+
+ERP bench health
+
+rate of tenant creation/deletion
+
+incidents by type
+
+Tenant-scoped observability
+
+Useful subset for tenant admins:
+
+last successful backup
+
+service status
+
+last maintenance event
+
+maybe recent app errors later
+
+But keep deep infrastructure metrics internal.
+
+12. Recommended service/module structure
+
+You do not need microservices now.
+But you should still design modularly.
+
+A good modular monolith split would be:
+
+iam
+
+tenants
+
+provisioning
+
+management
+
+billing
+
+platform_erp_integration
+
+support
+
+audit
+
+policy
+
+observability
+
+One codebase, separate modules, clean boundaries.
+
+That gives you clarity now and optional service extraction later.
+
+13. Recommended UI separation
+
+Your SaaS UI should also reflect separation of concerns.
+
+Customer-facing areas
+A. Workspace / Tenant Switcher
+
+For customers with more than one tenant later.
+
+B. Overview
+
+Tenant status, domain, plan, quick actions.
+
+C. Management
+
+Domains, backups, access, settings.
+
+D. Billing
+
+Plan, invoices, payment status, renewal info.
+
+E. Team
+
+Members and roles in the control plane.
+
+F. Activity
+
+Audit trail and operation history visible to tenant admins.
+
+Internal admin UI
+A. Tenant directory
+
+Search and filter all tenants.
+
+B. Provisioning operations
+
+Jobs, failures, retries.
+
+C. Billing operations
+
+Overdue accounts, manual adjustments, plan state.
+
+D. Support desk
+
+Internal notes, actions, histories.
+
+E. Platform health
+
+Queue, storage, services, alerts.
+
+14. Feature map by actor
+
+This is a useful way to check boundaries.
+
+Tenant Admin
+
+create tenant
+
+see status
+
+manage domains
+
+request backup/restore
+
+invite control-plane members
+
+see billing
+
+download invoices
+
+change plan if allowed
+
+Tenant Billing Contact
+
+see invoices
+
+see payment history
+
+update billing details
+
+no provisioning actions
+
+Tenant Technical Contact
+
+domains
+
+backups
+
+maintenance settings
+
+maybe API keys
+
+Platform Support
+
+inspect tenant
+
+retry failed provisioning
+
+suspend/unsuspend with reason
+
+view logs
+
+cannot alter pricing rules unless authorized
+
+Platform Finance/Admin
+
+plans
+
+invoices
+
+payments
+
+credits
+
+dunning
+
+subscription adjustments
+
+Platform Super Admin
+
+full visibility and policy override
+
+15. Core lifecycle scenarios the control plane must support
+
+Designing features by lifecycle is powerful.
+
+Scenario 1: New signup
+
+Touches:
+
+IAM
+
+billing
+
+tenant registry
+
+provisioning
+
+audit
+
+platform ERP integration
+
+Scenario 2: Trial converts to paid
+
+Touches:
+
+billing
+
+policy
+
+tenant registry
+
+platform ERP integration
+
+audit
+
+Scenario 3: Payment failure
+
+Touches:
+
+billing
+
+policy
+
+notifications
+
+management visibility
+
+eventual provisioning effect through suspension
+
+Scenario 4: Customer requests backup restore
+
+Touches:
+
+tenant management
+
+provisioning/ops
+
+audit
+
+support maybe
+
+Scenario 5: Custom domain attach
+
+Touches:
+
+management
+
+policy
+
+provisioning
+
+audit
+
+Scenario 6: Platform support intervenes
+
+Touches:
+
+support
+
+audit
+
+tenant registry
+
+maybe billing/policy depending on reason
+
+16. What belongs where
+
+This is where systems often go wrong, so let’s be explicit.
+
+Belongs in the control plane
+
+tenant metadata
+
+subscription status
+
+operational site status
+
+provisioning jobs
+
+lifecycle state
+
+backup catalog
+
+domain mappings
+
+memberships
+
+audit trails
+
+Belongs in Platform ERP
+
+customer financial documents
+
+sales invoices
+
+subscription accounting
+
+payment entries
+
+receivables
+
+revenue reporting
+
+Belongs in customer tenant ERP
+
+their business data
+
+their users
+
+their invoices, items, HR, stock, etc.
+
+This three-way separation is very healthy.
+
+Design principles to keep the system clean
+
+A few rules will save you a lot of pain.
+
+Principle 1
+
+Technical truth and financial truth are not the same thing.
+
+Control plane DB = technical truth
+Platform ERP = financial/commercial truth
+
+Principle 2
+
+Jobs change infrastructure. APIs create intent.
+
+APIs request work; workers do the work.
+
+Principle 3
+
+Billing decides entitlement, not shell behavior.
+
+Billing says what should happen. Provisioning/ops executes it.
+
+Principle 4
+
+Every privileged action must be auditable.
+
+No invisible support magic.
+
+Principle 5
+
+Tenant admin experience should feel safe and constrained.

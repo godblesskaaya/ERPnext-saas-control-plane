@@ -2,10 +2,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import secrets
 import socket
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from datetime import datetime
+from urllib import request as urlrequest
+from urllib.error import URLError, HTTPError
+import ssl
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
+from rq import Retry
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -15,12 +22,13 @@ from app.bench.runner import BenchCommandError, run_bench_command
 from app.db import get_db
 from app.config import get_settings
 from app.deps import get_current_user
-from app.models import AuditLog, DomainMapping, Tenant, TenantMembership, User
+from app.models import AuditLog, BackupManifest, DomainMapping, Job, Tenant, TenantMembership, User
 from app.rate_limits import authenticated_default_rate_limit, tenant_backup_rate_limit, tenant_create_rate_limit
 from app.security import hash_password
 from app.schemas import (
     BackupManifestOut,
     AuditLogOut,
+    BillingInvoiceOut,
     DomainMappingCreateRequest,
     DomainMappingOut,
     DomainMappingVerifyRequest,
@@ -37,10 +45,14 @@ from app.schemas import (
     TenantMemberOut,
     TenantMemberUpdateRequest,
     TenantOut,
+    TenantSummaryOut,
+    TenantRestoreRequest,
     TenantUpdateRequest,
+    TenantReadinessOut,
 )
 from app.domains.tenants.backup_service import list_backup_manifests
 from app.domains.audit.service import record_audit_event
+from app.queue.enqueue import get_queue
 from app.domains.tenants.service import (
     create_tenant_and_start_checkout,
     enqueue_backup,
@@ -48,6 +60,9 @@ from app.domains.tenants.service import (
     enqueue_provisioning_for_paid_tenant,
     enforce_backup_plan_limit,
 )
+from app.domains.billing.payment.factory import get_payment_gateway
+from app.domains.billing.payment.stripe_gateway import StripeGateway
+from app.domains.support.platform_erp_client import PlatformERPClient
 from app.domains.tenants.state import transition_tenant_status
 from app.domains.tenants.membership import (
     TENANT_ROLE_CAN_MANAGE_BILLING,
@@ -79,6 +94,18 @@ NOT_FOUND_404_RESPONSE = {"description": "Requested tenant resource was not foun
 CONFLICT_409_RESPONSE = {"description": "Conflict with current tenant state (for example, duplicate domain or invalid transition)."}
 VALIDATION_422_RESPONSE = {"description": "Request payload or business validation failed."}
 RATE_LIMIT_429_RESPONSE = {"description": "Too many requests. Retry after the rate-limit window."}
+logger = logging.getLogger(__name__)
+
+
+def _normalize_filter_values(values: list[str] | None) -> list[str]:
+    normalized: list[str] = []
+    for raw in values or []:
+        for part in str(raw).split(","):
+            value = part.strip().lower()
+            if not value or value == "all":
+                continue
+            normalized.append(value)
+    return list(dict.fromkeys(normalized))
 
 
 def _get_accessible_tenant(tenant_id: str, db: Session, current_user: User) -> Tenant:
@@ -101,6 +128,25 @@ def _get_domain_mapping(db: Session, *, tenant: Tenant, mapping_id: str) -> Doma
     return mapping
 
 
+def _to_minor_units(value: object) -> int | None:
+    if value is None:
+        return None
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return None
+    return int((amount * Decimal("100")).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def _parse_erp_invoice_date(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
 def _resolve_domain_ips(domain: str) -> set[str]:
     try:
         results = socket.getaddrinfo(domain, None)
@@ -115,6 +161,41 @@ def _domain_points_to_tenant(domain: str, tenant_domain: str) -> bool:
     if not domain_ips or not tenant_ips:
         return False
     return bool(domain_ips & tenant_ips)
+
+
+def _check_domain_readiness(domain: str) -> tuple[bool, str]:
+    if not _resolve_domain_ips(domain):
+        return False, "Domain does not resolve yet."
+
+    url = f"https://{domain}"
+    context = ssl.create_default_context()
+    try:
+        with urlrequest.urlopen(url, timeout=5, context=context) as response:
+            status = getattr(response, "status", 200)
+            if status >= 500:
+                return False, "Workspace is responding but not healthy yet."
+            return True, "Workspace is reachable."
+    except HTTPError as exc:
+        if exc.code < 500:
+            return True, "Workspace is reachable."
+        return False, "Workspace is responding but not healthy yet."
+    except URLError:
+        return False, "Workspace is not reachable yet."
+    except Exception:
+        return False, "Workspace readiness check failed."
+
+
+def _enqueue_tls_sync(actor_id: str, prime_certs: bool = False) -> None:
+    try:
+        get_queue().enqueue(
+            "app.workers.tasks.sync_tenant_tls_routes_task",
+            actor_id,
+            prime_certs,
+            job_timeout="5m",
+            retry=Retry(max=1, interval=[60]),
+        )
+    except Exception:
+        logger.exception("Failed to enqueue TLS sync task")
 
 
 @router.post(
@@ -164,6 +245,84 @@ def create_tenant(
     if cache_key:
         token_store.setex(cache_key, 24 * 60 * 60, response_payload.model_dump_json())
     return response_payload
+
+
+@router.post(
+    "/{tenant_id}/checkout/renew",
+    response_model=TenantCreateResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_400_BAD_REQUEST: {"description": "Checkout renewal is not available for this tenant."},
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_409_CONFLICT: CONFLICT_409_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def renew_checkout(
+    request: Request,
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TenantCreateResponse:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_MANAGE_BILLING)
+
+    if tenant.status not in {"pending", "pending_payment"}:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Checkout renewal is only available before provisioning.")
+
+    owner = db.get(User, tenant.owner_id) if tenant.owner_id else None
+    if not owner:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant owner not found")
+
+    try:
+        checkout_session = get_payment_gateway().create_checkout(tenant, owner)
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Billing provider is not configured for checkout",
+        ) from exc
+    if checkout_session.mock_mode and not get_settings().mock_billing_allowed:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Mock billing checkout is disabled in production mode",
+        )
+
+    provider = getattr(checkout_session, "provider", get_settings().active_payment_provider.strip().lower() or "azampay")
+    tenant.payment_provider = provider
+    tenant.payment_channel = getattr(checkout_session, "payment_channel", None)
+    if provider == "stripe":
+        tenant.stripe_checkout_session_id = checkout_session.session_id
+        tenant.dpo_transaction_token = None
+    elif provider in {"dpo", "selcom", "azampay"}:
+        tenant.dpo_transaction_token = checkout_session.session_id
+        tenant.stripe_checkout_session_id = None
+    else:
+        tenant.dpo_transaction_token = checkout_session.session_id
+        tenant.stripe_checkout_session_id = None
+
+    if tenant.status == "pending":
+        transition_tenant_status(tenant, "pending_payment")
+    db.add(tenant)
+    db.commit()
+    db.refresh(tenant)
+
+    record_audit_event(
+        db,
+        action="tenant.checkout_renewed",
+        resource="tenants",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+        metadata={"checkout_session_id": checkout_session.session_id},
+    )
+    return TenantCreateResponse(
+        tenant=TenantOut.model_validate(tenant),
+        job=None,
+        checkout_url=checkout_session.checkout_url,
+        checkout_session_id=checkout_session.session_id,
+    )
 
 
 @router.get(
@@ -255,7 +414,11 @@ def list_tenants_paginated(
     request: Request,
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=200),
-    status_filter: str | None = Query(default=None, alias="status"),
+    status_filter: list[str] | None = Query(default=None, alias="status"),
+    plan_filter: str | None = Query(default=None, alias="plan"),
+    billing_status_filter: list[str] | None = Query(default=None, alias="billing_status"),
+    payment_channel_filter: list[str] | None = Query(default=None, alias="payment_channel"),
+    filter_mode: str = Query(default="and", pattern="^(and|or)$"),
     search: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -273,11 +436,39 @@ def list_tenants_paginated(
             )
             .distinct()
         )
-    if status_filter:
-        if status_filter == "suspended":
-            query = query.filter(Tenant.status.in_(["suspended", "suspended_admin", "suspended_billing"]))
+    statuses = _normalize_filter_values(status_filter)
+    expanded_statuses: list[str] = []
+    for value in statuses:
+        if value == "suspended":
+            expanded_statuses.extend(["suspended", "suspended_admin", "suspended_billing"])
         else:
-            query = query.filter(Tenant.status == status_filter)
+            expanded_statuses.append(value)
+    expanded_statuses = list(dict.fromkeys(expanded_statuses))
+
+    billing_statuses = _normalize_filter_values(billing_status_filter)
+    payment_channels = _normalize_filter_values(payment_channel_filter)
+
+    if filter_mode == "or":
+        clauses = []
+        if expanded_statuses:
+            clauses.append(Tenant.status.in_(expanded_statuses))
+        if billing_statuses:
+            clauses.append(Tenant.billing_status.in_(billing_statuses))
+        if payment_channels:
+            clauses.append(Tenant.payment_channel.in_(payment_channels))
+        if clauses:
+            query = query.filter(or_(*clauses))
+    else:
+        if expanded_statuses:
+            query = query.filter(Tenant.status.in_(expanded_statuses))
+        if billing_statuses:
+            query = query.filter(Tenant.billing_status.in_(billing_statuses))
+        if payment_channels:
+            query = query.filter(Tenant.payment_channel.in_(payment_channels))
+
+    if plan_filter and plan_filter != "all":
+        query = query.filter(Tenant.plan == plan_filter)
+
     if search:
         term = f"%{search.strip()}%"
         query = query.filter(
@@ -285,6 +476,9 @@ def list_tenants_paginated(
                 Tenant.company_name.ilike(term),
                 Tenant.subdomain.ilike(term),
                 Tenant.domain.ilike(term),
+                Tenant.billing_status.ilike(term),
+                Tenant.payment_channel.ilike(term),
+                Tenant.plan.ilike(term),
             )
         )
     total = query.count()
@@ -323,6 +517,155 @@ def get_tenant(
     return TenantOut.model_validate(tenant)
 
 
+@router.get(
+    "/{tenant_id}/readiness",
+    response_model=TenantReadinessOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def get_tenant_readiness(
+    request: Request,
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TenantReadinessOut:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    ready, message = _check_domain_readiness(tenant.domain)
+
+    record_audit_event(
+        db,
+        action="tenant.readiness_checked",
+        resource="tenants",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+        metadata={"ready": ready},
+    )
+    return TenantReadinessOut(ready=ready, message=message)
+
+
+@router.get(
+    "/{tenant_id}/summary",
+    response_model=TenantSummaryOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def get_tenant_summary(
+    request: Request,
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TenantSummaryOut:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+
+    last_job = (
+        db.query(Job)
+        .filter(Job.tenant_id == tenant.id)
+        .order_by(Job.created_at.desc())
+        .first()
+    )
+    last_backup = (
+        db.query(BackupManifest)
+        .filter(BackupManifest.tenant_id == tenant.id)
+        .order_by(BackupManifest.created_at.desc())
+        .first()
+    )
+    last_audit = (
+        db.query(AuditLog)
+        .filter(AuditLog.resource_id == tenant.id)
+        .order_by(AuditLog.created_at.desc())
+        .first()
+    )
+    last_invoice = None
+    platform_client = PlatformERPClient()
+    if platform_client.is_configured() and tenant.platform_customer_id:
+        items = platform_client.list_invoices(tenant.platform_customer_id, limit=1)
+        if items:
+            item = items[0]
+            amount_due = _to_minor_units(item.get("outstanding_amount"))
+            amount_total = _to_minor_units(item.get("grand_total"))
+            amount_paid = None
+            if amount_total is not None and amount_due is not None:
+                amount_paid = max(amount_total - amount_due, 0)
+            invoice_name = str(item.get("name"))
+            last_invoice = BillingInvoiceOut(
+                id=invoice_name,
+                status=item.get("status"),
+                amount_due=amount_due,
+                amount_paid=amount_paid,
+                currency=item.get("currency"),
+                collection_method="platform_erp",
+                payment_method_types=None,
+                metadata={
+                    "tenant_id": tenant.id,
+                    "tenant_domain": tenant.domain,
+                    "company_name": tenant.company_name,
+                    "customer_id": tenant.platform_customer_id,
+                    "payment_provider": "platform_erp",
+                },
+                hosted_invoice_url=platform_client.invoice_url(invoice_name),
+                invoice_pdf=None,
+                created_at=_parse_erp_invoice_date(item.get("posting_date")),
+            )
+    else:
+        try:
+            gateway = get_payment_gateway()
+        except ValueError:
+            gateway = None
+        if isinstance(gateway, StripeGateway) and not gateway.mock_mode:
+            stripe = gateway._import_stripe()
+            owner = db.get(User, tenant.owner_id) if tenant.owner_id else None
+            customer_id = owner.stripe_customer_id if owner else None
+            if stripe is not None and customer_id:
+                stripe.api_key = get_settings().stripe_secret_key
+                try:
+                    items = stripe.Invoice.list(customer=customer_id, limit=1).get("data", [])
+                except Exception:
+                    items = []
+                if items:
+                    item = items[0]
+                    last_invoice = BillingInvoiceOut(
+                        id=str(item.get("id")),
+                        status=item.get("status"),
+                        amount_due=item.get("amount_due"),
+                        amount_paid=item.get("amount_paid"),
+                        currency=item.get("currency"),
+                        collection_method=item.get("collection_method"),
+                        payment_method_types=item.get("payment_settings", {}).get("payment_method_types"),
+                        metadata=item.get("metadata"),
+                        hosted_invoice_url=item.get("hosted_invoice_url"),
+                        invoice_pdf=item.get("invoice_pdf"),
+                        created_at=datetime.utcfromtimestamp(item.get("created")) if item.get("created") else None,
+                    )
+
+    record_audit_event(
+        db,
+        action="tenant.summary_viewed",
+        resource="tenants",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+    )
+
+    return TenantSummaryOut(
+        tenant_id=tenant.id,
+        last_job=JobOut.model_validate(last_job) if last_job else None,
+        last_backup=BackupManifestOut.model_validate(last_backup) if last_backup else None,
+        last_audit=AuditLogOut.model_validate(last_audit) if last_audit else None,
+        last_invoice=last_invoice,
+    )
+
+
 @router.post(
     "/{tenant_id}/backup",
     response_model=JobOut,
@@ -346,6 +689,63 @@ def backup_tenant(
     enforce_backup_policy(tenant)
     enforce_backup_plan_limit(db, tenant)
     job = enqueue_backup(db, tenant, actor=current_user, request=request)
+    return JobOut.model_validate(job)
+
+
+@router.post(
+    "/{tenant_id}/restore",
+    response_model=JobOut,
+    status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_409_CONFLICT: CONFLICT_409_RESPONSE,
+        status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def restore_tenant(
+    request: Request,
+    tenant_id: str,
+    payload: TenantRestoreRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> JobOut:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_OPERATE)
+    ensure_domain_operation_allowed(tenant=tenant, actor=current_user)
+
+    manifest = db.get(BackupManifest, payload.backup_id)
+    if not manifest or manifest.tenant_id != tenant.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backup manifest not found")
+
+    job = Job(tenant_id=tenant.id, type="restore", status="queued", logs="Queued restore")
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    background_tasks.add_task(
+        get_queue().enqueue,
+        "app.workers.tasks.restore_tenant",
+        job.id,
+        tenant.id,
+        manifest.id,
+        job_timeout="20m",
+        retry=Retry(max=2, interval=[60, 300]),
+    )
+
+    record_audit_event(
+        db,
+        action="tenant.restore_requested",
+        resource="tenants",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+        metadata={"job_id": job.id, "backup_id": manifest.id},
+    )
     return JobOut.model_validate(job)
 
 
@@ -556,6 +956,7 @@ def verify_tenant_domain(
     tenant_id: str,
     mapping_id: str,
     payload: DomainMappingVerifyRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> DomainMappingOut:
@@ -588,6 +989,7 @@ def verify_tenant_domain(
         request=request,
         metadata={"domain": mapping.domain, "tenant_id": tenant.id},
     )
+    background_tasks.add_task(_enqueue_tls_sync, current_user.id, False)
     return DomainMappingOut.model_validate(mapping)
 
 
@@ -606,6 +1008,7 @@ def delete_tenant_domain(
     request: Request,
     tenant_id: str,
     mapping_id: str,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> MessageResponse:
@@ -626,6 +1029,7 @@ def delete_tenant_domain(
         request=request,
         metadata={"domain": mapping.domain, "tenant_id": tenant.id},
     )
+    background_tasks.add_task(_enqueue_tls_sync, current_user.id, False)
     return MessageResponse(message="Domain mapping removed")
 
 

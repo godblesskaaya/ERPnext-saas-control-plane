@@ -6,17 +6,17 @@ export default function DashboardIncidentsPage() {
   return (
     <WorkspaceQueuePage
       title="Failed & blocked workspaces"
-      description="Track failed provisioning, suspensions, and blocked accounts that need operator intervention."
-      statusFilter={["failed", "suspended", "suspended_admin", "suspended_billing"]}
+      description="System failures that need operator intervention."
+      statusFilter={["failed"]}
       showMetrics
       showAttention
       showBillingAlert
       showStatusFilter={false}
-      attentionNote="Resolve failures and suspensions quickly to restore access for affected customers."
+      attentionNote="Resolve provisioning failures quickly to restore access for affected customers."
       emptyStateTitle="No failed or suspended workspaces"
-      emptyStateBody="There are no blocked or failed tenants in the incident queue."
-      emptyStateActionLabel="Review onboarding queue"
-      emptyStateActionHref="/dashboard/onboarding"
+      emptyStateBody="There are no failed tenants in the incident queue."
+      emptyStateActionLabel="Review suspensions"
+      emptyStateActionHref="/dashboard/suspensions"
     />
   );
 }

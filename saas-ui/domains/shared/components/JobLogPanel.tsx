@@ -14,6 +14,9 @@ type Props = {
 };
 
 const TERMINAL_STATUSES = new Set(["succeeded", "failed", "deleted", "canceled", "cancelled"]);
+const POLLING_BASE_DELAY_MS = 5000;
+const POLLING_MAX_DELAY_MS = 30000;
+const POLLING_JITTER_RATIO = 0.2;
 
 function statusBadgeClass(status: string): string {
   const normalized = status.toLowerCase();
@@ -38,9 +41,11 @@ export function JobLogPanel({ jobId, logs, status, onJobUpdate }: Props) {
   const [logLines, setLogLines] = useState<string[]>(() => splitLogs(logs));
   const [jobStatus, setJobStatus] = useState(status ?? "unknown");
   const [streamState, setStreamState] = useState<"idle" | "connecting" | "live" | "completed" | "error">("idle");
+  const [isTabVisible, setIsTabVisible] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const pollingDelayRef = useRef(5000);
+  const pollingDelayRef = useRef(POLLING_BASE_DELAY_MS);
+  const pollingAttemptRef = useRef(0);
   const pollingTimerRef = useRef<number | null>(null);
 
   const isTerminal = useMemo(() => TERMINAL_STATUSES.has(jobStatus.toLowerCase()), [jobStatus]);
@@ -54,27 +59,69 @@ export function JobLogPanel({ jobId, logs, status, onJobUpdate }: Props) {
     });
   }, []);
 
+  const resetPollingBackoff = useCallback(() => {
+    pollingAttemptRef.current = 0;
+    pollingDelayRef.current = POLLING_BASE_DELAY_MS;
+  }, []);
+
+  const getNextPollingDelay = useCallback(() => {
+    const exponentialDelay = Math.min(POLLING_BASE_DELAY_MS * 2 ** pollingAttemptRef.current, POLLING_MAX_DELAY_MS);
+    const jitterSpan = Math.floor(exponentialDelay * POLLING_JITTER_RATIO);
+    const jitter = jitterSpan > 0 ? Math.floor(Math.random() * (jitterSpan * 2 + 1)) - jitterSpan : 0;
+
+    pollingAttemptRef.current += 1;
+    pollingDelayRef.current = Math.max(POLLING_BASE_DELAY_MS, exponentialDelay + jitter);
+    return pollingDelayRef.current;
+  }, []);
+
   const refreshJob = useCallback(async () => {
     if (!jobId) return;
     const latest = await api.getJob(jobId);
-    setJobStatus(latest.status || "unknown");
+    const nextStatus = latest.status || "unknown";
+    setJobStatus(nextStatus);
     if (latest.logs) {
       setLogLines(splitLogs(latest.logs));
     }
+    if (TERMINAL_STATUSES.has(nextStatus.toLowerCase())) {
+      setStreamState("completed");
+    }
     onJobUpdate?.(latest);
+    return nextStatus;
   }, [jobId, onJobUpdate]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      const visible = !document.hidden;
+      setIsTabVisible(visible);
+      if (!visible && pollingTimerRef.current) {
+        window.clearTimeout(pollingTimerRef.current);
+        pollingTimerRef.current = null;
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    onVisibilityChange();
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!jobId || !isTabVisible || isTerminal) return;
+    resetPollingBackoff();
+    void refreshJob().catch(() => undefined);
+  }, [isTabVisible, isTerminal, jobId, refreshJob, resetPollingBackoff]);
 
   useEffect(() => {
     setLogLines(splitLogs(logs));
     setJobStatus(status ?? "unknown");
     setStreamState(jobId ? "connecting" : "idle");
     setError(null);
-    pollingDelayRef.current = 5000;
+    resetPollingBackoff();
     if (pollingTimerRef.current) {
       window.clearTimeout(pollingTimerRef.current);
       pollingTimerRef.current = null;
     }
-  }, [jobId, logs, status]);
+  }, [jobId, logs, status, resetPollingBackoff]);
 
   useEffect(() => {
     if (!jobId) return;
@@ -101,7 +148,7 @@ export function JobLogPanel({ jobId, logs, status, onJobUpdate }: Props) {
   }, [jobId, onJobUpdate]);
 
   useEffect(() => {
-    if (!jobId || isTerminal) {
+    if (!jobId || isTerminal || !isTabVisible) {
       return;
     }
 
@@ -117,6 +164,7 @@ export function JobLogPanel({ jobId, logs, status, onJobUpdate }: Props) {
 
     ws.onopen = () => {
       setStreamState("live");
+      resetPollingBackoff();
       setError(null);
     };
 
@@ -143,23 +191,29 @@ export function JobLogPanel({ jobId, logs, status, onJobUpdate }: Props) {
     return () => {
       ws.close();
     };
-  }, [appendLine, isTerminal, jobId, refreshJob]);
+  }, [appendLine, isTabVisible, isTerminal, jobId, refreshJob, resetPollingBackoff]);
 
   useEffect(() => {
-    if (!jobId || isTerminal) return;
+    if (!jobId || isTerminal || !isTabVisible) return;
 
     const schedulePoll = () => {
+      if (document.hidden) return;
+      const delay = pollingDelayRef.current;
       pollingTimerRef.current = window.setTimeout(async () => {
+        let nextStatus = jobStatus;
         try {
-          await refreshJob();
+          const refreshedStatus = await refreshJob();
+          if (refreshedStatus) {
+            nextStatus = refreshedStatus;
+          }
         } catch {
           // ignore errors; next poll will retry
         }
-        pollingDelayRef.current = Math.min(pollingDelayRef.current * 2, 30000);
-        if (!TERMINAL_STATUSES.has(jobStatus.toLowerCase()) && streamState !== "live") {
+        getNextPollingDelay();
+        if (!TERMINAL_STATUSES.has(nextStatus.toLowerCase()) && streamState !== "live") {
           schedulePoll();
         }
-      }, pollingDelayRef.current);
+      }, delay);
     };
 
     if (streamState !== "live") {
@@ -172,7 +226,7 @@ export function JobLogPanel({ jobId, logs, status, onJobUpdate }: Props) {
         pollingTimerRef.current = null;
       }
     };
-  }, [isTerminal, jobId, refreshJob, jobStatus, streamState]);
+  }, [getNextPollingDelay, isTabVisible, isTerminal, jobId, refreshJob, jobStatus, streamState]);
 
   return (
     <div className="space-y-2 rounded-2xl border border-amber-200 bg-white/90 p-3">

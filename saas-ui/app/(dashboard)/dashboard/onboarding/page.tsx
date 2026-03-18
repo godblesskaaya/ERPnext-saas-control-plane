@@ -5,18 +5,18 @@ import { WorkspaceQueuePage } from "../../../../domains/dashboard/components/Wor
 export default function DashboardOnboardingPage() {
   return (
     <WorkspaceQueuePage
-      title="Onboarding & payments"
-      description="Focus on workspaces still waiting for payment confirmation or provisioning completion."
-      statusFilter={["pending_payment", "pending", "provisioning"]}
+      title="Payment confirmation"
+      description="Confirm mobile money and card payments before provisioning starts."
+      statusFilter={["pending_payment"]}
       showMetrics
       showAttention
       showBillingAlert
       showStatusFilter={false}
-      attentionNote="Prioritize pending payments and provisioning workspaces to complete go-live."
-      emptyStateTitle="No onboarding workspaces right now"
-      emptyStateBody="All current customers are either live or in a separate incident queue."
-      emptyStateActionLabel="View active tenants"
-      emptyStateActionHref="/dashboard/active"
+      attentionNote="Prioritize pending payments so new businesses can go live."
+      emptyStateTitle="No pending payment workspaces right now"
+      emptyStateBody="All sign-ups have either paid or moved into provisioning."
+      emptyStateActionLabel="View provisioning queue"
+      emptyStateActionHref="/dashboard/provisioning"
     />
   );
 }

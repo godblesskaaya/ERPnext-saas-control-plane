@@ -677,6 +677,60 @@ def test_admin_jobs_and_logs_view(client, db_session):
     assert "admin.view_job_logs" in actions
 
 
+@patch("app.domains.support.admin_router.PlatformERPClient")
+@patch("app.domains.tenants.service.get_payment_gateway", return_value=DummyGateway())
+def test_admin_billing_dunning_includes_schedule_and_invoice_context(_, platform_client_cls, client, db_session):
+    owner_headers = _auth_headers(client, db_session)
+    create = client.post(
+        "/tenants",
+        headers=owner_headers,
+        json={"subdomain": "billing-dunning", "company_name": "Billing Dunning Ltd", "plan": "starter"},
+    )
+    assert create.status_code == 202
+    tenant_id = create.json()["tenant"]["id"]
+
+    tenant = db_session.get(Tenant, tenant_id)
+    assert tenant is not None
+    tenant.status = "pending_payment"
+    tenant.billing_status = "unpaid"
+    tenant.platform_customer_id = "CUST-001"
+    db_session.add(tenant)
+    db_session.commit()
+
+    platform_client = platform_client_cls.return_value
+    platform_client.is_configured.return_value = True
+    platform_client.list_invoices.return_value = [
+        {
+            "name": "SINV-0001",
+            "posting_date": "2026-03-10",
+            "due_date": "2026-03-14",
+        }
+    ]
+
+    admin_headers = _admin_headers(client, db_session)
+    response = client.get("/admin/billing/dunning", headers=admin_headers)
+    assert response.status_code == 200
+    payload = response.json()
+    row = next(item for item in payload if item["tenant_id"] == tenant_id)
+    assert row["last_invoice_id"] == "SINV-0001"
+    assert row["last_payment_attempt"].startswith("2026-03-10")
+    assert row["next_retry_at"] is not None
+    assert row["grace_ends_at"] is not None
+
+
+@patch("app.domains.support.admin_router.get_queue")
+def test_admin_can_queue_billing_dunning_cycle(mock_get_queue, client, db_session):
+    mock_get_queue.return_value.enqueue = fake_enqueue
+    headers = _admin_headers(client, db_session)
+
+    response = client.post("/admin/billing/dunning/run?dry_run=true", headers=headers)
+    assert response.status_code == 200
+    assert "queued" in response.json()["message"].lower()
+
+    actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
+    assert "admin.run_billing_dunning_cycle" in actions
+
+
 def test_owner_job_view_records_audit(client, db_session):
     headers = _auth_headers(client, db_session)
     owner = db_session.query(User).filter(User.email == "owner@example.com").one()
@@ -711,6 +765,107 @@ def test_owner_job_view_records_audit(client, db_session):
     )
     assert audit.actor_id == owner.id
     assert audit.metadata_json["tenant_id"] == tenant.id
+
+
+def test_tenants_paged_supports_status_plan_and_or_filters(client, db_session):
+    headers = _auth_headers(client, db_session)
+    owner = db_session.query(User).filter(User.email == "owner@example.com").one()
+
+    tenants = [
+        Tenant(
+            owner_id=owner.id,
+            subdomain="flt-active",
+            domain="flt-active.erp.blenkotechnologies.co.tz",
+            site_name="flt-active.erp.blenkotechnologies.co.tz",
+            company_name="Filter Active Ltd",
+            plan="starter",
+            status="active",
+            billing_status="paid",
+            payment_channel="card",
+        ),
+        Tenant(
+            owner_id=owner.id,
+            subdomain="flt-sus-admin",
+            domain="flt-sus-admin.erp.blenkotechnologies.co.tz",
+            site_name="flt-sus-admin.erp.blenkotechnologies.co.tz",
+            company_name="Filter Suspended Admin Ltd",
+            plan="business",
+            status="suspended_admin",
+            billing_status="failed",
+            payment_channel="mobile_money",
+        ),
+        Tenant(
+            owner_id=owner.id,
+            subdomain="flt-sus-billing",
+            domain="flt-sus-billing.erp.blenkotechnologies.co.tz",
+            site_name="flt-sus-billing.erp.blenkotechnologies.co.tz",
+            company_name="Filter Suspended Billing Ltd",
+            plan="enterprise",
+            status="suspended_billing",
+            billing_status="past_due",
+            payment_channel="invoice",
+        ),
+    ]
+    db_session.add_all(tenants)
+    db_session.commit()
+
+    suspended = client.get("/tenants/paged?status=suspended&limit=20", headers=headers)
+    assert suspended.status_code == 200
+    suspended_statuses = {row["status"] for row in suspended.json()["data"]}
+    assert suspended_statuses == {"suspended_admin", "suspended_billing"}
+
+    business = client.get("/tenants/paged?plan=business&search=Filter&limit=20", headers=headers)
+    assert business.status_code == 200
+    assert business.json()["total"] == 1
+    assert business.json()["data"][0]["subdomain"] == "flt-sus-admin"
+
+    mode_or = client.get(
+        "/tenants/paged?status=active&billing_status=failed&filter_mode=or&limit=20",
+        headers=headers,
+    )
+    assert mode_or.status_code == 200
+    returned = {row["subdomain"] for row in mode_or.json()["data"]}
+    assert "flt-active" in returned
+    assert "flt-sus-admin" in returned
+
+
+def test_admin_tenants_paged_supports_suspended_alias(client, db_session):
+    owner = User(email="owner-admin-filter@example.com", password_hash="hash", role="user")
+    db_session.add(owner)
+    db_session.commit()
+    db_session.refresh(owner)
+
+    db_session.add_all(
+        [
+            Tenant(
+                owner_id=owner.id,
+                subdomain="admin-suspend-1",
+                domain="admin-suspend-1.erp.blenkotechnologies.co.tz",
+                site_name="admin-suspend-1.erp.blenkotechnologies.co.tz",
+                company_name="Admin Suspend 1",
+                plan="starter",
+                status="suspended_admin",
+                billing_status="failed",
+            ),
+            Tenant(
+                owner_id=owner.id,
+                subdomain="admin-suspend-2",
+                domain="admin-suspend-2.erp.blenkotechnologies.co.tz",
+                site_name="admin-suspend-2.erp.blenkotechnologies.co.tz",
+                company_name="Admin Suspend 2",
+                plan="enterprise",
+                status="suspended_billing",
+                billing_status="unpaid",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    headers = _admin_headers(client, db_session)
+    response = client.get("/admin/tenants/paged?status=suspended&limit=20", headers=headers)
+    assert response.status_code == 200
+    statuses = {row["status"] for row in response.json()["data"]}
+    assert statuses == {"suspended_admin", "suspended_billing"}
 
 
 def test_tenants_requires_auth(client):

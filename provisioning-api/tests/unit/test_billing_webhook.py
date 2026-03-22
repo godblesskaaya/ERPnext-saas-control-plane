@@ -6,6 +6,7 @@ import pytest
 
 from app.config import get_settings
 from app.models import AuditLog, Job, PaymentEvent, Tenant, User
+from app.modules.subscription.models import Subscription
 
 
 class DummyRQJob:
@@ -70,6 +71,7 @@ def test_checkout_completed_webhook_enqueues_provisioning_once(mock_get_queue, c
     db_session.expire_all()
     refreshed_user = db_session.get(User, user.id)
     refreshed_tenant = db_session.get(Tenant, tenant.id)
+    subscription = db_session.query(Subscription).filter(Subscription.tenant_id == tenant.id).one()
     jobs = db_session.query(Job).filter(Job.tenant_id == tenant.id, Job.type == "create").all()
     assert len(jobs) == 1
     assert jobs[0].status == "queued"
@@ -78,6 +80,9 @@ def test_checkout_completed_webhook_enqueues_provisioning_once(mock_get_queue, c
     assert refreshed_tenant.stripe_checkout_session_id == "cs_test_123"
     assert refreshed_tenant.stripe_subscription_id == "sub_test_123"
     assert refreshed_tenant.billing_status == "paid"
+    assert subscription.status == "active"
+    assert subscription.provider_subscription_id == "sub_test_123"
+    assert subscription.provider_customer_id == "cus_test_123"
 
     payment_actions = [
         row.action
@@ -133,8 +138,10 @@ def test_payment_failed_and_subscription_cancelled_audited(client, db_session):
 
     db_session.expire_all()
     refreshed_tenant = db_session.get(Tenant, tenant.id)
+    subscription = db_session.query(Subscription).filter(Subscription.tenant_id == tenant.id).one()
     assert refreshed_tenant.billing_status == "cancelled"
     assert refreshed_tenant.status == "suspended_billing"
+    assert subscription.status == "cancelled"
 
     actions = [
         row.action

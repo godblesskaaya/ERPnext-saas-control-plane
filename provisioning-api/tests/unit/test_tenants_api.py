@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from app.config import get_settings
 from app.models import AuditLog, Job, Tenant, TenantMembership, User
+from app.modules.subscription.models import Subscription
 
 
 class DummyRQJob:
@@ -86,8 +87,11 @@ def test_create_and_list_tenant_returns_checkout(_, client, db_session):
     listed = client.get("/tenants", headers=headers)
     assert listed.status_code == 200
     assert len(listed.json()) == 1
-
     tenant_id = payload["tenant"]["id"]
+    subscription = db_session.query(Subscription).filter(Subscription.tenant_id == tenant_id).one()
+    assert subscription.plan.slug == "starter"
+    assert subscription.status == "pending"
+    assert subscription.provider_checkout_session_id == "cs_mock_123"
     reset = client.post(
         f"/tenants/{tenant_id}/reset-admin-password",
         headers=headers,

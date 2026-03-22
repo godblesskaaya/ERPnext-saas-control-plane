@@ -11,6 +11,12 @@ from app.config import get_settings
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import PaymentEvent, Tenant, TenantMembership, User
+from app.modules.subscription.models import Subscription
+from app.modules.subscription.service import (
+    get_plan_by_slug,
+    map_legacy_billing_status_to_subscription_status,
+    upsert_subscription_for_tenant,
+)
 from app.schemas import BillingInvoiceListResponse, BillingInvoiceOut, BillingPortalResponse, MessageResponse
 from app.domains.audit.service import record_audit_event
 from app.domains.support.notifications import notification_service
@@ -20,6 +26,7 @@ from app.domains.billing.payment.stripe_gateway import StripeGateway
 from app.domains.tenants.service import enqueue_provisioning_for_paid_tenant
 from app.domains.tenants.state import InvalidTenantStatusTransition, transition_tenant_status
 from app.rate_limits import authenticated_default_rate_limit
+from app.utils.time import utcnow
 
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -110,7 +117,36 @@ BILLING_WEBHOOK_REQUEST_BODY = {
 
 
 def _resolve_tenant_for_cancelled_subscription(db: Session, subscription_id: str) -> Tenant | None:
+    subscription = db.query(Subscription).filter(Subscription.provider_subscription_id == subscription_id).first()
+    if subscription:
+        tenant = db.get(Tenant, subscription.tenant_id)
+        if tenant:
+            return tenant
     return db.query(Tenant).filter(Tenant.stripe_subscription_id == subscription_id).first()
+
+
+def _ensure_subscription(db: Session, tenant: Tenant) -> Subscription:
+    existing = db.query(Subscription).filter(Subscription.tenant_id == tenant.id).first()
+    if existing is not None:
+        return existing
+
+    plan = get_plan_by_slug(db, getattr(tenant, "plan_slug", tenant.plan), active_only=False) or get_plan_by_slug(
+        db,
+        "starter",
+        active_only=False,
+    )
+    if plan is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Subscription plans are not initialized")
+    return upsert_subscription_for_tenant(
+        db,
+        tenant=tenant,
+        plan=plan,
+        selected_app=tenant.chosen_app,
+        status_value=map_legacy_billing_status_to_subscription_status(tenant.billing_status),
+        payment_provider=tenant.payment_provider,
+        provider_subscription_id=tenant.stripe_subscription_id,
+        provider_checkout_session_id=tenant.stripe_checkout_session_id or tenant.dpo_transaction_token,
+    )
 
 
 def _to_minor_units(value: object) -> int | None:
@@ -247,6 +283,16 @@ def _process_event(
             )
             channel = raw.get("channel") or raw.get("paymentChannel")
             tenant.payment_channel = str(channel).lower() if channel else (tenant.payment_channel or "mobile_money")
+        subscription = _ensure_subscription(db, tenant)
+        subscription.status = "active"
+        subscription.payment_provider = tenant.payment_provider
+        subscription.provider_checkout_session_id = (
+            tenant.stripe_checkout_session_id or tenant.dpo_transaction_token or subscription.provider_checkout_session_id
+        )
+        subscription.provider_subscription_id = subscription_id or subscription.provider_subscription_id
+        if tenant.payment_provider == "stripe":
+            subscription.provider_customer_id = customer_ref or subscription.provider_customer_id
+        db.add(subscription)
         db.add(tenant)
         db.commit()
         db.refresh(tenant)
@@ -287,6 +333,10 @@ def _process_event(
             transition_tenant_status(tenant, "pending_payment")
         except InvalidTenantStatusTransition:
             pass
+        subscription = _ensure_subscription(db, tenant)
+        subscription.status = "past_due"
+        subscription.payment_provider = tenant.payment_provider
+        db.add(subscription)
         db.add(tenant)
         db.commit()
         record_audit_event(
@@ -317,6 +367,13 @@ def _process_event(
             transition_tenant_status(tenant, "suspended_billing")
         except InvalidTenantStatusTransition:
             tenant.status = "suspended_billing"
+        subscription = _ensure_subscription(db, tenant)
+        subscription.status = "cancelled"
+        if subscription.cancelled_at is None:
+            subscription.cancelled_at = utcnow()
+        subscription.payment_provider = tenant.payment_provider
+        subscription.provider_subscription_id = subscription_id or subscription.provider_subscription_id
+        db.add(subscription)
         db.add(tenant)
         db.commit()
         record_audit_event(

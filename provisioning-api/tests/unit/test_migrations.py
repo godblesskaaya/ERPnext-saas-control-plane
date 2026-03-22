@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 
 from app.config import get_settings
 from app.main import APP_ROOT, startup
@@ -38,8 +38,113 @@ def test_alembic_upgrade_creates_core_tables(monkeypatch, tmp_path) -> None:
         "tenant_memberships",
         "domain_mappings",
         "support_notes",
+        "plans",
+        "plan_entitlements",
+        "subscriptions",
     } <= tables
     user_columns = {column["name"] for column in inspector.get_columns("users")}
     assert {"email_verified", "email_verified_at"} <= user_columns
+    plan_columns = {column["name"] for column in inspector.get_columns("plans")}
+    assert {"slug", "isolation_model", "backup_frequency", "stripe_price_id"} <= plan_columns
+
+    engine = create_engine(f"sqlite:///{database_path}")
+    with engine.connect() as connection:
+        plan_count = connection.execute(text("SELECT COUNT(*) FROM plans")).scalar_one()
+    assert plan_count == 3
+
+    get_settings.cache_clear()
+
+
+def test_subscription_migration_backfills_existing_tenants(monkeypatch, tmp_path) -> None:
+    database_path = tmp_path / "alembic-backfill.db"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{database_path}")
+    get_settings.cache_clear()
+
+    config = Config(str(APP_ROOT / "alembic.ini"))
+    config.set_main_option("script_location", str(APP_ROOT / "alembic"))
+
+    command.upgrade(config, "20260318_0016")
+
+    engine = create_engine(f"sqlite:///{database_path}")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO users (
+                  id, email, password_hash, role, created_at, stripe_customer_id,
+                  email_verified, email_verified_at
+                ) VALUES (
+                  :id, :email, :password_hash, :role, :created_at, :stripe_customer_id,
+                  :email_verified, :email_verified_at
+                )
+                """
+            ),
+            {
+                "id": "00000000-0000-0000-0000-000000000001",
+                "email": "owner@example.com",
+                "password_hash": "hash",
+                "role": "user",
+                "created_at": "2026-03-01T00:00:00+00:00",
+                "stripe_customer_id": "cus_123",
+                "email_verified": 1,
+                "email_verified_at": "2026-03-01T00:00:00+00:00",
+            },
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO tenants (
+                  id, owner_id, subdomain, domain, site_name, company_name, plan, chosen_app,
+                  status, billing_status, payment_provider, dpo_transaction_token,
+                  stripe_checkout_session_id, stripe_subscription_id, platform_customer_id,
+                  created_at, updated_at
+                ) VALUES (
+                  :id, :owner_id, :subdomain, :domain, :site_name, :company_name, :plan, :chosen_app,
+                  :status, :billing_status, :payment_provider, :dpo_transaction_token,
+                  :stripe_checkout_session_id, :stripe_subscription_id, :platform_customer_id,
+                  :created_at, :updated_at
+                )
+                """
+            ),
+            {
+                "id": "00000000-0000-0000-0000-000000000111",
+                "owner_id": "00000000-0000-0000-0000-000000000001",
+                "subdomain": "legacy",
+                "domain": "legacy.erp.blenkotechnologies.co.tz",
+                "site_name": "legacy.erp.blenkotechnologies.co.tz",
+                "company_name": "Legacy Co",
+                "plan": "starter",
+                "chosen_app": None,
+                "status": "pending_payment",
+                "billing_status": "paid",
+                "payment_provider": "stripe",
+                "dpo_transaction_token": None,
+                "stripe_checkout_session_id": "cs_legacy_1",
+                "stripe_subscription_id": "sub_legacy_1",
+                "platform_customer_id": "CUST-LEGACY",
+                "created_at": "2026-03-01T00:00:00+00:00",
+                "updated_at": "2026-03-01T00:00:00+00:00",
+            },
+        )
+
+    command.upgrade(config, "head")
+
+    with engine.connect() as connection:
+        subscription_count = connection.execute(text("SELECT COUNT(*) FROM subscriptions")).scalar_one()
+        assert subscription_count == 1
+        subscription = connection.execute(
+            text(
+                """
+                SELECT status, payment_provider, provider_subscription_id, provider_customer_id
+                FROM subscriptions
+                WHERE tenant_id = :tenant_id
+                """
+            ),
+            {"tenant_id": "00000000-0000-0000-0000-000000000111"},
+        ).mappings().one()
+        assert subscription["status"] == "active"
+        assert subscription["payment_provider"] == "stripe"
+        assert subscription["provider_subscription_id"] == "sub_legacy_1"
+        assert subscription["provider_customer_id"] == "cus_123"
 
     get_settings.cache_clear()

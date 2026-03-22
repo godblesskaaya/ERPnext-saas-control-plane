@@ -12,6 +12,7 @@ from app.utils.time import utcnow
 
 if TYPE_CHECKING:
     from app.models import BackupManifest, DomainMapping, Job, Organization, SupportNote, TenantMembership, User
+    from app.modules.subscription.models import Subscription
 
 
 class Tenant(Base):
@@ -46,3 +47,10 @@ class Tenant(Base):
     memberships: Mapped[list["TenantMembership"]] = relationship(back_populates="tenant")
     domain_mappings: Mapped[list["DomainMapping"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
     support_notes: Mapped[list["SupportNote"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
+    subscription: Mapped["Subscription | None"] = relationship("Subscription", back_populates="tenant", uselist=False)
+
+    @property
+    def plan_slug(self) -> str:
+        if self.subscription and self.subscription.plan:
+            return self.subscription.plan.slug
+        return (self.plan or "").strip().lower()

@@ -21,6 +21,7 @@ from app.db import get_db
 from app.middleware.security import SecurityHeadersMiddleware
 from app.domains.billing import router as billing_router
 from app.domains.iam import router as auth_router
+from app.modules.subscription.router import router as subscription_router
 from app.domains.observability import init_metrics, init_sentry
 from app.domains.support import admin_router, jobs_router, ws_router
 from app.domains.tenants import router as tenants_router
@@ -165,6 +166,7 @@ if settings.metrics_enabled and API_PREFIX:
 
 app.include_router(auth_router.router, prefix=API_PREFIX)
 app.include_router(tenants_router.router, prefix=API_PREFIX)
+app.include_router(subscription_router, prefix=API_PREFIX)
 app.include_router(jobs_router.router, prefix=API_PREFIX)
 app.include_router(admin_router.router, prefix=API_PREFIX)
 app.include_router(billing_router.router, prefix=API_PREFIX)

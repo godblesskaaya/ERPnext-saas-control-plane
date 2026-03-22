@@ -161,3 +161,9 @@ def validate_plan_change(
         chosen_app = None
 
     return plan, chosen_app
+
+
+def legacy_backup_daily_limit_for_plan(plan_slug: str | None) -> int | None:
+    if not plan_slug:
+        return PLAN_BACKUP_DAILY_LIMITS.get("starter")
+    return PLAN_BACKUP_DAILY_LIMITS.get(plan_slug.lower().strip(), PLAN_BACKUP_DAILY_LIMITS.get("starter"))

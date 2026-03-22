@@ -11,12 +11,18 @@ from app.bench.validators import ValidationError, domain_from_subdomain, validat
 from app.config import get_settings
 from app.modules.observability.logging import get_logger
 from app.models import AuditLog, Job, Organization, Tenant, TenantMembership, User
-from app.domains.policy import PLAN_BACKUP_DAILY_LIMITS, ensure_email_verified, resolve_plan_and_app
+from app.domains.policy import ensure_email_verified, legacy_backup_daily_limit_for_plan
 from app.domains.tenants.membership import TENANT_ROLE_OWNER
 from app.queue.enqueue import get_queue
 from app.modules.audit.service import record_audit_event
 from app.domains.billing.payment.base import CheckoutResult
 from app.domains.billing.payment.factory import get_payment_gateway
+from app.modules.subscription.models import Subscription
+from app.modules.subscription.service import (
+    require_plan_by_slug,
+    upsert_subscription_for_tenant,
+    validate_selected_app_for_plan,
+)
 from app.modules.tenant.state import InvalidTenantStatusTransition, transition_tenant_status
 from app.utils.time import utcnow
 
@@ -53,7 +59,8 @@ def create_tenant_and_start_checkout(
     try:
         clean_subdomain = validate_subdomain(subdomain)
         domain = domain_from_subdomain(clean_subdomain)
-        selected_plan, selected_app = resolve_plan_and_app(plan, chosen_app)
+        selected_plan = require_plan_by_slug(db, plan)
+        selected_app = validate_selected_app_for_plan(selected_plan, chosen_app)
     except ValidationError as exc:
         request_log.info("tenant.create.validation_failed", error=str(exc))
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
@@ -69,7 +76,7 @@ def create_tenant_and_start_checkout(
         domain=domain,
         site_name=domain,
         company_name=company_name,
-        plan=selected_plan,
+        plan=selected_plan.slug,
         chosen_app=selected_app,
         status="pending_payment",
         billing_status="pending",
@@ -79,6 +86,16 @@ def create_tenant_and_start_checkout(
     db.flush()
     tenant.organization_id = organization.id
     db.add(tenant)
+    db.flush()
+
+    upsert_subscription_for_tenant(
+        db,
+        tenant=tenant,
+        plan=selected_plan,
+        selected_app=selected_app,
+        status_value="pending",
+        payment_provider=get_settings().active_payment_provider.strip().lower() or "azampay",
+    )
     db.commit()
     db.refresh(tenant)
 
@@ -117,6 +134,17 @@ def create_tenant_and_start_checkout(
     if provider == "stripe" and customer_ref and owner.stripe_customer_id != customer_ref:
         owner.stripe_customer_id = checkout_session.customer_ref
         db.add(owner)
+
+    upsert_subscription_for_tenant(
+        db,
+        tenant=tenant,
+        plan=selected_plan,
+        selected_app=selected_app,
+        status_value="pending",
+        payment_provider=provider,
+        provider_checkout_session_id=checkout_session.session_id,
+        provider_customer_id=customer_ref if provider == "stripe" else None,
+    )
     db.add(tenant)
     db.commit()
     db.refresh(tenant)
@@ -184,7 +212,25 @@ def enqueue_provisioning_for_paid_tenant(db: Session, tenant: Tenant, owner_emai
 
 
 def enforce_backup_plan_limit(db: Session, tenant: Tenant) -> None:
-    limit = PLAN_BACKUP_DAILY_LIMITS.get(tenant.plan, 1)
+    subscription = (
+        db.query(Subscription)
+        .filter(Subscription.tenant_id == tenant.id)
+        .first()
+    )
+    limit: int | None = None
+    if subscription and subscription.plan:
+        # AGENT-NOTE: Phase 2 introduces plan configuration but does not define an explicit
+        # manual-backup limit field. Derive legacy-equivalent limits from plan config:
+        # weekly backups -> 1/day, daily+pooled -> 3/day, daily+silo -> unlimited.
+        if subscription.plan.backup_frequency == "weekly":
+            limit = 1
+        elif subscription.plan.backup_frequency == "daily" and subscription.plan.isolation_model == "pooled":
+            limit = 3
+        elif subscription.plan.backup_frequency == "daily":
+            limit = None
+    if limit is None and not (subscription and subscription.plan):
+        limit = legacy_backup_daily_limit_for_plan(getattr(tenant, "plan_slug", tenant.plan))
+
     if limit is None:
         return
 
@@ -202,7 +248,7 @@ def enforce_backup_plan_limit(db: Session, tenant: Tenant) -> None:
     if count >= limit:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Plan limit reached: {limit} manual backup trigger(s) per day for {tenant.plan}",
+            detail=f"Plan limit reached: {limit} manual backup trigger(s) per day for {getattr(tenant, 'plan_slug', tenant.plan)}",
         )
 
 

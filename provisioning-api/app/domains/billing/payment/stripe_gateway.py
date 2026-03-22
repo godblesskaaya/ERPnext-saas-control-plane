@@ -51,6 +51,16 @@ class StripeGateway(PaymentGateway):
             raise ValueError(f"No Stripe price configured for plan '{plan}'")
         return price_id
 
+    def _price_id_for_tenant(self, tenant) -> str:
+        subscription = getattr(tenant, "subscription", None)
+        plan = getattr(subscription, "plan", None)
+        stripe_price_id = (getattr(plan, "stripe_price_id", None) or "").strip() if plan is not None else ""
+        if stripe_price_id:
+            return stripe_price_id
+        # AGENT-NOTE: During Phase 2 rollout, existing rows may still miss a populated
+        # plan.stripe_price_id relation in-memory. Fall back to legacy env mapping to keep checkout available.
+        return self._price_id_for_plan(getattr(tenant, "plan_slug", None) or tenant.plan)
+
     def create_checkout(self, tenant, owner) -> CheckoutResult:
         settings = get_settings()
         if self.mock_mode:
@@ -81,19 +91,19 @@ class StripeGateway(PaymentGateway):
         session = stripe.checkout.Session.create(
             mode="subscription",
             customer=customer_ref,
-            line_items=[{"price": self._price_id_for_plan(tenant.plan), "quantity": 1}],
+            line_items=[{"price": self._price_id_for_tenant(tenant), "quantity": 1}],
             success_url=settings.billing_checkout_success_url,
             cancel_url=settings.billing_checkout_cancel_url,
             metadata={
                 "tenant_id": tenant.id,
                 "owner_id": owner.id,
-                "plan": tenant.plan,
+                "plan": getattr(tenant, "plan_slug", None) or tenant.plan,
             },
             subscription_data={
                 "metadata": {
                     "tenant_id": tenant.id,
                     "owner_id": owner.id,
-                    "plan": tenant.plan,
+                    "plan": getattr(tenant, "plan_slug", None) or tenant.plan,
                 }
             },
         )

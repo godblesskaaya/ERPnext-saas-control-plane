@@ -35,9 +35,16 @@ export const dashboardNavSections: DashboardNavSection[] = [
     ],
   },
   {
+    title: "Account workspace",
+    description: "Personal account, billing visibility, and notification readiness.",
+    items: [
+      { href: "/dashboard/account", label: "Account summary", hint: "Identity and billing profile" },
+      { href: "/dashboard/settings", label: "Settings", hint: "Notification and contact readiness" },
+    ],
+  },
+  {
     title: "Platform health",
     description: "Infrastructure readiness and platform service checks.",
     items: [{ href: "/dashboard/platform-health", label: "Platform health", hint: "Queues and infra checks" }],
   },
 ];
-

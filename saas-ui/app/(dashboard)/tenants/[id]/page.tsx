@@ -13,6 +13,7 @@ import type {
   SupportNote,
   Tenant,
   TenantMember,
+  TenantSubscription,
   TenantSummary,
   UserProfile,
 } from "../../../../domains/shared/lib/types";
@@ -78,6 +79,15 @@ function nextActionByStatus(status: string): string {
   return "Review tenant state and choose the next operational action.";
 }
 
+function subscriptionStatusClass(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "active") return "bg-emerald-100 text-emerald-800";
+  if (normalized === "trialing" || normalized === "pending") return "bg-amber-100 text-amber-800";
+  if (normalized === "past_due" || normalized === "paused") return "bg-orange-100 text-orange-800";
+  if (normalized === "cancelled") return "bg-red-100 text-red-700";
+  return "bg-slate-100 text-slate-700";
+}
+
 export default function TenantDetailPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
@@ -132,6 +142,9 @@ export default function TenantDetailPage() {
   const [recentJobsSupported, setRecentJobsSupported] = useState(true);
   const [tenantSummary, setTenantSummary] = useState<TenantSummary | null>(null);
   const [tenantSummaryError, setTenantSummaryError] = useState<string | null>(null);
+  const [subscription, setSubscription] = useState<TenantSubscription | null>(null);
+  const [subscriptionSupported, setSubscriptionSupported] = useState(true);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
   const [restoreTarget, setRestoreTarget] = useState<BackupManifestEntry | null>(null);
   const [restoreConfirm, setRestoreConfirm] = useState("");
   const [restoreBusy, setRestoreBusy] = useState(false);
@@ -304,6 +317,26 @@ export default function TenantDetailPage() {
     }
   }, [id]);
 
+  const loadSubscription = useCallback(async () => {
+    if (!id) return;
+    try {
+      const result = await api.getTenantSubscription(id);
+      if (!result.supported) {
+        // AGENT-NOTE: older deployed API versions may not expose subscription endpoint yet.
+        // Keep tenant operations page usable with a non-fatal fallback instead of hard failure.
+        setSubscriptionSupported(false);
+        setSubscription(null);
+        setSubscriptionError(null);
+        return;
+      }
+      setSubscriptionSupported(true);
+      setSubscription(result.data);
+      setSubscriptionError(null);
+    } catch (err) {
+      setSubscriptionError(getApiErrorMessage(err, "Failed to load subscription details"));
+    }
+  }, [id]);
+
   useEffect(() => {
     void loadTenant();
     void loadBackups();
@@ -313,6 +346,7 @@ export default function TenantDetailPage() {
     void loadCurrentUser();
     void loadRecentJobs();
     void loadTenantSummary();
+    void loadSubscription();
   }, [
     loadAuditLog,
     loadBackups,
@@ -322,6 +356,7 @@ export default function TenantDetailPage() {
     loadCurrentUser,
     loadRecentJobs,
     loadTenantSummary,
+    loadSubscription,
   ]);
 
   useEffect(() => {
@@ -629,6 +664,7 @@ export default function TenantDetailPage() {
       <nav className="flex flex-wrap gap-2 rounded-3xl border border-amber-200/70 bg-white/80 p-3 text-xs text-slate-700">
         {[
           ["overview", "Overview"],
+          ["subscription", "Subscription"],
           ["jobs", "Jobs"],
           ["backups", "Backups"],
           ["domains", "Domains"],
@@ -645,6 +681,69 @@ export default function TenantDetailPage() {
           </a>
         ))}
       </nav>
+
+      <div id="subscription" className="space-y-2 rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-slate-900">Subscription details</h2>
+          <button
+            className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-amber-300"
+            onClick={() => {
+              void loadSubscription();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+
+        {subscriptionError ? (
+          <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{subscriptionError}</p>
+        ) : null}
+
+        {!subscriptionSupported ? (
+          <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            Subscription endpoint is not available on this backend deployment yet.
+          </p>
+        ) : subscription ? (
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            <article className="rounded-2xl border border-slate-200 bg-white p-3 text-sm">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Plan</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">{subscription.plan.display_name}</p>
+              <p className="mt-1 text-xs text-slate-500">Isolation: {subscription.plan.isolation_model}</p>
+            </article>
+            <article className="rounded-2xl border border-slate-200 bg-white p-3 text-sm">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Status</p>
+              <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${subscriptionStatusClass(subscription.status)}`}>
+                {subscription.status}
+              </span>
+              <p className="mt-1 text-xs text-slate-500">Provider: {subscription.payment_provider ?? "—"}</p>
+            </article>
+            <article className="rounded-2xl border border-slate-200 bg-white p-3 text-sm">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Billing period</p>
+              <p className="mt-1 text-xs text-slate-700">
+                {formatTimestamp(subscription.current_period_start)} → {formatTimestamp(subscription.current_period_end)}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">Next renewal: {formatTimestamp(subscription.current_period_end)}</p>
+            </article>
+            <article className="rounded-2xl border border-slate-200 bg-white p-3 text-sm">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Selected app</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">{subscription.selected_app ?? "—"}</p>
+              <p className="mt-1 text-xs text-slate-500">Support: {subscription.plan.support_channel}</p>
+            </article>
+            <article className="rounded-2xl border border-slate-200 bg-white p-3 text-sm">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Trial ends</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">{formatTimestamp(subscription.trial_ends_at)}</p>
+            </article>
+            <article className="rounded-2xl border border-slate-200 bg-white p-3 text-sm">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Cancelled at</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">{formatTimestamp(subscription.cancelled_at)}</p>
+            </article>
+          </div>
+        ) : (
+          <p className="rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+            Loading subscription details...
+          </p>
+        )}
+      </div>
 
       {jobId ? (
         <div id="jobs" className="space-y-2 rounded-3xl border border-amber-200/70 bg-white/80 p-6">

@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { loadAuthHealthSnapshot, requestPasswordReset } from "../../../domains/auth/application/authUseCases";
+import { getToken } from "../../../domains/auth/auth";
 
 export default function ForgotPasswordPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -15,6 +18,11 @@ export default function ForgotPasswordPage() {
   const [billingHealth, setBillingHealth] = useState("checking");
 
   useEffect(() => {
+    if (getToken()) {
+      router.replace("/dashboard");
+      return;
+    }
+
     const loadHealth = async () => {
       try {
         const response = await fetch("/api/health", { cache: "no-store" });
@@ -29,7 +37,7 @@ export default function ForgotPasswordPage() {
     };
 
     void loadHealth();
-  }, []);
+  }, [router]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();

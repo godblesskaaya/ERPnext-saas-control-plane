@@ -280,6 +280,25 @@ export type TenantSummary = {
   last_invoice?: BillingInvoice | null;
 };
 
+export type TenantSubscription = {
+  id: string;
+  tenant_id: string;
+  plan_id: string;
+  status: "pending" | "trialing" | "active" | "past_due" | "cancelled" | "paused" | (string & {});
+  trial_ends_at?: string | null;
+  current_period_start?: string | null;
+  current_period_end?: string | null;
+  cancelled_at?: string | null;
+  selected_app?: string | null;
+  payment_provider?: string | null;
+  provider_subscription_id?: string | null;
+  provider_customer_id?: string | null;
+  provider_checkout_session_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  plan: PlanDetail;
+};
+
 export type TenantReadiness = {
   ready: boolean;
   message: string;

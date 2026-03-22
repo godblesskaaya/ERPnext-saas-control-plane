@@ -23,6 +23,7 @@ import type {
   TenantCreateResponse,
   TenantSummary,
   TenantReadiness,
+  TenantSubscription,
   TenantUpdatePayload,
   UserProfile,
 } from "./types";
@@ -584,6 +585,9 @@ export const api = {
   listTenantBackups: (tenantId: string) => requestOptionalEndpoint<BackupManifestEntry[]>(`/tenants/${tenantId}/backups`),
 
   getTenantSummary: (tenantId: string) => requestOptionalEndpoint<TenantSummary>(`/tenants/${tenantId}/summary`),
+
+  getTenantSubscription: (tenantId: string) =>
+    requestOptionalEndpoint<TenantSubscription>(`/tenants/${tenantId}/subscription`),
 
   getTenantReadiness: (tenantId: string) =>
     requestOptionalEndpoint<TenantReadiness>(`/tenants/${tenantId}/readiness`),

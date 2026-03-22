@@ -93,6 +93,33 @@ def test_verify_email_and_me_endpoint(mock_token, client):
     assert me.json()["email_verified_at"] is not None
 
 
+def test_update_me_phone_and_clear_phone(client, db_session):
+    signup = client.post(
+        "/auth/signup",
+        json={"email": "profile@example.com", "password": "Secret123!", "phone": "+255700000000"},
+    )
+    assert signup.status_code == 201
+    assert signup.json()["phone"] == "+255700000000"
+
+    login = client.post("/auth/login", json={"email": "profile@example.com", "password": "Secret123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    updated = client.patch("/auth/me", headers=headers, json={"phone": " +255755111222 "})
+    assert updated.status_code == 200
+    assert updated.json()["phone"] == "+255755111222"
+
+    cleared = client.patch("/auth/me", headers=headers, json={"phone": ""})
+    assert cleared.status_code == 200
+    assert cleared.json()["phone"] is None
+
+    user = db_session.query(User).filter(User.email == "profile@example.com").one()
+    assert user.phone is None
+
+    actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
+    assert "auth.profile_updated" in actions
+
+
 @patch(
     "app.modules.identity.router.secrets.token_urlsafe",
     side_effect=["signup-verify-token-123456789", "resend-verify-token-123456789"],

@@ -80,6 +80,10 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128, description="Account password.")
 
 
+class ProfileUpdateRequest(BaseModel):
+    phone: str | None = Field(default=None, max_length=32, description="Optional phone number for SMS notifications.")
+
+
 class ForgotPasswordRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={

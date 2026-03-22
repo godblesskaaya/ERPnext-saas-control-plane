@@ -28,6 +28,7 @@ from app.schemas import (
     ImpersonationExchangeRequest,
     LoginRequest,
     MessageResponse,
+    ProfileUpdateRequest,
     ResetPasswordRequest,
     SignupRequest,
     TokenResponse,
@@ -226,6 +227,42 @@ def auth_health(request: Request, db: Session = Depends(get_db)) -> MessageRespo
     },
 )
 def get_me(current_user: User = Depends(get_current_user)) -> UserOut:
+    return UserOut.model_validate(current_user)
+
+
+@router.patch(
+    "/me",
+    response_model=UserOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def update_me(
+    request: Request,
+    payload: ProfileUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> UserOut:
+    normalized_phone = payload.phone.strip() if isinstance(payload.phone, str) else None
+    if normalized_phone == "":
+        normalized_phone = None
+
+    current_user.phone = normalized_phone
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+
+    record_audit_event(
+        db,
+        action="auth.profile_updated",
+        resource="users",
+        actor=current_user,
+        resource_id=current_user.id,
+        request=request,
+        metadata={"updated_fields": ["phone"]},
+    )
     return UserOut.model_validate(current_user)
 
 

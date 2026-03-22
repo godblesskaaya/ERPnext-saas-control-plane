@@ -449,6 +449,12 @@ export const api = {
 
   getCurrentUser: () => request<UserProfile>("/auth/me"),
 
+  updateCurrentUser: (payload: { phone?: string | null }) =>
+    request<UserProfile>("/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
   verifyEmail: (token: string) =>
     request<MessageResponse>("/auth/verify-email", {
       method: "POST",

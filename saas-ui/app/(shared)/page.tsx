@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PricingSection } from "../../domains/subscription/ui/PricingSection";
 
 const outcomeHighlights = [
   {
@@ -166,31 +167,7 @@ export default function LandingPage() {
         ))}
       </section>
 
-      <section id="pricing" className="space-y-6 rounded-3xl border border-amber-200/80 bg-white/80 p-8">
-        <h2 className="font-display text-3xl text-slate-900">Pricing that makes sense locally</h2>
-        <p className="max-w-3xl text-sm text-slate-600">
-          Transparent monthly pricing, with TZS guidance and mobile money-friendly checkout messaging.
-        </p>
-        <div className="grid gap-4 md:grid-cols-3">
-          <article className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] p-5">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Starter</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">$49/mo</p>
-            <p className="text-xs text-slate-500">About TZS 125,000/month</p>
-            <p className="mt-2 text-sm text-slate-600">For teams moving from spreadsheets to daily ops discipline.</p>
-          </article>
-          <article className="rounded-2xl border border-[#0d6a6a]/30 bg-[#0d6a6a] p-5 text-white shadow-lg">
-            <p className="text-xs uppercase tracking-wide text-white/80">Business · Most selected</p>
-            <p className="mt-1 text-2xl font-bold">$149/mo</p>
-            <p className="text-xs text-white/80">About TZS 380,000/month</p>
-            <p className="mt-2 text-sm text-white/90">For multi-branch teams that need tighter stock and approval control.</p>
-          </article>
-          <article className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] p-5">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Enterprise</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">Custom</p>
-            <p className="mt-2 text-sm text-slate-600">Designed for complex rollouts with governance and onboarding support.</p>
-          </article>
-        </div>
-      </section>
+      <PricingSection />
 
       <section id="how-it-works" className="space-y-6">
         <h2 className="font-display text-3xl text-slate-900">A go-live flow built for operators</h2>

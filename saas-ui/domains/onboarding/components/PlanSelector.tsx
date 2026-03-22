@@ -2,6 +2,9 @@
 
 import { useMemo } from "react";
 
+import type { PlanCatalogItem } from "../../subscription/domain/planCatalog";
+import { Badge, Card } from "../../shared/components/ui";
+
 export type PlanOption = {
   id: string;
   label: string;
@@ -23,7 +26,7 @@ export const PLAN_OPTIONS: PlanOption[] = [
   {
     id: "starter",
     label: "Starter",
-    price: "$49/mo (about TZS 125,000)",
+    price: "TZS 125,000/month",
     description: "Best when one team needs sales, stock, and invoicing moving this week.",
     backupRetention: "7-day backups",
     controlTag: "Daily essentials",
@@ -31,7 +34,7 @@ export const PLAN_OPTIONS: PlanOption[] = [
   {
     id: "business",
     label: "Business",
-    price: "$149/mo (about TZS 380,000)",
+    price: "TZS 380,000/month",
     description: "For growing operations coordinating branches, field teams, or mobile-first workflows.",
     backupRetention: "30-day backups",
     highlight: "Best for growth",
@@ -40,7 +43,7 @@ export const PLAN_OPTIONS: PlanOption[] = [
   {
     id: "enterprise",
     label: "Enterprise",
-    price: "Custom",
+    price: "Custom pricing",
     description: "For complex governance, multi-company rollout, and guided migration planning.",
     backupRetention: "90-day backups",
     controlTag: "Enterprise governance",
@@ -90,20 +93,66 @@ export function getPlanMeta(plan: string): PlanOption | undefined {
   return PLAN_OPTIONS.find((option) => option.id.toLowerCase() === plan.toLowerCase());
 }
 
+export function mapPlanCatalogToOptions(catalog: PlanCatalogItem[]): PlanOption[] {
+  return catalog.map((plan) => ({
+    id: plan.slug,
+    label: plan.label,
+    price: plan.monthlyPriceLabel,
+    description: plan.description,
+    backupRetention: plan.backupRetentionLabel,
+    highlight: plan.highlight,
+    controlTag: plan.supportLabel,
+  }));
+}
+
+export function mapSelectableEntitlementsToBusinessApps(
+  selectableEntitlements: string[],
+  fallback: BusinessAppOption[] = BUSINESS_APP_OPTIONS
+): BusinessAppOption[] {
+  if (!selectableEntitlements.length) return fallback;
+
+  return selectableEntitlements.map((appSlug) => {
+    const fallbackOption = fallback.find((item) => item.id === appSlug);
+    if (fallbackOption) return fallbackOption;
+
+    const label = appSlug
+      .split("_")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+    return {
+      id: appSlug,
+      label,
+      description: `${label} focus pack for business workflows.`,
+      profile: "Business",
+    };
+  });
+}
+
 type Props = {
   value: string;
   onChange: (value: string) => void;
   chosenApp?: string;
   onChosenAppChange?: (value: string) => void;
+  planOptions?: PlanOption[];
+  businessAppOptions?: BusinessAppOption[];
 };
 
-export function PlanSelector({ value, onChange, chosenApp, onChosenAppChange }: Props) {
+export function PlanSelector({
+  value,
+  onChange,
+  chosenApp,
+  onChosenAppChange,
+  planOptions,
+  businessAppOptions,
+}: Props) {
   const isBusinessSelected = value.toLowerCase() === "business";
+  const resolvedPlanOptions = planOptions?.length ? planOptions : PLAN_OPTIONS;
+  const resolvedBusinessAppOptions = businessAppOptions?.length ? businessAppOptions : BUSINESS_APP_OPTIONS;
 
   const selectedApp = useMemo(() => {
-    if (!chosenApp) return BUSINESS_APP_OPTIONS[0];
-    return BUSINESS_APP_OPTIONS.find((option) => option.id === chosenApp) ?? BUSINESS_APP_OPTIONS[0];
-  }, [chosenApp]);
+    if (!chosenApp) return resolvedBusinessAppOptions[0];
+    return resolvedBusinessAppOptions.find((option) => option.id === chosenApp) ?? resolvedBusinessAppOptions[0];
+  }, [chosenApp, resolvedBusinessAppOptions]);
 
   return (
     <div className="space-y-4">
@@ -115,34 +164,30 @@ export function PlanSelector({ value, onChange, chosenApp, onChosenAppChange }: 
           </p>
         </div>
         <div className="grid gap-3 md:grid-cols-3">
-          {PLAN_OPTIONS.map((plan) => {
+          {resolvedPlanOptions.map((plan) => {
             const active = plan.id === value;
             return (
-              <button
+              <Card
                 key={plan.id}
-                type="button"
-                onClick={() => onChange(plan.id)}
-                className={`rounded-2xl border p-4 text-left transition ${
+                className={`cursor-pointer text-left transition ${
                   active
                     ? "border-emerald-200 bg-emerald-50 shadow-[0_0_0_1px_rgba(13,106,106,0.2)]"
                     : "border-amber-200 bg-white/80 hover:border-amber-300"
                 }`}
               >
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="font-semibold text-slate-900">{plan.label}</span>
-                  {plan.highlight ? (
-                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-800">
-                      {plan.highlight}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="text-base font-semibold text-[#0d6a6a]">{plan.price}</p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-600">{plan.description}</p>
-                <div className="mt-3 space-y-1 text-[11px] text-slate-500">
-                  <p>{plan.backupRetention}</p>
-                  <p>{plan.controlTag}</p>
-                </div>
-              </button>
+                <button type="button" onClick={() => onChange(plan.id)} className="w-full text-left">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="font-semibold text-slate-900">{plan.label}</span>
+                    {plan.highlight ? <Badge tone="success">{plan.highlight}</Badge> : null}
+                  </div>
+                  <p className="text-base font-semibold text-[#0d6a6a]">{plan.price}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">{plan.description}</p>
+                  <div className="mt-3 space-y-1 text-[11px] text-slate-500">
+                    <p>{plan.backupRetention}</p>
+                    <p>{plan.controlTag}</p>
+                  </div>
+                </button>
+              </Card>
             );
           })}
         </div>
@@ -160,7 +205,7 @@ export function PlanSelector({ value, onChange, chosenApp, onChosenAppChange }: 
             <span className="rounded-full bg-emerald-50 px-2 py-1 text-[11px] text-emerald-800">Required</span>
           </div>
           <div className="grid gap-2 md:grid-cols-2">
-            {BUSINESS_APP_OPTIONS.map((option) => {
+            {resolvedBusinessAppOptions.map((option) => {
               const active = selectedApp.id === option.id;
               return (
                 <button

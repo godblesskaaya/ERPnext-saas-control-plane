@@ -16,6 +16,36 @@ export type TenantStatus =
 
 export type TenantPlan = "starter" | "business" | "enterprise" | (string & {});
 
+export type PlanEntitlement = {
+  id: string;
+  plan_id: string;
+  app_slug: string;
+  mandatory: boolean;
+  selectable: boolean;
+};
+
+export type PlanDetail = {
+  id: string;
+  slug: string;
+  display_name: string;
+  is_active: boolean;
+  isolation_model: string;
+  max_extra_apps?: number | null;
+  monthly_price_usd_cents: number;
+  monthly_price_tzs: number;
+  stripe_price_id?: string | null;
+  dpo_product_code?: string | null;
+  backup_frequency: string;
+  backup_retention_days: number;
+  includes_s3_offsite_backup: boolean;
+  support_channel: string;
+  sla_enabled: boolean;
+  custom_domain_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+  entitlements: PlanEntitlement[];
+};
+
 export type Tenant = {
   id: string;
   organization_id?: string | null;

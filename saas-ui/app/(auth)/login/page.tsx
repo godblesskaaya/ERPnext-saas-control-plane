@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { loadAuthHealthSnapshot, loginWithPassword, safePostLoginRedirect } from "../../../domains/auth/application/authUseCases";
 import { clearToken, getToken } from "../../../domains/auth/auth";
+import { Badge, Button, Card, Input } from "../../../domains/shared/components/ui";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -86,7 +87,7 @@ export default function LoginPage() {
   };
 
   return (
-    <section className="mx-auto max-w-xl space-y-6 rounded-3xl border border-amber-200/70 bg-white/80 p-8">
+    <Card className="mx-auto max-w-xl space-y-6">
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">Welcome back / Karibu tena</h1>
         <p className="text-sm text-slate-600">Sign in to continue tracking cashflow, inventory, and branch operations.</p>
@@ -105,13 +106,13 @@ export default function LoginPage() {
         <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Diagnostics</p>
         <div className="mt-2 grid gap-2 text-xs md:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-            API: <span className="font-semibold">{apiHealth}</span>
+            API: <Badge className="ml-1">{apiHealth}</Badge>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-            Auth: <span className="font-semibold">{authHealth}</span>
+            Auth: <Badge className="ml-1">{authHealth}</Badge>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-            Billing: <span className="font-semibold">{billingHealth}</span>
+            Billing: <Badge className="ml-1">{billingHealth}</Badge>
           </div>
         </div>
       </div>
@@ -119,16 +120,16 @@ export default function LoginPage() {
       {notice ? <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{notice}</p> : null}
 
       <form className="space-y-4" onSubmit={submit}>
-        <input
-          className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400"
+        <Input
+          label="Email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="Email"
           type="email"
           required
         />
-        <input
-          className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400"
+        <Input
+          label="Password"
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
@@ -136,12 +137,9 @@ export default function LoginPage() {
           minLength={8}
           required
         />
-        <button
-          className="w-full rounded-full bg-[#0d6a6a] px-4 py-2 font-semibold text-white transition hover:bg-[#0b5a5a] disabled:opacity-60"
-          disabled={busy}
-        >
+        <Button className="w-full" loading={busy}>
           {busy ? "Signing in..." : "Access my workspace"}
-        </button>
+        </Button>
       </form>
 
       {error ? <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
@@ -159,6 +157,6 @@ export default function LoginPage() {
           Create account
         </Link>
       </p>
-    </section>
+    </Card>
   );
 }

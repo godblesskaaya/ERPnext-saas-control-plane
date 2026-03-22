@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { loadAuthHealthSnapshot, signupAndLogin } from "../../../domains/auth/application/authUseCases";
+import { Badge, Button, Card, Input } from "../../../domains/shared/components/ui";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -51,7 +52,7 @@ export default function SignupPage() {
   };
 
   return (
-    <section className="mx-auto max-w-xl space-y-6 rounded-3xl border border-amber-200/70 bg-white/80 p-8">
+    <Card className="mx-auto max-w-xl space-y-6">
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">Create your account / Fungua akaunti</h1>
         <p className="text-sm text-slate-600">Create your account, verify your email, then continue onboarding.</p>
@@ -70,28 +71,28 @@ export default function SignupPage() {
         <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Diagnostics</p>
         <div className="mt-2 grid gap-2 text-xs md:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-            API: <span className="font-semibold">{apiHealth}</span>
+            API: <Badge className="ml-1">{apiHealth}</Badge>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-            Auth: <span className="font-semibold">{authHealth}</span>
+            Auth: <Badge className="ml-1">{authHealth}</Badge>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-            Billing: <span className="font-semibold">{billingHealth}</span>
+            Billing: <Badge className="ml-1">{billingHealth}</Badge>
           </div>
         </div>
       </div>
 
       <form className="space-y-4" onSubmit={submit}>
-        <input
-          className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400"
+        <Input
+          label="Email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="Email"
           type="email"
           required
         />
-        <input
-          className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400"
+        <Input
+          label="Password"
           type="password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
@@ -99,12 +100,9 @@ export default function SignupPage() {
           minLength={8}
           required
         />
-        <button
-          className="w-full rounded-full bg-[#0d6a6a] px-4 py-2 font-semibold text-white transition hover:bg-[#0b5a5a] disabled:opacity-60"
-          disabled={busy}
-        >
+        <Button className="w-full" loading={busy}>
           {busy ? "Creating account..." : "Create account and continue"}
-        </button>
+        </Button>
       </form>
 
       {notice ? (
@@ -118,6 +116,6 @@ export default function SignupPage() {
           Sign in now
         </Link>
       </p>
-    </section>
+    </Card>
   );
 }

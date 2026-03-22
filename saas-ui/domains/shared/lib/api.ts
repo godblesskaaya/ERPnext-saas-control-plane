@@ -1,7 +1,8 @@
-import { clearToken, getToken } from "../../auth/auth";
+import { clearToken, getToken, saveToken } from "../../auth/auth";
 import type {
   AuditLogEntry,
   BackupManifestEntry,
+  PlanDetail,
   DomainMapping,
   ImpersonationLink,
   TenantMember,
@@ -150,12 +151,70 @@ type RequestOptions = {
   idempotencyKey?: string;
 };
 
+const REFRESH_EXEMPT_PATHS = new Set([
+  "/auth/login",
+  "/auth/signup",
+  "/auth/refresh",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+  "/auth/verify-email",
+  "/auth/impersonate",
+]);
+
+function decodeTokenExpiryEpochSeconds(token: string): number | null {
+  try {
+    const [, payload] = token.split(".");
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+    const json = atob(padded);
+    const decoded = JSON.parse(json) as { exp?: number };
+    return typeof decoded.exp === "number" ? decoded.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+function isTokenNearExpiry(token: string, withinSeconds = 60): boolean {
+  const exp = decodeTokenExpiryEpochSeconds(token);
+  if (!exp) return false;
+  const now = Math.floor(Date.now() / 1000);
+  return exp - now <= withinSeconds;
+}
+
+function canAttemptRefresh(path: string): boolean {
+  return !REFRESH_EXEMPT_PATHS.has(path);
+}
+
+async function refreshAccessToken(): Promise<string | null> {
+  try {
+    const response = await fetch(`${API_BASE}/auth/refresh`, {
+      method: "POST",
+      cache: "no-store",
+      credentials: "include",
+    });
+    if (!response.ok) return null;
+    const body = (await parseResponseBody(response)) as { access_token?: string } | null;
+    if (!body?.access_token) return null;
+    saveToken(body.access_token);
+    return body.access_token;
+  } catch {
+    return null;
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit, options?: RequestOptions): Promise<T> {
-  const token = getToken();
+  let token = getToken();
   const headers = new Headers(init?.headers ?? {});
 
   if (init?.body !== undefined && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
+  }
+  if (token && canAttemptRefresh(path) && isTokenNearExpiry(token) && !headers.has("Authorization")) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      token = refreshed;
+    }
   }
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -164,12 +223,22 @@ async function request<T>(path: string, init?: RequestInit, options?: RequestOpt
     headers.set("X-Idempotency-Key", options.idempotencyKey);
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers,
-    cache: "no-store",
-  });
+  const performFetch = () =>
+    fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers,
+      cache: "no-store",
+      credentials: "include",
+    });
 
+  let response = await performFetch();
+  if (response.status === 401 && canAttemptRefresh(path)) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      headers.set("Authorization", `Bearer ${refreshed}`);
+      response = await performFetch();
+    }
+  }
   const body = await parseResponseBody(response);
 
   if (!response.ok) {
@@ -329,6 +398,7 @@ async function downloadAuditLogCsv(limit = 500): Promise<void> {
     method: "GET",
     headers,
     cache: "no-store",
+    credentials: "include",
   });
   if (!response.ok) {
     const body = await parseResponseBody(response);
@@ -392,6 +462,10 @@ export const api = {
     }),
 
   refreshToken: () => request<{ access_token: string; token_type: string }>("/auth/refresh", { method: "POST" }),
+
+  listPlans: () => request<PlanDetail[]>("/plans"),
+
+  getPlan: (slug: string) => request<PlanDetail>(`/plans/${encodeURIComponent(slug)}`),
 
   listTenants: () => request<Tenant[]>("/tenants"),
 

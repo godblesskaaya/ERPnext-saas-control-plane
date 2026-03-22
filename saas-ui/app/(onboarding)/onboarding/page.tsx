@@ -25,11 +25,18 @@ import {
   type PersistedOnboardingState,
   type TenantRecord,
 } from "../../../domains/onboarding/domain/onboardingFlow";
-import { BUSINESS_APP_OPTIONS, PlanSelector } from "../../../domains/onboarding/components/PlanSelector";
+import {
+  BUSINESS_APP_OPTIONS,
+  PlanSelector,
+  mapPlanCatalogToOptions,
+  mapSelectableEntitlementsToBusinessApps,
+} from "../../../domains/onboarding/components/PlanSelector";
 import { OnboardingEmailVerificationPanel } from "../../../domains/onboarding/ui/OnboardingEmailVerificationPanel";
 import { OnboardingNoticePanel } from "../../../domains/onboarding/ui/OnboardingNoticePanel";
 import { OnboardingPageHeader } from "../../../domains/onboarding/ui/OnboardingPageHeader";
 import { OnboardingStepTracker } from "../../../domains/onboarding/ui/OnboardingStepTracker";
+import { loadPublicPlanCatalog } from "../../../domains/subscription/application/subscriptionUseCases";
+import type { PlanCatalogItem } from "../../../domains/subscription/domain/planCatalog";
 import type { SubdomainAvailability, UserProfile } from "../../../domains/shared/lib/types";
 const ONBOARDING_STATE_KEY = "erp-saas:onboarding-state:v1";
 
@@ -68,6 +75,7 @@ export default function OnboardingPage() {
   const [longWaitNotice, setLongWaitNotice] = useState<string | null>(null);
   const [retryBusy, setRetryBusy] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  const [planCatalog, setPlanCatalog] = useState<PlanCatalogItem[]>([]);
 
   const hydratedRef = useRef(false);
   const pollingDelayRef = useRef(5000);
@@ -76,7 +84,16 @@ export default function OnboardingPage() {
 
   const cleanSubdomain = useMemo(() => sanitizeSubdomain(subdomain), [subdomain]);
   const previewDomain = `${cleanSubdomain || "your-company"}.erp.your-domain.com`;
-  const selectedBusinessApp = BUSINESS_APP_OPTIONS.find((option) => option.id === chosenApp);
+  const planOptions = useMemo(() => mapPlanCatalogToOptions(planCatalog), [planCatalog]);
+  const selectedPlan = useMemo(
+    () => planCatalog.find((item) => item.slug === plan.toLowerCase()) ?? null,
+    [planCatalog, plan]
+  );
+  const businessAppOptions = useMemo(
+    () => mapSelectableEntitlementsToBusinessApps(selectedPlan?.selectableEntitlements ?? [], BUSINESS_APP_OPTIONS),
+    [selectedPlan]
+  );
+  const selectedBusinessApp = businessAppOptions.find((option) => option.id === chosenApp);
   const canUseSubdomain = Boolean(cleanSubdomain.length >= 3 && subdomainAvailability?.available);
   const emailVerificationRequired = Boolean(currentUser && !currentUser.email_verified);
 
@@ -85,6 +102,25 @@ export default function OnboardingPage() {
       setChosenApp("erpnext");
     }
   }, [plan]);
+
+  useEffect(() => {
+    if (plan.toLowerCase() !== "business") return;
+    if (!businessAppOptions.length) return;
+    if (businessAppOptions.some((option) => option.id === chosenApp)) return;
+    setChosenApp(businessAppOptions[0].id);
+  }, [businessAppOptions, chosenApp, plan]);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const catalog = await loadPublicPlanCatalog();
+      if (!active) return;
+      setPlanCatalog(catalog);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined" || hydratedRef.current) return;
@@ -567,7 +603,14 @@ export default function OnboardingPage() {
 
           {step === "plan" ? (
             <div className="space-y-4">
-              <PlanSelector value={plan} onChange={setPlan} chosenApp={chosenApp} onChosenAppChange={setChosenApp} />
+              <PlanSelector
+                value={plan}
+                onChange={setPlan}
+                chosenApp={chosenApp}
+                onChosenAppChange={setChosenApp}
+                planOptions={planOptions}
+                businessAppOptions={businessAppOptions}
+              />
 
               <div className="rounded-2xl border border-amber-200 bg-[#fdf7ee] p-3 text-xs text-slate-600">
                 Selected plan: <span className="text-slate-900">{plan}</span>

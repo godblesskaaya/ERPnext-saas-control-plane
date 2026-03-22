@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 from app.modules.audit.models import AuditLog
+from app.modules.features.models import FeatureFlag, TenantFeature
 from app.modules.subscription.models import Plan, PlanEntitlement, Subscription
 from app.modules.tenant.models import Tenant
 from app.utils.time import utcnow

@@ -52,6 +52,7 @@ from app.schemas import (
 )
 from app.domains.tenants.backup_service import list_backup_manifests
 from app.domains.audit.service import record_audit_event
+from app.modules.features.service import require_feature
 from app.queue.enqueue import get_queue
 from app.domains.tenants.service import (
     create_tenant_and_start_checkout,
@@ -670,7 +671,7 @@ def get_tenant_summary(
     "/{tenant_id}/backup",
     response_model=JobOut,
     status_code=status.HTTP_202_ACCEPTED,
-    dependencies=[Depends(tenant_backup_rate_limit)],
+    dependencies=[Depends(require_feature("daily_backup")), Depends(tenant_backup_rate_limit)],
     responses={
         status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
         status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,

@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from app.config import get_settings
 from app.models import AuditLog, Job, Tenant, TenantMembership, User
-from app.modules.subscription.models import Subscription
+from app.modules.subscription.models import Plan, Subscription
 
 
 class DummyRQJob:
@@ -300,8 +300,15 @@ def test_create_tenant_rate_limit_and_backup_limit(mock_get_queue, _, client, db
 
     tenant_id = client.get("/tenants", headers=headers).json()[0]["id"]
     db_tenant = db_session.get(Tenant, tenant_id)
+    business_plan = db_session.query(Plan).filter(Plan.slug == "business").one()
+    subscription = db_session.query(Subscription).filter(Subscription.tenant_id == tenant_id).one()
+    db_tenant.plan = "business"
+    db_tenant.chosen_app = "crm"
     db_tenant.status = "active"
     db_tenant.billing_status = "paid"
+    subscription.plan_id = business_plan.id
+    subscription.selected_app = "crm"
+    db_session.add(subscription)
     db_session.add(db_tenant)
     db_session.commit()
 
@@ -320,7 +327,7 @@ def test_backup_plan_daily_limit_enforced(mock_get_queue, _, client, db_session)
     create = client.post(
         "/tenants",
         headers=headers,
-        json={"subdomain": "quota", "company_name": "Quota Ltd", "plan": "starter"},
+        json={"subdomain": "quota", "company_name": "Quota Ltd", "plan": "business", "chosen_app": "helpdesk"},
     )
     tenant_id = create.json()["tenant"]["id"]
 
@@ -330,16 +337,17 @@ def test_backup_plan_daily_limit_enforced(mock_get_queue, _, client, db_session)
     db_session.add(db_tenant)
     db_session.commit()
 
-    db_session.add(
-        AuditLog(
-            actor_id=db_tenant.owner_id,
-            actor_role="user",
-            action="tenant.backup_started",
-            resource="tenants",
-            resource_id=db_tenant.id,
-            metadata_json={"job_id": "old-job"},
+    for idx in range(3):
+        db_session.add(
+            AuditLog(
+                actor_id=db_tenant.owner_id,
+                actor_role="user",
+                action="tenant.backup_started",
+                resource="tenants",
+                resource_id=db_tenant.id,
+                metadata_json={"job_id": f"old-job-{idx}"},
+            )
         )
-    )
     db_session.commit()
 
     blocked = client.post(f"/tenants/{tenant_id}/backup", headers=headers)
@@ -356,7 +364,7 @@ def test_backup_records_audit_event(mock_get_queue, _, client, db_session):
     created = client.post(
         "/tenants",
         headers=headers,
-        json={"subdomain": "auditbackup", "company_name": "Audit Backup Ltd", "plan": "starter"},
+        json={"subdomain": "auditbackup", "company_name": "Audit Backup Ltd", "plan": "business", "chosen_app": "helpdesk"},
     )
     assert created.status_code == 202
     tenant_id = created.json()["tenant"]["id"]

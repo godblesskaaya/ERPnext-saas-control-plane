@@ -41,6 +41,8 @@ def test_alembic_upgrade_creates_core_tables(monkeypatch, tmp_path) -> None:
         "plans",
         "plan_entitlements",
         "subscriptions",
+        "feature_flags",
+        "tenant_features",
     } <= tables
     user_columns = {column["name"] for column in inspector.get_columns("users")}
     assert {"email_verified", "email_verified_at"} <= user_columns
@@ -50,7 +52,9 @@ def test_alembic_upgrade_creates_core_tables(monkeypatch, tmp_path) -> None:
     engine = create_engine(f"sqlite:///{database_path}")
     with engine.connect() as connection:
         plan_count = connection.execute(text("SELECT COUNT(*) FROM plans")).scalar_one()
+        feature_count = connection.execute(text("SELECT COUNT(*) FROM feature_flags")).scalar_one()
     assert plan_count == 3
+    assert feature_count == 12
 
     get_settings.cache_clear()
 

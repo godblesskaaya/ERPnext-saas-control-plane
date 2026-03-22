@@ -25,6 +25,7 @@ export type AuthHealthSnapshot = {
 
 export type LoginInput = {
   email: string;
+  phone?: string | null;
   password: string;
   nextPath?: string | null;
   persistToken?: boolean;
@@ -78,7 +79,7 @@ export async function loginWithPassword(input: LoginInput): Promise<LoginResult>
 
 export async function signupAndLogin(input: LoginInput): Promise<LoginResult> {
   const email = sanitizeAuthEmail(input.email);
-  await signup(email, input.password);
+  await signup(email, input.password, input.phone);
 
   const token = await login(email, input.password);
   if (input.persistToken !== false) {

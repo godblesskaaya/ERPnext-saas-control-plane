@@ -11,6 +11,7 @@ test("parsePersistedOnboardingState parses valid payload with defaults", () => {
       companyName: "Alpha Corp",
       tenantId: "tenant-42",
       checkoutUrl: "https://checkout",
+      jobId: "job-42",
     })
   );
 
@@ -22,6 +23,7 @@ test("parsePersistedOnboardingState parses valid payload with defaults", () => {
     chosenApp: "erpnext",
     tenantId: "tenant-42",
     checkoutUrl: "https://checkout",
+    jobId: "job-42",
   });
 });
 
@@ -35,6 +37,7 @@ test("parsePersistedOnboardingState normalizes invalid step and nullable fields"
       chosenApp: "hr",
       tenantId: 123,
       checkoutUrl: false,
+      jobId: 999,
     })
   );
 
@@ -46,6 +49,7 @@ test("parsePersistedOnboardingState normalizes invalid step and nullable fields"
     chosenApp: "hr",
     tenantId: null,
     checkoutUrl: null,
+    jobId: null,
   });
 });
 

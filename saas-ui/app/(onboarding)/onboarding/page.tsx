@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   loadCurrentUserProfile,
@@ -18,6 +18,7 @@ import {
 import {
   flowLabels,
   onboardingFlow as flow,
+  progressStateLabel,
   sanitizeSubdomain,
   statusLabel,
   TERMINAL_TENANT_STATUSES,
@@ -31,13 +32,14 @@ import {
   mapPlanCatalogToOptions,
   mapSelectableEntitlementsToBusinessApps,
 } from "../../../domains/onboarding/components/PlanSelector";
+import { JobLogPanel } from "../../../domains/shared/components/JobLogPanel";
 import { OnboardingEmailVerificationPanel } from "../../../domains/onboarding/ui/OnboardingEmailVerificationPanel";
 import { OnboardingNoticePanel } from "../../../domains/onboarding/ui/OnboardingNoticePanel";
 import { OnboardingPageHeader } from "../../../domains/onboarding/ui/OnboardingPageHeader";
 import { OnboardingStepTracker } from "../../../domains/onboarding/ui/OnboardingStepTracker";
 import { loadPublicPlanCatalog } from "../../../domains/subscription/application/subscriptionUseCases";
 import type { PlanCatalogItem } from "../../../domains/subscription/domain/planCatalog";
-import type { SubdomainAvailability, UserProfile } from "../../../domains/shared/lib/types";
+import type { Job, SubdomainAvailability, UserProfile } from "../../../domains/shared/lib/types";
 const ONBOARDING_STATE_KEY = "erp-saas:onboarding-state:v1";
 
 function clearPersistedState() {
@@ -75,6 +77,8 @@ export default function OnboardingPage() {
   const [longWaitNotice, setLongWaitNotice] = useState<string | null>(null);
   const [retryBusy, setRetryBusy] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  const [provisioningJobId, setProvisioningJobId] = useState<string | null>(null);
+  const [provisioningJob, setProvisioningJob] = useState<Job | null>(null);
   const [planCatalog, setPlanCatalog] = useState<PlanCatalogItem[]>([]);
 
   const hydratedRef = useRef(false);
@@ -96,6 +100,13 @@ export default function OnboardingPage() {
   const selectedBusinessApp = businessAppOptions.find((option) => option.id === chosenApp);
   const canUseSubdomain = Boolean(cleanSubdomain.length >= 3 && subdomainAvailability?.available);
   const emailVerificationRequired = Boolean(currentUser && !currentUser.email_verified);
+  const provisioningProgressState = useMemo(
+    () => progressStateLabel(tenant?.status ?? "pending", provisioningJobId ? provisioningJob?.logs : undefined),
+    [provisioningJob?.logs, provisioningJobId, tenant?.status]
+  );
+  const handleProvisioningJobUpdate = useCallback((job: Job) => {
+    setProvisioningJob(job);
+  }, []);
 
   useEffect(() => {
     if (plan.toLowerCase() !== "business") {
@@ -145,6 +156,8 @@ export default function OnboardingPage() {
     setPlan(parsed.plan || "starter");
     setChosenApp(parsed.chosenApp || "erpnext");
     setCheckoutUrl(parsed.checkoutUrl || null);
+    setProvisioningJobId(parsed.jobId || null);
+    setProvisioningJob(null);
 
     const restoredTenantId = parsed.tenantId;
     const restoredCheckoutUrl = parsed.checkoutUrl || null;
@@ -163,10 +176,11 @@ export default function OnboardingPage() {
       } catch (err) {
         clearPersistedState();
         const message = err instanceof Error ? err.message : "Unable to restore onboarding state";
-        if (message.toLowerCase().includes("404")) {
-          setTenant(null);
-          setStep("details");
-        }
+        setTenant(null);
+        setStep("details");
+        setProvisioningJobId(null);
+        setProvisioningJob(null);
+        setError(message.toLowerCase().includes("404") ? "Saved onboarding session was not found. Please start again." : message);
       } finally {
         setRestored(true);
       }
@@ -188,9 +202,10 @@ export default function OnboardingPage() {
       chosenApp,
       tenantId: tenant?.id ?? null,
       checkoutUrl,
+      jobId: provisioningJobId,
     };
     window.localStorage.setItem(ONBOARDING_STATE_KEY, JSON.stringify(state));
-  }, [restored, step, subdomain, companyName, plan, chosenApp, tenant?.id, checkoutUrl]);
+  }, [restored, step, subdomain, companyName, plan, chosenApp, tenant?.id, checkoutUrl, provisioningJobId]);
 
   useEffect(() => {
     if (!restored) return;
@@ -299,6 +314,8 @@ export default function OnboardingPage() {
             clearPersistedState();
             setTenant(null);
             setStep("details");
+            setProvisioningJobId(null);
+            setProvisioningJob(null);
             setError("Saved onboarding session was not found. Please start again.");
             stopPolling();
             return;
@@ -431,6 +448,8 @@ export default function OnboardingPage() {
       setTenant(onboardingState.tenant);
       setCheckoutUrl(onboardingState.checkoutUrl);
       setProgress(onboardingState.progress);
+      setProvisioningJobId(onboardingState.jobId);
+      setProvisioningJob(null);
       setStep(onboardingState.step);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to create tenant";
@@ -507,6 +526,8 @@ export default function OnboardingPage() {
         setRetryError("Retry endpoint is not available on this backend.");
         return;
       }
+      setProvisioningJobId(result.data.id);
+      setProvisioningJob(result.data);
       setStep("waiting");
       setProgress(35);
       setLongWaitNotice(null);
@@ -687,12 +708,17 @@ export default function OnboardingPage() {
             <div className="space-y-4 rounded-2xl border border-amber-200 bg-white/80 p-5">
               <h2 className="text-xl font-semibold text-slate-900">Workspace setup is in progress</h2>
               <p className="text-sm text-slate-600">
-                {statusLabel((tenant?.status ?? "pending").toLowerCase())}. Status refresh runs automatically every few seconds.
+                {provisioningProgressState}. Status refresh runs automatically every few seconds.
               </p>
               <div className="h-2 overflow-hidden rounded-full bg-amber-100">
                 <div className="h-full rounded-full bg-[#0d6a6a] transition-all" style={{ width: `${progress}%` }} />
               </div>
-              <p className="text-xs text-slate-500">Current status: {tenant?.status ?? "pending"}</p>
+              <p className="text-xs text-slate-500">Current status: {statusLabel(tenant?.status ?? null)}</p>
+              {provisioningJobId ? (
+                <JobLogPanel jobId={provisioningJobId} onJobUpdate={handleProvisioningJobUpdate} />
+              ) : (
+                <p className="text-xs text-slate-500">Live job logs will appear here when the backend returns a job id.</p>
+              )}
               {longWaitNotice ? (
                 <OnboardingNoticePanel tone="warning" className="text-xs">
                   {longWaitNotice}
@@ -791,7 +817,10 @@ export default function OnboardingPage() {
               <span className="text-slate-500">Business app:</span> {plan === "business" ? selectedBusinessApp?.label ?? chosenApp : "n/a"}
             </p>
             <p>
-              <span className="text-slate-500">Status:</span> {tenant?.status ?? "draft"}
+              <span className="text-slate-500">Status:</span> {statusLabel(tenant?.status ?? null)}
+            </p>
+            <p>
+              <span className="text-slate-500">Progress:</span> {provisioningProgressState}
             </p>
           </div>
           <div className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] p-3 text-xs text-slate-600">

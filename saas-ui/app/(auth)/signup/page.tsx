@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { loadAuthHealthSnapshot, signupAndLogin } from "../../../domains/auth/application/authUseCases";
+import { getToken } from "../../../domains/auth/auth";
 import { Badge, Button, Card, Input } from "../../../domains/shared/components/ui";
 
 export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,6 +20,11 @@ export default function SignupPage() {
   const [billingHealth, setBillingHealth] = useState("checking");
 
   useEffect(() => {
+    if (getToken()) {
+      router.replace("/dashboard");
+      return;
+    }
+
     const loadHealth = async () => {
       try {
         const response = await fetch("/api/health", { cache: "no-store" });
@@ -32,7 +39,7 @@ export default function SignupPage() {
     };
 
     void loadHealth();
-  }, []);
+  }, [router]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -41,7 +48,7 @@ export default function SignupPage() {
     setNotice(null);
 
     try {
-      await signupAndLogin({ email, password, persistToken: true });
+      await signupAndLogin({ email, phone, password, persistToken: true });
       setNotice("Account created. Please verify your email from your inbox before creating a workspace.");
       router.push("/dashboard?verifyEmail=1");
     } catch (err) {
@@ -90,6 +97,13 @@ export default function SignupPage() {
           placeholder="Email"
           type="email"
           required
+        />
+        <Input
+          label="Phone number"
+          value={phone}
+          onChange={(event) => setPhone(event.target.value)}
+          placeholder="+255 ..."
+          type="tel"
         />
         <Input
           label="Password"

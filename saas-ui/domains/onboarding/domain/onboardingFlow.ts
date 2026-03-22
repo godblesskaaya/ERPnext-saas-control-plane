@@ -40,6 +40,7 @@ export type TenantRecord = Pick<Tenant, TenantRecordField>;
 
 export type TenantCreateResponse = Pick<ApiTenantCreateResponse, "checkout_url"> & {
   tenant: TenantRecord;
+  job?: ApiTenantCreateResponse["job"] | null;
 };
 
 export type PersistedOnboardingState = {
@@ -50,6 +51,7 @@ export type PersistedOnboardingState = {
   chosenApp: string;
   tenantId: string | null;
   checkoutUrl: string | null;
+  jobId: string | null;
 };
 
 export const flowLabels: Record<OnboardingStep, string> = {
@@ -68,6 +70,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringOrNull(value: unknown): string | null {
   return typeof value === "string" ? value : null;
+}
+
+function progressHintFromLogs(logs: string | null | undefined): string | null {
+  if (!logs) return null;
+
+  const normalized = logs.toLowerCase();
+
+  if (normalized.includes("migration")) return "Applying database migrations";
+  if (normalized.includes("install")) return "Installing selected apps";
+  if (normalized.includes("create site") || normalized.includes("creating site")) return "Creating workspace";
+  if (normalized.includes("restore")) return "Restoring workspace data";
+  if (normalized.includes("backup")) return "Preparing backup restore";
+  if (normalized.includes("start") || normalized.includes("boot")) return "Starting services";
+  if (normalized.includes("sync")) return "Synchronizing workspace data";
+
+  return null;
 }
 
 export function isOnboardingStep(value: string): value is OnboardingStep {
@@ -102,6 +120,7 @@ export function normalizeTenantCreateResponse(payload: TenantCreateResponse | Te
     return {
       ...payload,
       checkout_url: stringOrNull(payload.checkout_url),
+      job: payload.job ?? null,
     };
   }
 
@@ -178,6 +197,42 @@ export function statusLabel(status: TenantStatus | string | null | undefined): s
       return "Workspace deleted";
     default:
       return normalized || "Starting";
+  }
+}
+
+export function progressStateLabel(status: TenantStatus | string | null | undefined, logs?: string | null): string {
+  const normalized = normalizeTenantStatus(status);
+  const logHint = progressHintFromLogs(logs);
+
+  switch (normalized) {
+    case "pending_payment":
+      return "Waiting for payment confirmation";
+    case "pending":
+      return logHint ?? "Queued for provisioning";
+    case "provisioning":
+      return logHint ?? "Provisioning the workspace";
+    case "upgrading":
+      return logHint ?? "Applying an upgrade";
+    case "restoring":
+      return logHint ?? "Restoring the workspace";
+    case "deleting":
+      return "Deleting the workspace";
+    case "pending_deletion":
+      return "Deletion scheduled";
+    case "active":
+      return "Workspace is ready";
+    case "failed":
+      return logHint ? `Provisioning failed while ${logHint.toLowerCase()}` : "Provisioning failed";
+    case "suspended":
+      return "Workspace is suspended";
+    case "suspended_admin":
+      return "Workspace suspended by admin";
+    case "suspended_billing":
+      return "Workspace suspended for billing";
+    case "deleted":
+      return "Workspace deleted";
+    default:
+      return logHint ?? (normalized ? `Status: ${normalized}` : "Starting setup");
   }
 }
 

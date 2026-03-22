@@ -37,6 +37,7 @@ export type SubmitTenantOnboardingResult = {
   checkoutUrl: string | null;
   step: OnboardingStep;
   progress: number;
+  jobId: string | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -78,6 +79,7 @@ export function parsePersistedOnboardingState(raw: string | null): PersistedOnbo
       chosenApp: toStringValue(parsed.chosenApp, "erpnext"),
       tenantId: toNullableString(parsed.tenantId),
       checkoutUrl: toNullableString(parsed.checkoutUrl),
+      jobId: toNullableString(parsed.jobId),
     };
   } catch {
     return null;
@@ -129,6 +131,7 @@ export async function submitTenantOnboarding(input: SubmitTenantOnboardingInput)
     checkoutUrl,
     step: derivedStep === "details" ? (checkoutUrl ? "payment" : "waiting") : derivedStep,
     progress: progressForStatus(normalizeTenantStatus(response.tenant.status)),
+    jobId: response.job?.id ?? null,
   };
 }
 

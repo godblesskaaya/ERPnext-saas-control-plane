@@ -6,8 +6,8 @@ export type AuthToken = {
   token_type: string;
 };
 
-export function signup(email: string, password: string): Promise<UserProfile> {
-  return api.signup(email, password);
+export function signup(email: string, password: string, phone?: string | null): Promise<UserProfile> {
+  return api.signup(email, password, phone);
 }
 
 export function login(email: string, password: string): Promise<AuthToken> {

@@ -430,8 +430,15 @@ async function downloadAuditLogCsv(limit = 500): Promise<void> {
 }
 
 export const api = {
-  signup: (email: string, password: string) =>
-    request<UserProfile>("/auth/signup", { method: "POST", body: JSON.stringify({ email, password }) }),
+  signup: (email: string, password: string, phone?: string | null) =>
+    request<UserProfile>("/auth/signup", {
+      method: "POST",
+      body: JSON.stringify({
+        email,
+        password,
+        ...(phone?.trim() ? { phone: phone.trim() } : {}),
+      }),
+    }),
 
   login: (email: string, password: string) =>
     request<{ access_token: string; token_type: string }>("/auth/login", {

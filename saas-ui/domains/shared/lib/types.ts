@@ -118,6 +118,7 @@ export type PaginatedResult<T> = {
 export type UserProfile = {
   id: string;
   email: string;
+  phone?: string | null;
   role: string;
   email_verified: boolean;
   email_verified_at?: string | null;

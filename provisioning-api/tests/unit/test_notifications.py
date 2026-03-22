@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.config import get_settings
-from app.domains.support.notifications import NotificationMessage, NotificationService
+from app.modules.notifications.service import NotificationMessage, NotificationService
 
 
 def test_notification_service_smtp_provider(monkeypatch):
@@ -41,7 +41,7 @@ def test_notification_service_smtp_provider(monkeypatch):
             sent["subject"] = message["Subject"]
             sent["to"] = message["To"]
 
-    monkeypatch.setattr("app.domains.support.notifications.smtplib.SMTP", DummySMTP)
+    monkeypatch.setattr("app.modules.notifications.service.smtplib.SMTP", DummySMTP)
 
     service = NotificationService()
     ok = service.send(
@@ -89,7 +89,7 @@ def test_notification_service_mailersend_provider(monkeypatch):
             sent["headers"] = headers
             return DummyResponse()
 
-    monkeypatch.setattr("app.domains.support.notifications.httpx.Client", DummyClient)
+    monkeypatch.setattr("app.modules.notifications.service.httpx.Client", DummyClient)
 
     service = NotificationService()
     ok = service.send(

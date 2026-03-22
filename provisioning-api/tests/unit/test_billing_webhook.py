@@ -25,7 +25,7 @@ def force_stripe_provider_for_webhook_tests(monkeypatch):
     get_settings.cache_clear()
 
 
-@patch("app.domains.tenants.service.get_queue")
+@patch("app.modules.tenant.service.get_queue")
 def test_checkout_completed_webhook_enqueues_provisioning_once(mock_get_queue, client, db_session):
     mock_get_queue.return_value.enqueue = fake_enqueue
 

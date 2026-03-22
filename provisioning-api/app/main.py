@@ -20,10 +20,10 @@ from app.config import get_settings
 from app.db import get_db
 from app.middleware.security import SecurityHeadersMiddleware
 from app.modules.billing.router import router as billing_router
-from app.domains.iam import router as auth_router
+from app.modules.identity.router import router as auth_router
 from app.modules.features.router import router as features_router
 from app.modules.subscription.router import router as subscription_router
-from app.domains.observability import init_metrics, init_sentry
+from app.modules.observability import init_metrics, init_sentry
 from app.domains.support import admin_router, jobs_router, ws_router
 from app.domains.tenants import router as tenants_router
 from app.queue.redis import get_redis_connection
@@ -165,7 +165,7 @@ if settings.metrics_enabled and API_PREFIX:
         return RedirectResponse(url="/metrics", status_code=307)
 
 
-app.include_router(auth_router.router, prefix=API_PREFIX)
+app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(tenants_router.router, prefix=API_PREFIX)
 app.include_router(subscription_router, prefix=API_PREFIX)
 app.include_router(features_router, prefix=API_PREFIX)

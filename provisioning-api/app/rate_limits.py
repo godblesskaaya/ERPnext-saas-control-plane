@@ -5,7 +5,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.config import get_settings
-from app.security import decode_access_token, decode_refresh_token
+from app.modules.identity.security import decode_access_token, decode_refresh_token
 
 
 settings = get_settings()

@@ -1,5 +1,5 @@
-from app.logging_config import configure_logging
-from app.domains import observability  # re-export for tests
+from app.modules.observability.logging import configure_logging
+from app.modules.observability import service as observability  # re-export for tests
 
 
 configure_logging()

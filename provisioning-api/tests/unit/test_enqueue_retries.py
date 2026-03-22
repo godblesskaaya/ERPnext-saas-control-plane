@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.models import Tenant, User
-from app.domains.tenants.service import enqueue_provisioning_for_paid_tenant
+from app.modules.tenant.service import enqueue_provisioning_for_paid_tenant
 
 
 class DummyRQJob:
@@ -38,7 +38,7 @@ def test_enqueue_provisioning_configures_retry_and_idempotency(mocker, db_sessio
     db_session.refresh(tenant)
 
     queue = DummyQueue()
-    mocker.patch("app.domains.tenants.service.get_queue", return_value=queue)
+    mocker.patch("app.modules.tenant.service.get_queue", return_value=queue)
 
     first_job, first_enqueued = enqueue_provisioning_for_paid_tenant(db_session, tenant, user.email)
     second_job, second_enqueued = enqueue_provisioning_for_paid_tenant(db_session, tenant, user.email)

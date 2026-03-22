@@ -44,7 +44,7 @@ from app.modules.identity.security import (
 )
 from app.utils.time import utcnow
 from app.modules.audit.service import record_audit_event
-from app.domains.support.notifications import notification_service
+from app.modules.notifications.service import notification_service
 from app.token_store import get_token_store
 
 

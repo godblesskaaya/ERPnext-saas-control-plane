@@ -17,13 +17,13 @@ from app.modules.subscription.service import (
     upsert_subscription_for_tenant,
 )
 from app.schemas import BillingInvoiceListResponse, BillingInvoiceOut, BillingPortalResponse, MessageResponse
-from app.domains.audit.service import record_audit_event
-from app.domains.support.notifications import notification_service
+from app.modules.audit.service import record_audit_event
+from app.modules.notifications.service import notification_service
 from app.domains.support.platform_erp_client import PlatformERPClient
 from app.modules.billing.payment.factory import get_payment_gateway
 from app.modules.billing.payment.stripe_gateway import StripeGateway
-from app.domains.tenants.service import enqueue_provisioning_for_paid_tenant
-from app.domains.tenants.state import InvalidTenantStatusTransition, transition_tenant_status
+from app.modules.tenant.service import enqueue_provisioning_for_paid_tenant
+from app.modules.tenant.state import InvalidTenantStatusTransition, transition_tenant_status
 from app.rate_limits import authenticated_default_rate_limit
 from app.utils.time import utcnow
 

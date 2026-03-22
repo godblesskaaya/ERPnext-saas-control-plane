@@ -17,7 +17,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.deps import require_admin
 from app.models import AuditLog, Job, SupportNote, Tenant, User
-from app.modules.subscription.models import Subscription
+from app.modules.subscription.models import Plan, Subscription
 from app.queue.enqueue import get_dlq, get_queue
 from app.rate_limits import authenticated_default_rate_limit
 from app.schemas import (
@@ -36,8 +36,8 @@ from app.schemas import (
     SupportNoteUpdateRequest,
     TenantOut,
 )
-from app.domains.audit.service import record_audit_event
-from app.domains.support.notifications import notification_service
+from app.modules.audit.service import record_audit_event
+from app.modules.notifications.service import notification_service
 from app.domains.support.platform_erp_client import PlatformERPClient
 from app.domains.support.dunning import resolve_dunning_context
 from app.domains.policy.tenant_policy import (
@@ -45,7 +45,7 @@ from app.domains.policy.tenant_policy import (
     tenant_billing_status_compat,
     tenant_subscription_status,
 )
-from app.domains.tenants.state import InvalidTenantStatusTransition, transition_tenant_status
+from app.modules.tenant.state import InvalidTenantStatusTransition, transition_tenant_status
 from app.token_store import get_token_store
 from app.utils.time import utcnow
 
@@ -153,7 +153,11 @@ def list_all_tenants_paginated(
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ) -> PaginatedTenantResponse:
-    query = db.query(Tenant).outerjoin(Subscription, Subscription.tenant_id == Tenant.id)
+    query = (
+        db.query(Tenant)
+        .outerjoin(Subscription, Subscription.tenant_id == Tenant.id)
+        .outerjoin(Plan, Subscription.plan_id == Plan.id)
+    )
     statuses = _normalize_filter_values(status_filter)
     expanded_statuses: list[str] = []
     for value in statuses:
@@ -185,7 +189,7 @@ def list_all_tenants_paginated(
             query = query.filter(Tenant.payment_channel.in_(payment_channels))
 
     if plan_filter and plan_filter != "all":
-        query = query.filter(Tenant.plan == plan_filter)
+        query = query.filter(Plan.slug == plan_filter)
 
     if search:
         term = f"%{search.strip()}%"
@@ -196,7 +200,7 @@ def list_all_tenants_paginated(
                 Tenant.domain.ilike(term),
                 Subscription.status.ilike(term),
                 Tenant.payment_channel.ilike(term),
-                Tenant.plan.ilike(term),
+                Plan.slug.ilike(term),
             )
         )
     total = query.count()

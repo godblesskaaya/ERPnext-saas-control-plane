@@ -11,19 +11,19 @@ from app.bench.commands import (
 from app.bench.runner import BenchCommandError, run_bench_command
 from app.config import get_settings
 from app.db import SessionLocal
-from app.logging_config import get_logger
+from app.modules.observability.logging import get_logger
 from app.models import BackupManifest, Job, Tenant, User
 from app.modules.subscription.models import Subscription
 from app.schemas import BillingPayload
-from app.domains.audit.service import record_audit_event
+from app.modules.audit.service import record_audit_event
 from app.domains.policy.tenant_policy import tenant_subscription_status
 from app.domains.support.dunning import resolve_dunning_context
 from app.domains.tenants.backup_service import persist_backup_manifest
 from app.domains.support.job_service import append_log, mark_job_failed, mark_job_running, mark_job_success
-from app.domains.support.notifications import NotificationMessage, notification_service
+from app.modules.notifications.service import NotificationMessage, notification_service
 from app.domains.support.platform_erp_client import PlatformERPClient
 from app.domains.tenants.tls_sync import sync_tenant_tls_routes
-from app.domains.tenants.state import InvalidTenantStatusTransition, transition_tenant_status
+from app.modules.tenant.state import InvalidTenantStatusTransition, transition_tenant_status
 from app.modules.provisioning.service import strategy_for_tenant
 from app.utils.time import utcnow
 

@@ -23,10 +23,10 @@ from app.db import get_db
 from app.config import get_settings
 from app.deps import get_current_user
 from app.models import AuditLog, BackupManifest, DomainMapping, Job, Tenant, TenantMembership, User
-from app.modules.subscription.models import Subscription
+from app.modules.subscription.models import Plan, Subscription
 from app.modules.subscription.service import require_plan_by_slug, upsert_subscription_for_tenant
 from app.rate_limits import authenticated_default_rate_limit, tenant_backup_rate_limit, tenant_create_rate_limit
-from app.security import hash_password
+from app.modules.identity.security import hash_password
 from app.schemas import (
     BackupManifestOut,
     AuditLogOut,
@@ -53,10 +53,10 @@ from app.schemas import (
     TenantReadinessOut,
 )
 from app.domains.tenants.backup_service import list_backup_manifests
-from app.domains.audit.service import record_audit_event
+from app.modules.audit.service import record_audit_event
 from app.modules.features.service import require_feature
 from app.queue.enqueue import get_queue
-from app.domains.tenants.service import (
+from app.modules.tenant.service import (
     create_tenant_and_start_checkout,
     enqueue_backup,
     enqueue_delete,
@@ -66,7 +66,7 @@ from app.domains.tenants.service import (
 from app.modules.billing.payment.factory import get_payment_gateway
 from app.modules.billing.payment.stripe_gateway import StripeGateway
 from app.domains.support.platform_erp_client import PlatformERPClient
-from app.domains.tenants.state import transition_tenant_status
+from app.modules.tenant.state import transition_tenant_status
 from app.domains.tenants.membership import (
     TENANT_ROLE_CAN_MANAGE_BILLING,
     TENANT_ROLE_CAN_MANAGE_TEAM,
@@ -86,7 +86,7 @@ from app.domains.policy import (
 )
 from app.domains.policy.tenant_policy import tenant_subscription_status
 from app.token_store import get_token_store
-from app.domains.support.notifications import notification_service
+from app.modules.notifications.service import notification_service
 from app.utils.time import utcnow
 
 
@@ -415,7 +415,11 @@ def check_subdomain_availability(
     },
 )
 def list_tenants(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[TenantOut]:
-    query = db.query(Tenant).outerjoin(Subscription, Subscription.tenant_id == Tenant.id)
+    query = (
+        db.query(Tenant)
+        .outerjoin(Subscription, Subscription.tenant_id == Tenant.id)
+        .outerjoin(Plan, Subscription.plan_id == Plan.id)
+    )
     if current_user.role != "admin":
         query = (
             query.outerjoin(TenantMembership, TenantMembership.tenant_id == Tenant.id)
@@ -454,7 +458,11 @@ def list_tenants_paginated(
     current_user: User = Depends(get_current_user),
 ) -> PaginatedTenantResponse:
     del request
-    query = db.query(Tenant).outerjoin(Subscription, Subscription.tenant_id == Tenant.id)
+    query = (
+        db.query(Tenant)
+        .outerjoin(Subscription, Subscription.tenant_id == Tenant.id)
+        .outerjoin(Plan, Subscription.plan_id == Plan.id)
+    )
     if current_user.role != "admin":
         query = (
             query.outerjoin(TenantMembership, TenantMembership.tenant_id == Tenant.id)
@@ -497,7 +505,7 @@ def list_tenants_paginated(
             query = query.filter(Tenant.payment_channel.in_(payment_channels))
 
     if plan_filter and plan_filter != "all":
-        query = query.filter(Tenant.plan == plan_filter)
+        query = query.filter(Plan.slug == plan_filter)
 
     if search:
         term = f"%{search.strip()}%"
@@ -508,7 +516,7 @@ def list_tenants_paginated(
                 Tenant.domain.ilike(term),
                 Subscription.status.ilike(term),
                 Tenant.payment_channel.ilike(term),
-                Tenant.plan.ilike(term),
+                Plan.slug.ilike(term),
             )
         )
     total = query.count()

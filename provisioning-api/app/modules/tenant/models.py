@@ -51,8 +51,6 @@ class Tenant(Base):
     domain: Mapped[str] = mapped_column(String(255), unique=True)
     site_name: Mapped[str] = mapped_column(String(255))
     company_name: Mapped[str] = mapped_column(String(255))
-    plan: Mapped[str] = mapped_column(String(30))
-    chosen_app: Mapped[str | None] = mapped_column(String(50), nullable=True)
     status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
     payment_provider: Mapped[str] = mapped_column(String(20), default="azampay", index=True)
     payment_channel: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
@@ -73,10 +71,16 @@ class Tenant(Base):
     subscription: Mapped["Subscription | None"] = relationship("Subscription", back_populates="tenant", uselist=False)
 
     def __init__(self, **kwargs):
+        legacy_plan = kwargs.pop("plan", None)
+        legacy_chosen_app = kwargs.pop("chosen_app", None)
         legacy_billing_status = kwargs.pop("billing_status", None)
         legacy_checkout_session = kwargs.pop("stripe_checkout_session_id", None)
         legacy_subscription_id = kwargs.pop("stripe_subscription_id", None)
         super().__init__(**kwargs)
+        if legacy_plan is not None:
+            self.plan = legacy_plan
+        if legacy_chosen_app is not None:
+            self.chosen_app = legacy_chosen_app
         if legacy_billing_status is not None:
             self.billing_status = legacy_billing_status
         if legacy_checkout_session is not None:
@@ -88,7 +92,27 @@ class Tenant(Base):
     def plan_slug(self) -> str:
         if self.subscription and self.subscription.plan:
             return self.subscription.plan.slug
-        return (self.plan or "").strip().lower()
+        return _normalize(getattr(self, "_compat_plan", None) or "starter")
+
+    @property
+    def plan(self) -> str:
+        return self.plan_slug
+
+    @plan.setter
+    def plan(self, value: str) -> None:
+        self._compat_plan = _normalize(value or "starter")
+
+    @property
+    def chosen_app(self) -> str | None:
+        if self.subscription and self.subscription.selected_app:
+            return self.subscription.selected_app
+        return getattr(self, "_compat_chosen_app", None)
+
+    @chosen_app.setter
+    def chosen_app(self, value: str | None) -> None:
+        if self.subscription is not None:
+            self.subscription.selected_app = value
+        self._compat_chosen_app = value
 
     @property
     def subscription_status(self) -> str:

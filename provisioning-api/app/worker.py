@@ -8,8 +8,8 @@ from uuid import uuid4
 from rq import Worker
 
 from app.config import get_settings
-from app.domains.observability import init_sentry
-from app.logging_config import get_logger
+from app.modules.observability import init_sentry
+from app.modules.observability.logging import get_logger
 from app.queue.enqueue import get_queue
 from app.queue.redis import get_redis_connection
 from app.workers.dlq import on_job_failure

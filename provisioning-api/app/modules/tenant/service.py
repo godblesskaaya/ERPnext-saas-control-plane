@@ -32,9 +32,9 @@ log = get_logger(__name__)
 
 def _compat_module():
     # AGENT-NOTE: Phase 1 keeps old import paths as shims. Unit tests patch
-    # symbols on app.domains.tenants.service; route globals to that module when
+    # symbols on app.modules.tenant.service; route globals to that module when
     # present so monkeypatching the legacy path still affects moved logic.
-    legacy = sys.modules.get("app.domains.tenants.service")
+    legacy = sys.modules.get("app.modules.tenant.service")
     if legacy is not None and legacy is not sys.modules[__name__]:
         return legacy
     return sys.modules[__name__]

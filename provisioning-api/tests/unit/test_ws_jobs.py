@@ -7,7 +7,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from app.config import get_settings
 from app.models import Job, Tenant, User
-from app.security import create_access_token
+from app.modules.identity.security import create_access_token
 
 
 class FakePubSub:

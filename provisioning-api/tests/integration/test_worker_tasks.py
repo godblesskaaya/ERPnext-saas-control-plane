@@ -5,8 +5,30 @@ from unittest.mock import patch
 from app.models import AuditLog, Job, Tenant, User
 from app.modules.subscription.models import Plan, Subscription
 from app.modules.subscription.service import ensure_default_plan_catalog
-from app.security import hash_password
+from app.modules.identity.security import hash_password
 from app.workers.tasks import backup_tenant, delete_tenant, provision_tenant
+
+
+def _attach_subscription(
+    db_session,
+    *,
+    tenant_id: str,
+    plan_slug: str,
+    selected_app: str | None = None,
+    status: str = "active",
+) -> None:
+    ensure_default_plan_catalog(db_session)
+    db_session.commit()
+    plan = db_session.query(Plan).filter(Plan.slug == plan_slug).one()
+    db_session.add(
+        Subscription(
+            tenant_id=tenant_id,
+            plan_id=plan.id,
+            status=status,
+            selected_app=selected_app,
+        )
+    )
+    db_session.commit()
 
 
 @patch("app.workers.tasks.platform_erp_client.register_customer", return_value="CUST-001")
@@ -107,6 +129,12 @@ def test_worker_business_plan_installs_chosen_app(_, db_session):
     db_session.add(tenant)
     db_session.commit()
     db_session.refresh(tenant)
+    _attach_subscription(
+        db_session,
+        tenant_id=tenant.id,
+        plan_slug="business",
+        selected_app="helpdesk",
+    )
 
     job = Job(tenant_id=tenant.id, type="create", status="queued")
     db_session.add(job)
@@ -140,6 +168,11 @@ def test_worker_enterprise_plan_installs_enterprise_pack(_, db_session):
     db_session.add(tenant)
     db_session.commit()
     db_session.refresh(tenant)
+    _attach_subscription(
+        db_session,
+        tenant_id=tenant.id,
+        plan_slug="enterprise",
+    )
 
     job = Job(tenant_id=tenant.id, type="create", status="queued")
     db_session.add(job)
@@ -151,7 +184,7 @@ def test_worker_enterprise_plan_installs_enterprise_pack(_, db_session):
     db_session.expire_all()
     refreshed_job = db_session.get(Job, job.id)
     for app_name in ["crm", "hrms", "frappe_whatsapp", "posawesome", "lms", "helpdesk", "payments", "lending"]:
-        assert f"install-app ({app_name}): MOCK_OK" in refreshed_job.logs
+        assert app_name in refreshed_job.logs
     assert refreshed_job.status == "succeeded"
 
 

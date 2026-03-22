@@ -50,7 +50,7 @@ def test_public_plan_by_slug_returns_entitlements(client):
     assert any(item["selectable"] is True for item in payload["entitlements"])
 
 
-@patch("app.domains.tenants.service.get_payment_gateway", return_value=DummyGateway())
+@patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())
 def test_tenant_subscription_endpoint_returns_plan_detail(_, client, db_session):
     headers = _auth_headers(client, db_session)
     created = client.post(

@@ -9,11 +9,11 @@ _sentry_initialized = False
 
 
 def _compat_module():
-    # AGENT-NOTE: Phase 1 keeps app.domains.observability as a shim. Tests patch
+    # AGENT-NOTE: Phase 1 keeps app.modules.observability as a shim. Tests patch
     # private/module attributes on the legacy module, so state/import hooks must
     # resolve through that module when available.
-    legacy = sys.modules.get("app.domains.observability")
-    if legacy is not None and legacy is not sys.modules[__name__]:
+    legacy = sys.modules.get("app.modules.observability")
+    if legacy is not None and legacy is not sys.modules[__name__] and hasattr(legacy, "_sentry_initialized"):
         return legacy
     return sys.modules[__name__]
 

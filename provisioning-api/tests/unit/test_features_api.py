@@ -52,8 +52,8 @@ def _admin_headers(client, db_session):
     return {"Authorization": f"Bearer {token}"}
 
 
-@patch("app.domains.tenants.service.get_payment_gateway", return_value=DummyGateway())
-@patch("app.domains.tenants.service.get_queue")
+@patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())
+@patch("app.modules.tenant.service.get_queue")
 def test_daily_backup_feature_gate_with_overrides(mock_get_queue, _, client, db_session):
     mock_get_queue.return_value.enqueue = fake_enqueue
     owner_headers = _auth_headers(client, db_session)

@@ -52,6 +52,8 @@ def test_alembic_upgrade_creates_core_tables(monkeypatch, tmp_path) -> None:
     assert "billing_status" not in tenant_columns
     assert "stripe_checkout_session_id" not in tenant_columns
     assert "stripe_subscription_id" not in tenant_columns
+    assert "plan" not in tenant_columns
+    assert "chosen_app" not in tenant_columns
     assert "platform_customer_id" in tenant_columns
     plan_columns = {column["name"] for column in inspector.get_columns("plans")}
     assert {"slug", "isolation_model", "backup_frequency", "stripe_price_id"} <= plan_columns

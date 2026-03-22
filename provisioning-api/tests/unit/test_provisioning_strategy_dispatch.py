@@ -5,7 +5,7 @@ from unittest.mock import patch
 from app.models import Job, Tenant, User
 from app.modules.subscription.models import Plan, Subscription
 from app.modules.subscription.service import ensure_default_plan_catalog
-from app.security import hash_password
+from app.modules.identity.security import hash_password
 
 
 def _worker_tasks_phase4():

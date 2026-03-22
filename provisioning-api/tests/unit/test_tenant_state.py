@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from app.models import Tenant
-from app.domains.tenants.state import InvalidTenantStatusTransition, transition_tenant_status
+from app.modules.tenant.state import InvalidTenantStatusTransition, transition_tenant_status
 
 
 def _tenant(status: str) -> Tenant:

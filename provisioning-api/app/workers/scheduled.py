@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.utils.time import utcnow
 
 from app.db import SessionLocal
-from app.logging_config import get_logger
+from app.modules.observability.logging import get_logger
 from app.domains.tenants.backup_service import cleanup_expired_backups
 
 

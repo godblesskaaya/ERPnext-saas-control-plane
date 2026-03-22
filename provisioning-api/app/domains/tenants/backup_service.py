@@ -11,7 +11,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.logging_config import get_logger
+from app.modules.observability.logging import get_logger
 from app.models import BackupManifest, Job, Tenant
 from app.utils.time import utcnow
 

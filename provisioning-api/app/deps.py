@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import User
-from app.security import decode_access_token
+from app.modules.identity.security import decode_access_token
 from app.token_store import get_token_store
 
 

@@ -9,7 +9,7 @@ from typing import Protocol
 import httpx
 
 from app.config import get_settings
-from app.logging_config import get_logger
+from app.modules.observability.logging import get_logger
 
 
 log = get_logger(__name__)

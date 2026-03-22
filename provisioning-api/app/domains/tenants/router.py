@@ -23,6 +23,8 @@ from app.db import get_db
 from app.config import get_settings
 from app.deps import get_current_user
 from app.models import AuditLog, BackupManifest, DomainMapping, Job, Tenant, TenantMembership, User
+from app.modules.subscription.models import Subscription
+from app.modules.subscription.service import require_plan_by_slug, upsert_subscription_for_tenant
 from app.rate_limits import authenticated_default_rate_limit, tenant_backup_rate_limit, tenant_create_rate_limit
 from app.security import hash_password
 from app.schemas import (
@@ -61,8 +63,8 @@ from app.domains.tenants.service import (
     enqueue_provisioning_for_paid_tenant,
     enforce_backup_plan_limit,
 )
-from app.domains.billing.payment.factory import get_payment_gateway
-from app.domains.billing.payment.stripe_gateway import StripeGateway
+from app.modules.billing.payment.factory import get_payment_gateway
+from app.modules.billing.payment.stripe_gateway import StripeGateway
 from app.domains.support.platform_erp_client import PlatformERPClient
 from app.domains.tenants.state import transition_tenant_status
 from app.domains.tenants.membership import (
@@ -82,6 +84,7 @@ from app.domains.policy import (
     ensure_domain_operation_allowed,
     validate_plan_change,
 )
+from app.domains.policy.tenant_policy import tenant_subscription_status
 from app.token_store import get_token_store
 from app.domains.support.notifications import notification_service
 from app.utils.time import utcnow
@@ -107,6 +110,25 @@ def _normalize_filter_values(values: list[str] | None) -> list[str]:
                 continue
             normalized.append(value)
     return list(dict.fromkeys(normalized))
+
+
+def _expand_subscription_status_filters(values: list[str] | None) -> list[str]:
+    normalized = _normalize_filter_values(values)
+    mapping = {
+        "paid": ["active", "trialing"],
+        "active": ["active", "trialing"],
+        "trialing": ["trialing"],
+        "failed": ["past_due"],
+        "past_due": ["past_due"],
+        "cancelled": ["cancelled"],
+        "paused": ["paused"],
+        "unpaid": ["pending", "paused"],
+        "pending": ["pending"],
+    }
+    expanded: list[str] = []
+    for value in normalized:
+        expanded.extend(mapping.get(value, [value]))
+    return list(dict.fromkeys(expanded))
 
 
 def _get_accessible_tenant(tenant_id: str, db: Session, current_user: User) -> Tenant:
@@ -293,18 +315,25 @@ def renew_checkout(
     provider = getattr(checkout_session, "provider", get_settings().active_payment_provider.strip().lower() or "azampay")
     tenant.payment_provider = provider
     tenant.payment_channel = getattr(checkout_session, "payment_channel", None)
-    if provider == "stripe":
-        tenant.stripe_checkout_session_id = checkout_session.session_id
-        tenant.dpo_transaction_token = None
-    elif provider in {"dpo", "selcom", "azampay"}:
+    if provider in {"dpo", "selcom", "azampay"}:
         tenant.dpo_transaction_token = checkout_session.session_id
-        tenant.stripe_checkout_session_id = None
-    else:
-        tenant.dpo_transaction_token = checkout_session.session_id
-        tenant.stripe_checkout_session_id = None
 
     if tenant.status == "pending":
         transition_tenant_status(tenant, "pending_payment")
+
+    selected_plan = require_plan_by_slug(db, getattr(tenant, "plan_slug", tenant.plan))
+    subscription = upsert_subscription_for_tenant(
+        db,
+        tenant=tenant,
+        plan=selected_plan,
+        selected_app=tenant.chosen_app,
+        status_value=tenant_subscription_status(tenant),
+        payment_provider=provider,
+        provider_subscription_id=tenant.subscription.provider_subscription_id if tenant.subscription else None,
+        provider_customer_id=getattr(checkout_session, "customer_ref", None) if provider == "stripe" else None,
+        provider_checkout_session_id=checkout_session.session_id,
+    )
+    db.add(subscription)
     db.add(tenant)
     db.commit()
     db.refresh(tenant)
@@ -386,7 +415,7 @@ def check_subdomain_availability(
     },
 )
 def list_tenants(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[TenantOut]:
-    query = db.query(Tenant)
+    query = db.query(Tenant).outerjoin(Subscription, Subscription.tenant_id == Tenant.id)
     if current_user.role != "admin":
         query = (
             query.outerjoin(TenantMembership, TenantMembership.tenant_id == Tenant.id)
@@ -425,7 +454,7 @@ def list_tenants_paginated(
     current_user: User = Depends(get_current_user),
 ) -> PaginatedTenantResponse:
     del request
-    query = db.query(Tenant)
+    query = db.query(Tenant).outerjoin(Subscription, Subscription.tenant_id == Tenant.id)
     if current_user.role != "admin":
         query = (
             query.outerjoin(TenantMembership, TenantMembership.tenant_id == Tenant.id)
@@ -446,7 +475,7 @@ def list_tenants_paginated(
             expanded_statuses.append(value)
     expanded_statuses = list(dict.fromkeys(expanded_statuses))
 
-    billing_statuses = _normalize_filter_values(billing_status_filter)
+    billing_statuses = _expand_subscription_status_filters(billing_status_filter)
     payment_channels = _normalize_filter_values(payment_channel_filter)
 
     if filter_mode == "or":
@@ -454,7 +483,7 @@ def list_tenants_paginated(
         if expanded_statuses:
             clauses.append(Tenant.status.in_(expanded_statuses))
         if billing_statuses:
-            clauses.append(Tenant.billing_status.in_(billing_statuses))
+            clauses.append(Subscription.status.in_(billing_statuses))
         if payment_channels:
             clauses.append(Tenant.payment_channel.in_(payment_channels))
         if clauses:
@@ -463,7 +492,7 @@ def list_tenants_paginated(
         if expanded_statuses:
             query = query.filter(Tenant.status.in_(expanded_statuses))
         if billing_statuses:
-            query = query.filter(Tenant.billing_status.in_(billing_statuses))
+            query = query.filter(Subscription.status.in_(billing_statuses))
         if payment_channels:
             query = query.filter(Tenant.payment_channel.in_(payment_channels))
 
@@ -477,7 +506,7 @@ def list_tenants_paginated(
                 Tenant.company_name.ilike(term),
                 Tenant.subdomain.ilike(term),
                 Tenant.domain.ilike(term),
-                Tenant.billing_status.ilike(term),
+                Subscription.status.ilike(term),
                 Tenant.payment_channel.ilike(term),
                 Tenant.plan.ilike(term),
             )
@@ -625,8 +654,7 @@ def get_tenant_summary(
             gateway = None
         if isinstance(gateway, StripeGateway) and not gateway.mock_mode:
             stripe = gateway._import_stripe()
-            owner = db.get(User, tenant.owner_id) if tenant.owner_id else None
-            customer_id = owner.stripe_customer_id if owner else None
+            customer_id = tenant.subscription.provider_customer_id if tenant.subscription else None
             if stripe is not None and customer_id:
                 stripe.api_key = get_settings().stripe_secret_key
                 try:

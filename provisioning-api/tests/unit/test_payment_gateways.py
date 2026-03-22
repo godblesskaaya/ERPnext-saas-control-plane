@@ -5,11 +5,11 @@ import json
 import pytest
 
 from app.config import get_settings
-from app.domains.billing.payment.azampay_gateway import AzamPayGateway
-from app.domains.billing.payment.dpo_gateway import DPOGateway
-from app.domains.billing.payment.factory import get_payment_gateway
-from app.domains.billing.payment.selcom_gateway import SelcomGateway
-from app.domains.billing.payment.stripe_gateway import StripeGateway
+from app.modules.billing.payment.azampay_gateway import AzamPayGateway
+from app.modules.billing.payment.dpo_gateway import DPOGateway
+from app.modules.billing.payment.factory import get_payment_gateway
+from app.modules.billing.payment.selcom_gateway import SelcomGateway
+from app.modules.billing.payment.stripe_gateway import StripeGateway
 
 
 def test_factory_returns_azampay_by_default(monkeypatch):
@@ -194,7 +194,7 @@ def test_azampay_gateway_checkout_accepts_string_response(monkeypatch):
             del url, json, headers
             return DummyResponse()
 
-    monkeypatch.setattr("app.domains.billing.payment.azampay_gateway.httpx.Client", DummyClient)
+    monkeypatch.setattr("app.modules.billing.payment.azampay_gateway.httpx.Client", DummyClient)
 
     gateway = AzamPayGateway()
     monkeypatch.setattr(gateway, "_fetch_access_token", lambda: "tok")

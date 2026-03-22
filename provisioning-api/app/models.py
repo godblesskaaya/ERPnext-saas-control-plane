@@ -32,13 +32,22 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), default="user")
     email_verified: Mapped[bool] = mapped_column(default=False, index=True)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    stripe_customer_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     tenants: Mapped[list[Tenant]] = relationship(back_populates="owner")
     organizations_owned: Mapped[list[Organization]] = relationship(back_populates="owner")
     memberships: Mapped[list[TenantMembership]] = relationship(back_populates="user")
     support_notes_authored: Mapped[list[SupportNote]] = relationship(back_populates="author")
+
+    @property
+    def stripe_customer_id(self) -> str | None:
+        # AGENT-NOTE: Legacy user.stripe_customer_id column is removed in Phase 5.
+        # Keep compatibility by deriving from subscription provider_customer_id.
+        for tenant in self.tenants:
+            subscription = getattr(tenant, "subscription", None)
+            if subscription and subscription.payment_provider == "stripe" and subscription.provider_customer_id:
+                return subscription.provider_customer_id
+        return None
 
 
 class Organization(Base):

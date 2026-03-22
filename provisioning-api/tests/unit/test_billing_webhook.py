@@ -38,7 +38,6 @@ def test_checkout_completed_webhook_enqueues_provisioning_once(mock_get_queue, c
         company_name="Paid Ltd",
         plan="starter",
         status="pending_payment",
-        billing_status="pending",
         payment_provider="stripe",
     )
     db_session.add(user)
@@ -60,26 +59,22 @@ def test_checkout_completed_webhook_enqueues_provisioning_once(mock_get_queue, c
         },
     }
 
-    first = client.post("/billing/webhook", json=payload)
+    first = client.post("/billing/webhook/stripe", json=payload)
     assert first.status_code == 200
     assert first.json()["message"] == "processed:payment.confirmed"
 
-    second = client.post("/billing/webhook", json=payload)
+    second = client.post("/billing/webhook/stripe", json=payload)
     assert second.status_code == 200
     assert second.json()["message"] == "processed:payment.confirmed"
 
     db_session.expire_all()
-    refreshed_user = db_session.get(User, user.id)
     refreshed_tenant = db_session.get(Tenant, tenant.id)
     subscription = db_session.query(Subscription).filter(Subscription.tenant_id == tenant.id).one()
     jobs = db_session.query(Job).filter(Job.tenant_id == tenant.id, Job.type == "create").all()
     assert len(jobs) == 1
     assert jobs[0].status == "queued"
     assert jobs[0].rq_job_id == "rq-billing-1"
-    assert refreshed_user.stripe_customer_id == "cus_test_123"
-    assert refreshed_tenant.stripe_checkout_session_id == "cs_test_123"
-    assert refreshed_tenant.stripe_subscription_id == "sub_test_123"
-    assert refreshed_tenant.billing_status == "paid"
+    assert refreshed_tenant.status == "pending"
     assert subscription.status == "active"
     assert subscription.provider_subscription_id == "sub_test_123"
     assert subscription.provider_customer_id == "cus_test_123"
@@ -109,9 +104,7 @@ def test_payment_failed_and_subscription_cancelled_audited(client, db_session):
         company_name="Billing Ltd",
         plan="business",
         status="pending_payment",
-        billing_status="pending",
         payment_provider="stripe",
-        stripe_subscription_id="sub_cancel_1",
     )
     db_session.add(user)
     db_session.flush()
@@ -122,9 +115,9 @@ def test_payment_failed_and_subscription_cancelled_audited(client, db_session):
 
     failed_payload = {
         "type": "invoice.payment_failed",
-        "data": {"object": {"id": "in_test_1", "metadata": {"tenant_id": tenant.id}}},
+        "data": {"object": {"id": "in_test_1", "subscription": "sub_cancel_1", "metadata": {"tenant_id": tenant.id}}},
     }
-    failed = client.post("/billing/webhook", json=failed_payload)
+    failed = client.post("/billing/webhook/stripe", json=failed_payload)
     assert failed.status_code == 200
     assert failed.json()["message"] == "processed:payment.failed"
 
@@ -132,14 +125,13 @@ def test_payment_failed_and_subscription_cancelled_audited(client, db_session):
         "type": "customer.subscription.deleted",
         "data": {"object": {"id": "sub_cancel_1"}},
     }
-    cancelled = client.post("/billing/webhook", json=cancelled_payload)
+    cancelled = client.post("/billing/webhook/stripe", json=cancelled_payload)
     assert cancelled.status_code == 200
     assert cancelled.json()["message"] == "processed:subscription.cancelled"
 
     db_session.expire_all()
     refreshed_tenant = db_session.get(Tenant, tenant.id)
     subscription = db_session.query(Subscription).filter(Subscription.tenant_id == tenant.id).one()
-    assert refreshed_tenant.billing_status == "cancelled"
     assert refreshed_tenant.status == "suspended_billing"
     assert subscription.status == "cancelled"
 
@@ -197,4 +189,18 @@ def test_provider_webhook_mismatch_is_logged(client, db_session):
     mismatch = db_session.query(PaymentEvent).filter(PaymentEvent.event_type == "provider_mismatch").all()
     assert len(mismatch) == 1
     assert mismatch[0].provider == "dpo"
+    assert mismatch[0].processing_status == "rejected"
+
+
+def test_unknown_provider_path_returns_400(client, db_session):
+    response = client.post(
+        "/billing/webhook/unknown-provider",
+        json={"type": "checkout.session.completed", "data": {"object": {"metadata": {}}}},
+    )
+    assert response.status_code == 400
+    assert "configured for provider" in response.json()["detail"]
+
+    mismatch = db_session.query(PaymentEvent).filter(PaymentEvent.event_type == "provider_mismatch").all()
+    assert len(mismatch) == 1
+    assert mismatch[0].provider == "unknown-provider"
     assert mismatch[0].processing_status == "rejected"

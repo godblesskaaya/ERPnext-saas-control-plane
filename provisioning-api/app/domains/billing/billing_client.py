@@ -9,7 +9,7 @@ import httpx
 from app.config import get_settings
 from app.models import Tenant, User
 from app.schemas import BillingPayload
-from app.domains.billing.payment.factory import get_payment_gateway
+from app.modules.billing.payment.factory import get_payment_gateway
 
 
 settings = get_settings()

@@ -17,6 +17,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.deps import require_admin
 from app.models import AuditLog, Job, SupportNote, Tenant, User
+from app.modules.subscription.models import Subscription
 from app.queue.enqueue import get_dlq, get_queue
 from app.rate_limits import authenticated_default_rate_limit
 from app.schemas import (
@@ -39,6 +40,11 @@ from app.domains.audit.service import record_audit_event
 from app.domains.support.notifications import notification_service
 from app.domains.support.platform_erp_client import PlatformERPClient
 from app.domains.support.dunning import resolve_dunning_context
+from app.domains.policy.tenant_policy import (
+    SUBSCRIPTION_DELINQUENT_STATUSES,
+    tenant_billing_status_compat,
+    tenant_subscription_status,
+)
 from app.domains.tenants.state import InvalidTenantStatusTransition, transition_tenant_status
 from app.token_store import get_token_store
 from app.utils.time import utcnow
@@ -64,6 +70,25 @@ def _normalize_filter_values(values: list[str] | None) -> list[str]:
                 continue
             normalized.append(value)
     return list(dict.fromkeys(normalized))
+
+
+def _expand_subscription_status_filters(values: list[str] | None) -> list[str]:
+    normalized = _normalize_filter_values(values)
+    mapping = {
+        "paid": ["active", "trialing"],
+        "active": ["active", "trialing"],
+        "trialing": ["trialing"],
+        "failed": ["past_due"],
+        "past_due": ["past_due"],
+        "cancelled": ["cancelled"],
+        "paused": ["paused"],
+        "unpaid": ["pending", "paused"],
+        "pending": ["pending"],
+    }
+    expanded: list[str] = []
+    for value in normalized:
+        expanded.extend(mapping.get(value, [value]))
+    return list(dict.fromkeys(expanded))
 
 
 def compute_sla_state(note: SupportNote, now: datetime) -> str:
@@ -128,7 +153,7 @@ def list_all_tenants_paginated(
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin),
 ) -> PaginatedTenantResponse:
-    query = db.query(Tenant)
+    query = db.query(Tenant).outerjoin(Subscription, Subscription.tenant_id == Tenant.id)
     statuses = _normalize_filter_values(status_filter)
     expanded_statuses: list[str] = []
     for value in statuses:
@@ -138,7 +163,7 @@ def list_all_tenants_paginated(
             expanded_statuses.append(value)
     expanded_statuses = list(dict.fromkeys(expanded_statuses))
 
-    billing_statuses = _normalize_filter_values(billing_status_filter)
+    billing_statuses = _expand_subscription_status_filters(billing_status_filter)
     payment_channels = _normalize_filter_values(payment_channel_filter)
 
     if filter_mode == "or":
@@ -146,7 +171,7 @@ def list_all_tenants_paginated(
         if expanded_statuses:
             clauses.append(Tenant.status.in_(expanded_statuses))
         if billing_statuses:
-            clauses.append(Tenant.billing_status.in_(billing_statuses))
+            clauses.append(Subscription.status.in_(billing_statuses))
         if payment_channels:
             clauses.append(Tenant.payment_channel.in_(payment_channels))
         if clauses:
@@ -155,7 +180,7 @@ def list_all_tenants_paginated(
         if expanded_statuses:
             query = query.filter(Tenant.status.in_(expanded_statuses))
         if billing_statuses:
-            query = query.filter(Tenant.billing_status.in_(billing_statuses))
+            query = query.filter(Subscription.status.in_(billing_statuses))
         if payment_channels:
             query = query.filter(Tenant.payment_channel.in_(payment_channels))
 
@@ -169,7 +194,7 @@ def list_all_tenants_paginated(
                 Tenant.company_name.ilike(term),
                 Tenant.subdomain.ilike(term),
                 Tenant.domain.ilike(term),
-                Tenant.billing_status.ilike(term),
+                Subscription.status.ilike(term),
                 Tenant.payment_channel.ilike(term),
                 Tenant.plan.ilike(term),
             )
@@ -214,10 +239,11 @@ def list_billing_dunning(
 ) -> list[DunningItemOut]:
     flagged = (
         db.query(Tenant)
+        .outerjoin(Subscription, Subscription.tenant_id == Tenant.id)
         .filter(
             or_(
                 Tenant.status.in_(["pending_payment", "suspended_billing"]),
-                Tenant.billing_status.in_(["failed", "past_due", "unpaid", "cancelled"]),
+                Subscription.status.in_(list(SUBSCRIPTION_DELINQUENT_STATUSES)),
             )
         )
         .order_by(Tenant.updated_at.desc())
@@ -237,7 +263,8 @@ def list_billing_dunning(
                 tenant_name=tenant.company_name,
                 domain=tenant.domain,
                 status=tenant.status,
-                billing_status=tenant.billing_status,
+                subscription_status=tenant_subscription_status(tenant),
+                billing_status=tenant_billing_status_compat(tenant),
                 payment_channel=tenant.payment_channel,
                 next_retry_at=context.next_retry_at if context else None,
                 grace_ends_at=context.grace_ends_at if context else None,

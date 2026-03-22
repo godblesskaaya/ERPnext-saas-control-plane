@@ -1,24 +1,6 @@
-from __future__ import annotations
+import sys
 
-from app.config import get_settings
-from app.domains.billing.payment.azampay_gateway import AzamPayGateway
-from app.domains.billing.payment.base import PaymentGateway
-from app.domains.billing.payment.dpo_gateway import DPOGateway
-from app.domains.billing.payment.selcom_gateway import SelcomGateway
-from app.domains.billing.payment.stripe_gateway import StripeGateway
+import app.modules.billing.payment.factory as _factory
 
-
-_REGISTRY: dict[str, type[PaymentGateway]] = {
-    "azampay": AzamPayGateway,
-    "selcom": SelcomGateway,
-    "stripe": StripeGateway,
-    "dpo": DPOGateway,
-}
-
-
-def get_payment_gateway() -> PaymentGateway:
-    provider = get_settings().active_payment_provider.strip().lower()
-    cls = _REGISTRY.get(provider)
-    if cls is None:
-        raise ValueError(f"Unknown payment provider: '{provider}'. Valid providers: {sorted(_REGISTRY)}")
-    return cls()
+globals().update(_factory.__dict__)
+sys.modules[__name__] = _factory

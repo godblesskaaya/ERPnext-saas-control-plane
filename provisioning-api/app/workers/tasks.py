@@ -13,8 +13,10 @@ from app.config import get_settings
 from app.db import SessionLocal
 from app.logging_config import get_logger
 from app.models import BackupManifest, Job, Tenant, User
+from app.modules.subscription.models import Subscription
 from app.schemas import BillingPayload
 from app.domains.audit.service import record_audit_event
+from app.domains.policy.tenant_policy import tenant_subscription_status
 from app.domains.support.dunning import resolve_dunning_context
 from app.domains.tenants.backup_service import persist_backup_manifest
 from app.domains.support.job_service import append_log, mark_job_failed, mark_job_running, mark_job_success
@@ -498,10 +500,11 @@ def run_billing_dunning_cycle(admin_id: str | None = None, dry_run: bool = False
     try:
         flagged = (
             db.query(Tenant)
+            .outerjoin(Subscription, Subscription.tenant_id == Tenant.id)
             .filter(
                 or_(
                     Tenant.status.in_(["pending_payment", "suspended_billing"]),
-                    Tenant.billing_status.in_(["failed", "past_due", "unpaid", "cancelled"]),
+                    Subscription.status.in_(["past_due", "cancelled", "paused", "pending"]),
                 )
             )
             .order_by(Tenant.updated_at.asc())
@@ -554,7 +557,7 @@ def run_billing_dunning_cycle(admin_id: str | None = None, dry_run: bool = False
             if (
                 due_for_escalation
                 and tenant.status not in {"suspended_billing", "deleted", "deleting", "pending_deletion"}
-                and (tenant.billing_status or "").lower() != "paid"
+                and tenant_subscription_status(tenant) not in {"active", "trialing"}
             ):
                 summary["due_for_escalation"] += 1
                 if not dry_run:

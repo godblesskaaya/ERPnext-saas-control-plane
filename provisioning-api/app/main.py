@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.middleware.security import SecurityHeadersMiddleware
-from app.domains.billing import router as billing_router
+from app.modules.billing.router import router as billing_router
 from app.domains.iam import router as auth_router
 from app.modules.features.router import router as features_router
 from app.modules.subscription.router import router as subscription_router
@@ -171,5 +171,5 @@ app.include_router(subscription_router, prefix=API_PREFIX)
 app.include_router(features_router, prefix=API_PREFIX)
 app.include_router(jobs_router.router, prefix=API_PREFIX)
 app.include_router(admin_router.router, prefix=API_PREFIX)
-app.include_router(billing_router.router, prefix=API_PREFIX)
+app.include_router(billing_router, prefix=API_PREFIX)
 app.include_router(ws_router.router, prefix=API_PREFIX)

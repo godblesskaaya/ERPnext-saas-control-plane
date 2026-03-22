@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fastapi import HTTPException, status
 
 from app.bench.validators import BUSINESS_APPS, ValidationError, validate_app_name, validate_plan
-from app.models import Tenant, User
+
+if TYPE_CHECKING:
+    from app.models import Tenant, User
 
 PLAN_BACKUP_DAILY_LIMITS: dict[str, int | None] = {
     "starter": 1,
@@ -41,6 +45,9 @@ DELETE_ALLOWED_STATUSES = {
     "failed",
 }
 
+SUBSCRIPTION_PAID_STATUSES = {"active", "trialing"}
+SUBSCRIPTION_DELINQUENT_STATUSES = {"past_due", "cancelled", "paused", "pending"}
+
 
 def ensure_email_verified(owner: User) -> None:
     if owner.role == "admin":
@@ -51,6 +58,39 @@ def ensure_email_verified(owner: User) -> None:
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Email verification required before creating a workspace. Please verify your email and try again.",
     )
+
+
+def tenant_subscription_status(tenant: Tenant) -> str:
+    subscription = getattr(tenant, "subscription", None)
+    if subscription and getattr(subscription, "status", None):
+        return str(subscription.status).strip().lower()
+
+    # AGENT-NOTE: Phase 5 removes runtime dependence on legacy tenant billing columns.
+    # Keep a best-effort fallback for mixed rollout windows where subscription rows may
+    # be temporarily absent for old tenants.
+    legacy_billing_status = str(getattr(tenant, "billing_status", "") or "").strip().lower()
+    if legacy_billing_status == "paid":
+        return "active"
+    if legacy_billing_status == "failed":
+        return "past_due"
+    if legacy_billing_status == "cancelled":
+        return "cancelled"
+    return "pending"
+
+
+def tenant_billing_status_compat(tenant: Tenant) -> str:
+    subscription_status = tenant_subscription_status(tenant)
+    if subscription_status in {"active", "trialing"}:
+        return "paid"
+    if subscription_status == "past_due":
+        return "failed"
+    if subscription_status == "cancelled":
+        return "cancelled"
+    return "pending"
+
+
+def tenant_payment_confirmed(tenant: Tenant) -> bool:
+    return tenant_subscription_status(tenant) in SUBSCRIPTION_PAID_STATUSES
 
 
 def resolve_plan_and_app(plan: str, chosen_app: str | None) -> tuple[str, str | None]:
@@ -101,7 +141,7 @@ def enforce_backup_policy(tenant: Tenant) -> None:
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Backups are not allowed while tenant status is {tenant.status}",
         )
-    if tenant.billing_status != "paid":
+    if not tenant_payment_confirmed(tenant):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Backups are only available for paid tenants",
@@ -111,7 +151,7 @@ def enforce_backup_policy(tenant: Tenant) -> None:
 def enforce_retry_policy(tenant: Tenant) -> None:
     if tenant.status != "failed":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tenant is not in failed state")
-    if tenant.billing_status != "paid":
+    if not tenant_payment_confirmed(tenant):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tenant payment is not confirmed")
 
 

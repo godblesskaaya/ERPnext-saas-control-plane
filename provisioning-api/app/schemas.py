@@ -270,7 +270,11 @@ class TenantOut(BaseModel):
             "suspended_admin, suspended_billing, upgrading, restoring, pending_deletion, deleting, deleted, failed."
         )
     )
-    billing_status: str = Field(description="Billing state. Typical values: pending, paid, failed, cancelled, unpaid.")
+    subscription_status: str | None = Field(
+        default=None,
+        description="Canonical subscription state (pending, trialing, active, past_due, cancelled, paused).",
+    )
+    billing_status: str = Field(description="Compatibility billing state derived from subscription status.")
     payment_provider: str = Field(description="Active billing provider (for example: azampay, selcom, stripe, dpo).")
     payment_channel: str | None = Field(
         default=None,
@@ -280,8 +284,8 @@ class TenantOut(BaseModel):
         default=None,
         description="Checkout/payment token for non-Stripe providers (for example AzamPay, DPO, or Selcom).",
     )
-    stripe_checkout_session_id: str | None
-    stripe_subscription_id: str | None
+    stripe_checkout_session_id: str | None = None
+    stripe_subscription_id: str | None = None
     platform_customer_id: str | None
     created_at: datetime
     updated_at: datetime
@@ -381,6 +385,7 @@ class DunningItemOut(BaseModel):
     tenant_name: str
     domain: str
     status: str
+    subscription_status: str | None = None
     billing_status: str | None = None
     payment_channel: str | None = None
     next_retry_at: datetime | None = None

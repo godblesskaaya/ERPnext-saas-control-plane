@@ -15,8 +15,8 @@ from app.domains.policy import ensure_email_verified, legacy_backup_daily_limit_
 from app.domains.tenants.membership import TENANT_ROLE_OWNER
 from app.queue.enqueue import get_queue
 from app.modules.audit.service import record_audit_event
-from app.domains.billing.payment.base import CheckoutResult
-from app.domains.billing.payment.factory import get_payment_gateway
+from app.modules.billing.payment.base import CheckoutResult
+from app.modules.billing.payment.factory import get_payment_gateway
 from app.modules.subscription.models import Subscription
 from app.modules.subscription.service import (
     require_plan_by_slug,
@@ -79,7 +79,6 @@ def create_tenant_and_start_checkout(
         plan=selected_plan.slug,
         chosen_app=selected_app,
         status="pending_payment",
-        billing_status="pending",
     )
     organization = Organization(name=company_name, owner_id=owner.id)
     db.add(organization)
@@ -120,20 +119,13 @@ def create_tenant_and_start_checkout(
     provider = getattr(checkout_session, "provider", get_settings().active_payment_provider.strip().lower() or "azampay")
     tenant.payment_provider = provider
     tenant.payment_channel = getattr(checkout_session, "payment_channel", None)
-    if provider == "stripe":
-        tenant.stripe_checkout_session_id = checkout_session.session_id
-        tenant.dpo_transaction_token = None
-    elif provider in {"dpo", "selcom", "azampay"}:
+    checkout_session_id = checkout_session.session_id
+    if provider in {"dpo", "selcom", "azampay"}:
         tenant.dpo_transaction_token = checkout_session.session_id
-        tenant.stripe_checkout_session_id = None
     else:
-        tenant.dpo_transaction_token = checkout_session.session_id
-        tenant.stripe_checkout_session_id = None
+        tenant.dpo_transaction_token = None
     transition_tenant_status(tenant, "pending")
     customer_ref = getattr(checkout_session, "customer_ref", None)
-    if provider == "stripe" and customer_ref and owner.stripe_customer_id != customer_ref:
-        owner.stripe_customer_id = checkout_session.customer_ref
-        db.add(owner)
 
     upsert_subscription_for_tenant(
         db,
@@ -142,7 +134,7 @@ def create_tenant_and_start_checkout(
         selected_app=selected_app,
         status_value="pending",
         payment_provider=provider,
-        provider_checkout_session_id=checkout_session.session_id,
+        provider_checkout_session_id=checkout_session_id,
         provider_customer_id=customer_ref if provider == "stripe" else None,
     )
     db.add(tenant)

@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
 
-from app.models import Tenant
+from app.domains.policy.tenant_policy import tenant_subscription_status
 from app.domains.support.platform_erp_client import PlatformERPClient
+
+if TYPE_CHECKING:
+    from app.models import Tenant
 
 
 @dataclass
@@ -35,7 +39,7 @@ def compute_dunning_windows(tenant: Tenant) -> tuple[datetime | None, datetime |
         return None, None
 
     status = (tenant.status or "").lower()
-    billing = (tenant.billing_status or "").lower()
+    subscription_status = tenant_subscription_status(tenant)
 
     retry_hours = 24
     grace_hours = 72
@@ -45,7 +49,7 @@ def compute_dunning_windows(tenant: Tenant) -> tuple[datetime | None, datetime |
     elif status == "suspended_billing":
         retry_hours = 12
         grace_hours = 24
-    elif billing in {"failed", "past_due"}:
+    elif subscription_status in {"past_due", "cancelled", "paused"}:
         retry_hours = 12
         grace_hours = 48
 

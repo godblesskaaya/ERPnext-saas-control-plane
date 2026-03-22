@@ -6,6 +6,7 @@ from unittest.mock import patch
 from app.config import get_settings
 from app.models import AuditLog, Job, Tenant, TenantMembership, User
 from app.modules.subscription.models import Plan, Subscription
+from app.modules.subscription.service import ensure_default_plan_catalog
 
 
 class DummyRQJob:
@@ -819,6 +820,24 @@ def test_tenants_paged_supports_status_plan_and_or_filters(client, db_session):
         ),
     ]
     db_session.add_all(tenants)
+    db_session.commit()
+    ensure_default_plan_catalog(db_session)
+    db_session.commit()
+    plan_by_slug = {plan.slug: plan for plan in db_session.query(Plan).all()}
+    status_by_subdomain = {
+        "flt-active": "active",
+        "flt-sus-admin": "past_due",
+        "flt-sus-billing": "past_due",
+    }
+    for tenant in tenants:
+        db_session.add(
+            Subscription(
+                tenant_id=tenant.id,
+                plan_id=plan_by_slug[tenant.plan].id,
+                status=status_by_subdomain[tenant.subdomain],
+                payment_provider=tenant.payment_provider,
+            )
+        )
     db_session.commit()
 
     suspended = client.get("/tenants/paged?status=suspended&limit=20", headers=headers)

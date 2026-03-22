@@ -15,6 +15,32 @@ if TYPE_CHECKING:
     from app.modules.subscription.models import Subscription
 
 
+def _normalize(value: str | None) -> str:
+    return (value or "").strip().lower()
+
+
+def _to_subscription_status(legacy_billing_status: str | None) -> str:
+    normalized = _normalize(legacy_billing_status)
+    if normalized == "paid":
+        return "active"
+    if normalized == "failed":
+        return "past_due"
+    if normalized == "cancelled":
+        return "cancelled"
+    return "pending"
+
+
+def _to_legacy_billing_status(subscription_status: str | None) -> str:
+    normalized = _normalize(subscription_status)
+    if normalized in {"active", "trialing"}:
+        return "paid"
+    if normalized == "past_due":
+        return "failed"
+    if normalized == "cancelled":
+        return "cancelled"
+    return "pending"
+
+
 class Tenant(Base):
     __tablename__ = "tenants"
 
@@ -28,12 +54,9 @@ class Tenant(Base):
     plan: Mapped[str] = mapped_column(String(30))
     chosen_app: Mapped[str | None] = mapped_column(String(50), nullable=True)
     status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
-    billing_status: Mapped[str] = mapped_column(String(30), default="unpaid", index=True)
     payment_provider: Mapped[str] = mapped_column(String(20), default="azampay", index=True)
     payment_channel: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
     dpo_transaction_token: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
-    stripe_checkout_session_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
-    stripe_subscription_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     platform_customer_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
@@ -49,8 +72,61 @@ class Tenant(Base):
     support_notes: Mapped[list["SupportNote"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
     subscription: Mapped["Subscription | None"] = relationship("Subscription", back_populates="tenant", uselist=False)
 
+    def __init__(self, **kwargs):
+        legacy_billing_status = kwargs.pop("billing_status", None)
+        legacy_checkout_session = kwargs.pop("stripe_checkout_session_id", None)
+        legacy_subscription_id = kwargs.pop("stripe_subscription_id", None)
+        super().__init__(**kwargs)
+        if legacy_billing_status is not None:
+            self.billing_status = legacy_billing_status
+        if legacy_checkout_session is not None:
+            self.stripe_checkout_session_id = legacy_checkout_session
+        if legacy_subscription_id is not None:
+            self.stripe_subscription_id = legacy_subscription_id
+
     @property
     def plan_slug(self) -> str:
         if self.subscription and self.subscription.plan:
             return self.subscription.plan.slug
         return (self.plan or "").strip().lower()
+
+    @property
+    def subscription_status(self) -> str:
+        if self.subscription and self.subscription.status:
+            return _normalize(self.subscription.status)
+        return _normalize(getattr(self, "_compat_subscription_status", None) or "pending")
+
+    @property
+    def billing_status(self) -> str:
+        return _to_legacy_billing_status(self.subscription_status)
+
+    @billing_status.setter
+    def billing_status(self, value: str) -> None:
+        mapped = _to_subscription_status(value)
+        if self.subscription is not None:
+            self.subscription.status = mapped
+        self._compat_subscription_status = mapped
+
+    @property
+    def stripe_checkout_session_id(self) -> str | None:
+        if self.subscription:
+            return self.subscription.provider_checkout_session_id
+        return getattr(self, "_compat_checkout_session_id", None)
+
+    @stripe_checkout_session_id.setter
+    def stripe_checkout_session_id(self, value: str | None) -> None:
+        if self.subscription is not None:
+            self.subscription.provider_checkout_session_id = value
+        self._compat_checkout_session_id = value
+
+    @property
+    def stripe_subscription_id(self) -> str | None:
+        if self.subscription:
+            return self.subscription.provider_subscription_id
+        return getattr(self, "_compat_subscription_id", None)
+
+    @stripe_subscription_id.setter
+    def stripe_subscription_id(self, value: str | None) -> None:
+        if self.subscription is not None:
+            self.subscription.provider_subscription_id = value
+        self._compat_subscription_id = value

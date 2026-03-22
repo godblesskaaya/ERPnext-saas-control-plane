@@ -1,5 +1,6 @@
-from app.domains.billing.payment.base import CheckoutResult, PaymentGateway, WebhookEvent
-from app.domains.billing.payment.factory import get_payment_gateway
+import sys
 
-__all__ = ["CheckoutResult", "PaymentGateway", "WebhookEvent", "get_payment_gateway"]
+import app.modules.billing.payment as _payment
 
+globals().update(_payment.__dict__)
+sys.modules[__name__] = _payment

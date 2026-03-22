@@ -344,7 +344,7 @@ def _process_event(
             metadata={"event_type": event_type, "provider": tenant.payment_provider},
         )
         if owner:
-            background_tasks.add_task(notification_service.send_payment_failed, owner.email, tenant.domain)
+            background_tasks.add_task(notification_service.send_payment_failed, owner.email, tenant.domain, owner.phone)
         return MessageResponse(message="processed:payment.failed")
 
     if event_type == "subscription.cancelled":
@@ -385,6 +385,7 @@ def _process_event(
                 owner.email,
                 tenant.domain,
                 "Subscription cancelled",
+                owner.phone,
             )
         return MessageResponse(message="processed:subscription.cancelled")
 

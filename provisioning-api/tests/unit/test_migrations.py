@@ -46,6 +46,7 @@ def test_alembic_upgrade_creates_core_tables(monkeypatch, tmp_path) -> None:
     } <= tables
     user_columns = {column["name"] for column in inspector.get_columns("users")}
     assert {"email_verified", "email_verified_at"} <= user_columns
+    assert "phone" in user_columns
     assert "stripe_customer_id" not in user_columns
     tenant_columns = {column["name"] for column in inspector.get_columns("tenants")}
     assert "billing_status" not in tenant_columns

@@ -100,6 +100,7 @@ def _queue_email_verification(
         user.email,
         verification_token,
         f"{settings.email_verification_url_base}?token={verification_token}",
+        user.phone,
     )
 
 
@@ -140,7 +141,7 @@ def signup(
     if db.query(User).filter(User.email == payload.email.lower()).first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
 
-    user = User(email=payload.email.lower(), password_hash=hash_password(payload.password), role="user")
+    user = User(email=payload.email.lower(), phone=payload.phone, password_hash=hash_password(payload.password), role="user")
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -403,6 +404,7 @@ def forgot_password(
             normalized_email,
             raw_token,
             f"{settings.password_reset_url_base}?token={raw_token}",
+            user.phone,
         )
     else:
         record_audit_event(

@@ -53,6 +53,7 @@ class SignupRequest(BaseModel):
                 {
                     "email": "owner@example.com",
                     "password": "S3cureP@ssw0rd!",
+                    "phone": "+255700000000",
                 }
             ]
         }
@@ -60,6 +61,7 @@ class SignupRequest(BaseModel):
 
     email: EmailStr = Field(description="Unique account email.")
     password: str = Field(min_length=8, max_length=128, description="User password (8-128 chars).")
+    phone: str | None = Field(default=None, max_length=32, description="Optional phone number for SMS notifications.")
 
 
 class LoginRequest(BaseModel):
@@ -153,6 +155,7 @@ class UserOut(BaseModel):
 
     id: str
     email: EmailStr
+    phone: str | None = None
     role: str
     email_verified: bool = Field(description="Whether the user has verified their email address.")
     email_verified_at: datetime | None = Field(default=None, description="Timestamp when email was verified.")

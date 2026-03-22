@@ -134,6 +134,10 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = True
     smtp_use_ssl: bool = False
     smtp_timeout_seconds: float = 10.0
+    africastalking_api_key: str = ""
+    africastalking_username: str = ""
+    africastalking_sender_id: str = ""
+    africastalking_base_url: str = "https://api.africastalking.com/version1/messaging"
 
     billing_dunning_auto_enabled: bool = True
     billing_dunning_auto_interval_minutes: int = 30

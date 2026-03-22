@@ -120,7 +120,8 @@ def provision_tenant(job_id: str, tenant_id: str, owner_email: str, admin_passwo
             metadata={"job_id": job.id, "platform_customer_id": customer_id},
         )
         task_log.info("tenant.provision.succeeded", platform_customer_id=customer_id)
-        notification_service.send_provisioning_complete(owner_email, tenant.domain)
+        owner = db.query(User).filter(User.email == owner_email).first()
+        notification_service.send_provisioning_complete(owner_email, tenant.domain, owner.phone if owner else None)
     except BenchCommandError as exc:
         job, tenant = _load_entities(db, job_id, tenant_id)
         append_log(job, exc.result.stdout)
@@ -143,10 +144,12 @@ def provision_tenant(job_id: str, tenant_id: str, owner_email: str, admin_passwo
             stderr=exc.result.stderr,
             stdout=exc.result.stdout,
         )
+        owner = db.query(User).filter(User.email == owner_email).first()
         notification_service.send_provisioning_failed(
             owner_email,
             tenant.domain,
             exc.result.stderr or exc.result.stdout or "Bench command failed",
+            owner.phone if owner else None,
         )
     except Exception as exc:
         job, tenant = _load_entities(db, job_id, tenant_id)
@@ -164,7 +167,8 @@ def provision_tenant(job_id: str, tenant_id: str, owner_email: str, admin_passwo
             metadata={"job_id": job.id, "error": str(exc)},
         )
         task_log.exception("tenant.provision.failed")
-        notification_service.send_provisioning_failed(owner_email, tenant.domain, str(exc))
+        owner = db.query(User).filter(User.email == owner_email).first()
+        notification_service.send_provisioning_failed(owner_email, tenant.domain, str(exc), owner.phone if owner else None)
     finally:
         db.close()
 
@@ -224,7 +228,7 @@ def backup_tenant(job_id: str, tenant_id: str) -> None:
         )
         owner = db.get(User, tenant.owner_id)
         if owner:
-            notification_service.send_backup_succeeded(owner.email, tenant.domain, manifest.file_size_bytes)
+            notification_service.send_backup_succeeded(owner.email, tenant.domain, manifest.file_size_bytes, owner.phone)
     except Exception as exc:
         job, tenant = _load_entities(db, job_id, tenant_id)
         append_log(job, traceback.format_exc())
@@ -287,7 +291,7 @@ def delete_tenant(job_id: str, tenant_id: str) -> None:
         )
         owner = db.get(User, tenant.owner_id)
         if owner:
-            notification_service.send_tenant_deleted(owner.email, tenant.domain)
+            notification_service.send_tenant_deleted(owner.email, tenant.domain, owner.phone)
         tls_sync = sync_tenant_tls_routes(prime_certs=False)
         if tls_sync.attempted:
             append_log(job, f"tls-sync: {tls_sync.message}")
@@ -527,6 +531,7 @@ def run_billing_dunning_cycle(admin_id: str | None = None, dry_run: bool = False
                         sent = notification_service.send(
                             NotificationMessage(
                                 to_email=owner.email,
+                                to_phone=owner.phone,
                                 subject=f"Payment reminder for {tenant.domain}",
                                 text=(
                                     f"Your workspace {tenant.domain} requires payment follow-up.\n\n"
@@ -586,6 +591,7 @@ def run_billing_dunning_cycle(admin_id: str | None = None, dry_run: bool = False
                             owner.email,
                             tenant.domain,
                             "Payment grace period ended",
+                            owner.phone,
                         )
 
         record_audit_event(

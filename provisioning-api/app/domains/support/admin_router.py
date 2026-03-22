@@ -842,6 +842,7 @@ def suspend_tenant(
             owner.email,
             tenant.domain,
             "Administrative action",
+            owner.phone,
         )
     return MessageResponse(message="Tenant suspended")
 
@@ -894,6 +895,7 @@ def unsuspend_tenant(
             notification_service.send_tenant_unsuspended,
             owner.email,
             tenant.domain,
+            owner.phone,
         )
 
     return MessageResponse(message="Tenant unsuspended")

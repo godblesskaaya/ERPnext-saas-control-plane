@@ -52,6 +52,18 @@ def test_signup_login_refresh_and_logout_revokes_access_token(client, db_session
     assert actions == ["auth.signup", "auth.login", "auth.logout"]
 
 
+def test_signup_accepts_optional_phone(client, db_session):
+    signup = client.post(
+        "/auth/signup",
+        json={"email": "phone@example.com", "password": "Secret123!", "phone": "+255700000000"},
+    )
+    assert signup.status_code == 201
+    assert signup.json()["phone"] == "+255700000000"
+
+    user = db_session.query(User).filter(User.email == "phone@example.com").one()
+    assert user.phone == "+255700000000"
+
+
 @patch("app.domains.iam.router.secrets.token_urlsafe", side_effect=["email-verify-token-1234567890"])
 def test_verify_email_and_me_endpoint(mock_token, client):
     del mock_token

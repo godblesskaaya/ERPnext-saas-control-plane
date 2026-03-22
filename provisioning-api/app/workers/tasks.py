@@ -6,10 +6,6 @@ from sqlalchemy import or_
 
 from app.bench.commands import (
     build_assets_command,
-    build_backup_command,
-    build_delete_site_command,
-    build_install_app_command,
-    build_new_site_command,
     build_restore_command,
 )
 from app.bench.runner import BenchCommandError, run_bench_command
@@ -26,22 +22,13 @@ from app.domains.support.notifications import NotificationMessage, notification_
 from app.domains.support.platform_erp_client import PlatformERPClient
 from app.domains.tenants.tls_sync import sync_tenant_tls_routes
 from app.domains.tenants.state import InvalidTenantStatusTransition, transition_tenant_status
+from app.modules.provisioning.service import strategy_for_tenant
 from app.utils.time import utcnow
 
 
 platform_erp_client = PlatformERPClient()
 log = get_logger(__name__)
 settings = get_settings()
-ENTERPRISE_APPS = [
-    "crm",
-    "hrms",
-    "frappe_whatsapp",
-    "posawesome",
-    "lms",
-    "helpdesk",
-    "payments",
-    "lending",
-]
 
 
 def _load_entities(db, job_id: str, tenant_id: str) -> tuple[Job, Tenant]:
@@ -50,6 +37,11 @@ def _load_entities(db, job_id: str, tenant_id: str) -> tuple[Job, Tenant]:
     if not job or not tenant:
         raise RuntimeError("Job or tenant not found")
     return job, tenant
+
+
+def _dispatch_strategy(db, tenant: Tenant):
+    strategy = strategy_for_tenant(db=db, tenant=tenant)
+    return strategy
 
 
 def provision_tenant(job_id: str, tenant_id: str, owner_email: str, admin_password: str) -> None:
@@ -74,71 +66,22 @@ def provision_tenant(job_id: str, tenant_id: str, owner_email: str, admin_passwo
             metadata={"job_id": job.id},
         )
 
-        if tenant.plan == "enterprise" and settings.bench_exec_mode == "pod":
-            from app.bench.pod.runner import provision_pod
-
-            pod_result = provision_pod(tenant, admin_password)
-            append_log(job, f"pod-compose: {pod_result.artifact.compose_file}")
-            append_log(job, f"pod-up-cmd: {' '.join(pod_result.up_command)}")
-            append_log(job, f"pod-up: {pod_result.up_stdout.strip() or 'OK'}")
-            if pod_result.up_stderr.strip():
-                append_log(job, f"pod-up-stderr: {pod_result.up_stderr.strip()}")
-            append_log(job, f"pod-health-cmd: {' '.join(pod_result.health_command)}")
-            append_log(job, f"pod-health: {pod_result.health_stdout.strip() or 'OK'}")
-            if pod_result.health_stderr.strip():
-                append_log(job, f"pod-health-stderr: {pod_result.health_stderr.strip()}")
-            task_log.info(
-                "tenant.provision.pod_completed",
-                compose_file=str(pod_result.artifact.compose_file),
-                project=str(pod_result.artifact.project_name),
-            )
-        else:
-            db_name = f"site_{tenant.subdomain.replace('-', '_')}"
-
-            new_site_res = run_bench_command(build_new_site_command(tenant.domain, admin_password, db_name))
-            append_log(job, f"new-site: {new_site_res.stdout.strip()}")
-            task_log.info(
-                "tenant.provision.new_site_completed",
-                command=new_site_res.command,
-                returncode=new_site_res.returncode,
-            )
-
-            install_res = run_bench_command(build_install_app_command(tenant.domain, "erpnext"))
-            append_log(job, f"install-app: {install_res.stdout.strip()}")
-            task_log.info(
-                "tenant.provision.install_app_completed",
-                command=install_res.command,
-                returncode=install_res.returncode,
-            )
-
-            if tenant.plan == "business" and tenant.chosen_app:
-                business_install = run_bench_command(build_install_app_command(tenant.domain, tenant.chosen_app))
-                append_log(job, f"install-app ({tenant.chosen_app}): {business_install.stdout.strip()}")
-                task_log.info(
-                    "tenant.provision.install_business_app_completed",
-                    app=tenant.chosen_app,
-                    command=business_install.command,
-                    returncode=business_install.returncode,
-                )
-            elif tenant.plan == "enterprise":
-                for app_name in ENTERPRISE_APPS:
-                    enterprise_install = run_bench_command(build_install_app_command(tenant.domain, app_name))
-                    append_log(job, f"install-app ({app_name}): {enterprise_install.stdout.strip()}")
-                    task_log.info(
-                        "tenant.provision.install_enterprise_app_completed",
-                        app=app_name,
-                        command=enterprise_install.command,
-                        returncode=enterprise_install.returncode,
-                    )
-
-            if settings.bench_build_assets_after_provision:
-                assets_res = run_bench_command(build_assets_command(force=True))
-                append_log(job, f"assets-build: {assets_res.stdout.strip()}")
-                task_log.info(
-                    "tenant.provision.assets_build_completed",
-                    command=assets_res.command,
-                    returncode=assets_res.returncode,
-                )
+        strategy = _dispatch_strategy(db, tenant)
+        apps_to_install = strategy.app_install_list_for_tenant(tenant)
+        strategy_result = strategy.provision(
+            job=job,
+            tenant=tenant,
+            admin_password=admin_password,
+            apps_to_install=apps_to_install,
+        )
+        for line in strategy_result.logs:
+            append_log(job, line)
+        task_log.info(
+            "tenant.provision.strategy_dispatched",
+            strategy=strategy.__class__.__name__,
+            isolation_model=getattr(strategy, "isolation_model", "unknown"),
+            app_count=len(apps_to_install),
+        )
 
         billing_payload = BillingPayload(
             tenant_id=tenant.id,
@@ -233,9 +176,16 @@ def backup_tenant(job_id: str, tenant_id: str) -> None:
         task_log = task_log.bind(domain=tenant.domain, subdomain=tenant.subdomain)
         mark_job_running(db, job)
 
-        result = run_bench_command(build_backup_command(tenant.domain))
-        manifest = persist_backup_manifest(db, tenant=tenant, job=job, bench_stdout=result.stdout)
-        append_log(job, f"backup: {result.stdout.strip()}")
+        strategy = _dispatch_strategy(db, tenant)
+        strategy_result = strategy.backup(job=job, tenant=tenant)
+        for line in strategy_result.logs:
+            append_log(job, line)
+        bench_stdout = str(strategy_result.metadata.get("bench_stdout") or "").strip()
+        if not bench_stdout:
+            bench_stdout = "\n".join(strategy_result.logs).strip()
+        manifest = persist_backup_manifest(db, tenant=tenant, job=job, bench_stdout=bench_stdout)
+        if bench_stdout and not strategy_result.logs:
+            append_log(job, f"backup: {bench_stdout}")
         append_log(
             job,
             "backup manifest: "
@@ -262,8 +212,9 @@ def backup_tenant(job_id: str, tenant_id: str) -> None:
         )
         task_log.info(
             "tenant.backup.succeeded",
-            command=result.command,
-            returncode=result.returncode,
+            command=strategy_result.metadata.get("command"),
+            returncode=strategy_result.metadata.get("returncode"),
+            strategy=strategy.__class__.__name__,
             backup_id=manifest.id,
             file_path=manifest.file_path,
             file_size_bytes=manifest.file_size_bytes,
@@ -305,8 +256,10 @@ def delete_tenant(job_id: str, tenant_id: str) -> None:
             db.commit()
             db.refresh(tenant)
 
-        result = run_bench_command(build_delete_site_command(tenant.domain))
-        append_log(job, f"delete: {result.stdout.strip()}")
+        strategy = _dispatch_strategy(db, tenant)
+        strategy_result = strategy.deprovision(job=job, tenant=tenant)
+        for line in strategy_result.logs:
+            append_log(job, line)
 
         transition_tenant_status(tenant, "deleted")
         tenant.updated_at = utcnow()
@@ -323,7 +276,13 @@ def delete_tenant(job_id: str, tenant_id: str) -> None:
             resource_id=tenant.id,
             metadata={"job_id": job.id},
         )
-        task_log.info("tenant.delete.succeeded", command=result.command, returncode=result.returncode)
+        task_log.info(
+            "tenant.delete.succeeded",
+            strategy=strategy.__class__.__name__,
+            isolation_model=getattr(strategy, "isolation_model", "unknown"),
+            command=strategy_result.metadata.get("command"),
+            returncode=strategy_result.metadata.get("returncode"),
+        )
         owner = db.get(User, tenant.owner_id)
         if owner:
             notification_service.send_tenant_deleted(owner.email, tenant.domain)

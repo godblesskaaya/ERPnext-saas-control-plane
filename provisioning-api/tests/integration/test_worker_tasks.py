@@ -3,6 +3,8 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from app.models import AuditLog, Job, Tenant, User
+from app.modules.subscription.models import Plan, Subscription
+from app.modules.subscription.service import ensure_default_plan_catalog
 from app.security import hash_password
 from app.workers.tasks import backup_tenant, delete_tenant, provision_tenant
 
@@ -154,7 +156,7 @@ def test_worker_enterprise_plan_installs_enterprise_pack(_, db_session):
 
 
 @patch("app.workers.tasks.platform_erp_client.register_customer", return_value="CUST-POD")
-@patch("app.bench.pod.runner.provision_pod")
+@patch("app.modules.provisioning.silo_compose.provision_pod")
 def test_worker_enterprise_plan_uses_pod_mode(mock_provision_pod, _, db_session):
     from app.workers import tasks as worker_tasks
 
@@ -196,6 +198,11 @@ def test_worker_enterprise_plan_uses_pod_mode(mock_provision_pod, _, db_session)
         db_session.add(tenant)
         db_session.commit()
         db_session.refresh(tenant)
+        ensure_default_plan_catalog(db_session)
+        db_session.commit()
+        enterprise_plan = db_session.query(Plan).filter(Plan.slug == "enterprise").one()
+        db_session.add(Subscription(tenant_id=tenant.id, plan_id=enterprise_plan.id, status="active"))
+        db_session.commit()
 
         job = Job(tenant_id=tenant.id, type="create", status="queued")
         db_session.add(job)

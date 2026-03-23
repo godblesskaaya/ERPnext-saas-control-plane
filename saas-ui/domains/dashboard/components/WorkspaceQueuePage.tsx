@@ -7,12 +7,21 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { TenantCreateForm } from "./TenantCreateForm";
 import { TenantTable } from "./TenantTable";
 import { useNotifications } from "../../shared/components/NotificationsProvider";
-import { api, getApiErrorMessage, isSessionExpiredError, onSessionExpired } from "../../shared/lib/api";
 import type { Job, Tenant, TenantCreateResponse, UserProfile } from "../../shared/lib/types";
 import {
   deriveWorkspaceQueueSnapshot,
+  isWorkspaceQueueSessionExpired,
   loadWorkspaceCurrentUserProfile,
+  loadWorkspaceBillingPortal,
   loadWorkspaceQueue,
+  onWorkspaceSessionExpired,
+  queueWorkspaceBackup,
+  queueWorkspaceTenantDelete,
+  resendWorkspaceVerificationEmail,
+  resetWorkspaceTenantAdminPassword,
+  retryWorkspaceProvisioning,
+  toWorkspaceQueueErrorMessage,
+  updateWorkspaceTenantPlan,
 } from "../../tenant-ops/application/workspaceQueueUseCases";
 
 const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed", "deleted", "canceled", "cancelled"]);
@@ -105,12 +114,12 @@ export function WorkspaceQueuePage({
 
   const handleError = useCallback(
     (err: unknown, fallback: string) => {
-      if (isSessionExpiredError(err)) {
+      if (isWorkspaceQueueSessionExpired(err)) {
         setError("Session expired. Please log in again.");
         router.push("/login?reason=session-expired");
         return;
       }
-      setError(getApiErrorMessage(err, fallback));
+      setError(toWorkspaceQueueErrorMessage(err, fallback));
     },
     [router]
   );
@@ -210,7 +219,7 @@ export function WorkspaceQueuePage({
   }, [searchParams]);
 
   useEffect(() => {
-    return onSessionExpired(() => {
+    return onWorkspaceSessionExpired(() => {
       setError("Session expired. Please log in again.");
       router.push("/login?reason=session-expired");
     });
@@ -248,10 +257,10 @@ export function WorkspaceQueuePage({
   const resendVerification = async () => {
     setResendBusy(true);
     try {
-      const result = await api.resendVerification();
+      const result = await resendWorkspaceVerificationEmail();
       setVerificationNotice(result.message || "Verification email sent. Check your inbox.");
     } catch (err) {
-      setVerificationNotice(getApiErrorMessage(err, "Failed to resend verification email."));
+      setVerificationNotice(toWorkspaceQueueErrorMessage(err, "Failed to resend verification email."));
     } finally {
       setResendBusy(false);
     }
@@ -260,7 +269,7 @@ export function WorkspaceQueuePage({
   const retryProvisioning = async (tenantId: string) => {
     setRetryingTenantId(tenantId);
     try {
-      const result = await api.retryTenant(tenantId);
+      const result = await retryWorkspaceProvisioning(tenantId);
       if (!result.supported) {
         setError("Retry endpoint is not available on this backend.");
         return;
@@ -273,7 +282,7 @@ export function WorkspaceQueuePage({
       });
       await load();
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to retry provisioning."));
+      setError(toWorkspaceQueueErrorMessage(err, "Failed to retry provisioning."));
     } finally {
       setRetryingTenantId(null);
     }
@@ -282,7 +291,7 @@ export function WorkspaceQueuePage({
   const updateTenantPlan = async (tenantId: string, payload: { plan: string; chosen_app?: string }) => {
     setUpdatingTenantId(tenantId);
     try {
-      const result = await api.updateTenant(tenantId, payload);
+      const result = await updateWorkspaceTenantPlan(tenantId, payload);
       if (!result.supported) {
         setError("Plan update is not available on this backend.");
         return;
@@ -295,7 +304,7 @@ export function WorkspaceQueuePage({
         body: `Workspace ${result.data.domain} is now on ${result.data.plan}.`,
       });
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to update plan."));
+      setError(toWorkspaceQueueErrorMessage(err, "Failed to update plan."));
     } finally {
       setUpdatingTenantId(null);
     }
@@ -306,7 +315,7 @@ export function WorkspaceQueuePage({
   const loadBillingPortal = async () => {
     setBillingPortalError(null);
     try {
-      const result = await api.getBillingPortal();
+      const result = await loadWorkspaceBillingPortal();
       if (!result.supported) {
         setBillingPortalError("Billing portal is not available on this backend.");
         return;
@@ -318,7 +327,7 @@ export function WorkspaceQueuePage({
         body: "A billing workspace link is ready to open in a new tab.",
       });
     } catch (err) {
-      setBillingPortalError(getApiErrorMessage(err, "Unable to open billing portal."));
+      setBillingPortalError(toWorkspaceQueueErrorMessage(err, "Unable to open billing portal."));
     }
   };
 
@@ -616,7 +625,7 @@ export function WorkspaceQueuePage({
         }
         onBackup={async (id) => {
           try {
-            const job = await api.backupTenant(id);
+            const job = await queueWorkspaceBackup(id);
             setTenantJob(id, job);
             setError(null);
             addNotification({
@@ -632,7 +641,7 @@ export function WorkspaceQueuePage({
         }}
         onResetAdminPassword={async (id, newPassword) => {
           try {
-            const result = await api.resetAdminPassword(id, newPassword);
+            const result = await resetWorkspaceTenantAdminPassword(id, newPassword);
             setError(null);
             addNotification({
               type: "warning",
@@ -647,7 +656,7 @@ export function WorkspaceQueuePage({
         }}
         onDelete={async (id) => {
           try {
-            const job = await api.deleteTenant(id);
+            const job = await queueWorkspaceTenantDelete(id);
             setTenantJob(id, job);
             setError(null);
             addNotification({

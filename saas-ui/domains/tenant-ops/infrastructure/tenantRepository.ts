@@ -1,17 +1,22 @@
-import { api } from "../../shared/lib/api";
+import { api, onSessionExpired } from "../../shared/lib/api";
 import type {
   AuditLogEntry,
   BackupManifestEntry,
+  BillingPortalResponse,
   DomainMapping,
   Job,
   MessageResponse,
   OptionalEndpointResult,
   PaginatedResult,
+  ResetAdminPasswordResult,
   SupportNote,
   Tenant,
+  TenantCreatePayload,
+  TenantCreateResponse,
   TenantMember,
   TenantSubscription,
   TenantSummary,
+  TenantUpdatePayload,
   UserProfile,
 } from "../../shared/lib/types";
 
@@ -35,6 +40,10 @@ export type TenantQueueData = {
 
 export async function fetchTenants(): Promise<Tenant[]> {
   return api.listTenants();
+}
+
+export async function createTenantWorkspace(payload: TenantCreatePayload): Promise<TenantCreateResponse> {
+  return api.createTenant(payload);
 }
 
 export async function fetchTenantQueue(query: TenantQueueQuery): Promise<TenantQueueData> {
@@ -77,6 +86,40 @@ export async function fetchTenantById(tenantId: string): Promise<Tenant> {
 
 export async function retryTenantById(tenantId: string): Promise<OptionalEndpointResult<Job>> {
   return api.retryTenant(tenantId);
+}
+
+export async function resendVerificationEmail(): Promise<MessageResponse> {
+  return api.resendVerification();
+}
+
+export async function updateTenantWorkspace(
+  tenantId: string,
+  payload: TenantUpdatePayload
+): Promise<OptionalEndpointResult<Tenant>> {
+  return api.updateTenant(tenantId, payload);
+}
+
+export async function fetchWorkspaceBillingPortal(): Promise<OptionalEndpointResult<BillingPortalResponse>> {
+  return api.getBillingPortal();
+}
+
+export async function enqueueTenantBackup(tenantId: string): Promise<Job> {
+  return api.backupTenant(tenantId);
+}
+
+export async function resetTenantAdminPassword(
+  tenantId: string,
+  newPassword?: string
+): Promise<ResetAdminPasswordResult> {
+  return api.resetAdminPassword(tenantId, newPassword);
+}
+
+export async function enqueueTenantDelete(tenantId: string): Promise<Job> {
+  return api.deleteTenant(tenantId);
+}
+
+export function subscribeWorkspaceSessionExpired(listener: () => void): () => void {
+  return onSessionExpired(listener);
 }
 
 export async function fetchTenantBackups(

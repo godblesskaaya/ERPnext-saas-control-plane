@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { api, getApiErrorMessage } from "../../shared/lib/api";
 import type { TenantCreatePayload, TenantCreateResponse } from "../../shared/lib/types";
 import { BUSINESS_APP_OPTIONS, PlanSelector } from "../../onboarding/components/PlanSelector";
+import { createWorkspaceTenant, toWorkspaceQueueErrorMessage } from "../../tenant-ops/application/workspaceQueueUseCases";
 
 type Props = {
   onCreated: (result: TenantCreateResponse) => void | Promise<void>;
@@ -74,13 +74,13 @@ export function TenantCreateForm({ onCreated, canCreate = true, verificationNoti
     }
 
     try {
-      const result = await api.createTenant(payload);
+      const result = await createWorkspaceTenant(payload);
       setCreated(result);
       setSubdomain("");
       setCompanyName("");
       await onCreated(result);
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to create tenant"));
+      setError(toWorkspaceQueueErrorMessage(err, "Failed to create tenant"));
     } finally {
       setBusy(false);
     }

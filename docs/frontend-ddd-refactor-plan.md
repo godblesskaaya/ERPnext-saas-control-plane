@@ -184,3 +184,18 @@ Verification notes (2026-03-18):
   - updated auth use-case tests for new auth session/impersonation flows.
 - Updated boundary allowlist in `scripts/check-import-boundaries.mjs`.
 - Result: tracked exceptions reduced from 12 to 8.
+
+### Phase 7 continuation (dashboard component action decoupling, batch 4)
+- Removed direct shared API coupling from dashboard workflow components:
+  - `domains/dashboard/components/WorkspaceQueuePage.tsx`
+  - `domains/dashboard/components/TenantCreateForm.tsx`
+- Added tenant-ops repository/application adapters for workspace actions:
+  - create tenant, resend verification, retry provisioning, update plan
+  - load billing portal, queue backup, reset admin password, queue delete
+  - session-expired subscription + app-layer error/session helpers
+- Expanded `domains/tenant-ops/application/workspaceQueueUseCases.test.ts` to cover new action wrappers and unsupported endpoint contracts.
+- Verification notes (2026-03-23):
+  - `npx --yes tsx --test domains/tenant-ops/application/workspaceQueueUseCases.test.ts` ✅
+  - `npx tsc --noEmit` ✅
+  - `npm run test:contracts` ✅
+  - `npm run build` ✅

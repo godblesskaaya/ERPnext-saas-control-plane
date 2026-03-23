@@ -1,11 +1,34 @@
-import type { Tenant, UserProfile } from "../../shared/lib/types";
+import { getApiErrorMessage, isSessionExpiredError } from "../../shared/lib/api";
+import type {
+  BillingPortalResponse,
+  Job,
+  MessageResponse,
+  OptionalEndpointResult,
+  ResetAdminPasswordResult,
+  Tenant,
+  TenantCreatePayload,
+  TenantCreateResponse,
+  TenantUpdatePayload,
+  UserProfile,
+} from "../../shared/lib/types";
 import {
   applyWorkspaceQueueFallbackFilters,
   applyWorkspaceQueueSearchFallback,
   deriveWorkspaceQueueMetrics,
   type WorkspaceQueueMetrics,
 } from "../domain/workspaceQueue";
-import { fetchCurrentUserProfile } from "../infrastructure/tenantRepository";
+import {
+  createTenantWorkspace,
+  enqueueTenantBackup,
+  enqueueTenantDelete,
+  fetchCurrentUserProfile,
+  fetchWorkspaceBillingPortal,
+  resendVerificationEmail,
+  resetTenantAdminPassword,
+  retryTenantById,
+  subscribeWorkspaceSessionExpired,
+  updateTenantWorkspace,
+} from "../infrastructure/tenantRepository";
 import { loadWorkspaceQueuePage } from "../infrastructure/workspaceQueueRepository";
 
 type BillingFilterMode = "and" | "or";
@@ -142,4 +165,55 @@ export async function loadWorkspaceQueueData(params: LoadWorkspaceQueueParams): 
 
 export async function loadWorkspaceCurrentUserProfile(): Promise<UserProfile> {
   return fetchCurrentUserProfile();
+}
+
+
+export async function resendWorkspaceVerificationEmail(): Promise<MessageResponse> {
+  return resendVerificationEmail();
+}
+
+export async function createWorkspaceTenant(payload: TenantCreatePayload): Promise<TenantCreateResponse> {
+  return createTenantWorkspace(payload);
+}
+
+export async function retryWorkspaceProvisioning(tenantId: string): Promise<OptionalEndpointResult<Job>> {
+  return retryTenantById(tenantId);
+}
+
+export async function updateWorkspaceTenantPlan(
+  tenantId: string,
+  payload: TenantUpdatePayload
+): Promise<OptionalEndpointResult<Tenant>> {
+  return updateTenantWorkspace(tenantId, payload);
+}
+
+export async function loadWorkspaceBillingPortal(): Promise<OptionalEndpointResult<BillingPortalResponse>> {
+  return fetchWorkspaceBillingPortal();
+}
+
+export async function queueWorkspaceBackup(tenantId: string): Promise<Job> {
+  return enqueueTenantBackup(tenantId);
+}
+
+export async function resetWorkspaceTenantAdminPassword(
+  tenantId: string,
+  newPassword?: string
+): Promise<ResetAdminPasswordResult> {
+  return resetTenantAdminPassword(tenantId, newPassword);
+}
+
+export async function queueWorkspaceTenantDelete(tenantId: string): Promise<Job> {
+  return enqueueTenantDelete(tenantId);
+}
+
+export function onWorkspaceSessionExpired(listener: () => void): () => void {
+  return subscribeWorkspaceSessionExpired(listener);
+}
+
+export function isWorkspaceQueueSessionExpired(error: unknown): boolean {
+  return isSessionExpiredError(error);
+}
+
+export function toWorkspaceQueueErrorMessage(error: unknown, fallback: string): string {
+  return getApiErrorMessage(error, fallback);
 }

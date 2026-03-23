@@ -9,9 +9,7 @@ import {
   type DashboardEndpointState,
 } from "../../../domains/dashboard/application/dashboardUseCases";
 import {
-  defaultDashboardNavMode,
   getDashboardNavSectionsByMode,
-  type DashboardNavMode,
 } from "../../../domains/dashboard/domain/navigation";
 import type { MetricsSummary } from "../../../domains/shared/lib/types";
 
@@ -38,28 +36,11 @@ function statusClass(state: EndpointState): string {
   return "border-slate-200 bg-white text-slate-700";
 }
 
-const modeConfig: Record<DashboardNavMode, { label: string; title: string; description: string; switchHint: string }> = {
-  operations: {
-    label: "Operations",
-    title: "Operations command center",
-    description: "Route work by lifecycle stage: onboarding, provisioning, billing recovery, support, and governance.",
-    switchHint: "Queue-driven routing across onboarding, incidents, billing, and support.",
-  },
-  workspace: {
-    label: "Workspace",
-    title: "Workspace command center",
-    description:
-      "Run tenant-facing journeys: workspace overview, registry, active fleet, billing visibility, and account context.",
-    switchHint: "Tenant-level and account-level routing for focused workspace actions.",
-  },
-};
-
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [authState, setAuthState] = useState<EndpointState>("loading");
   const [billingState, setBillingState] = useState<EndpointState>("loading");
-  const [mode, setMode] = useState<DashboardNavMode>(defaultDashboardNavMode);
 
   useEffect(() => {
     let active = true;
@@ -87,113 +68,49 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const sectionsByMode = useMemo<Record<DashboardNavMode, ReturnType<typeof getDashboardNavSectionsByMode>>>(
-    () => ({
-      operations: getDashboardNavSectionsByMode("operations"),
-      workspace: getDashboardNavSectionsByMode("workspace"),
-    }),
-    []
+  const journeyCards = useMemo<JourneyCard[]>(
+    () => [
+      {
+        eyebrow: "Workspace",
+        title: "Workspace overview",
+        description: "Start from a consolidated summary of tenant and platform activity.",
+        href: "/dashboard/overview",
+        value: metrics?.jobs_last_24h,
+      },
+      {
+        eyebrow: "Workspace",
+        title: "Tenant registry",
+        description: "Search workspaces and open tenant-level control pages.",
+        href: "/dashboard/registry",
+        value: metrics?.total_tenants,
+      },
+      {
+        eyebrow: "Workspace",
+        title: "Active workspaces",
+        description: "Review live tenants and continue routine workspace operations.",
+        href: "/dashboard/active",
+        value: metrics?.active_tenants,
+      },
+      {
+        eyebrow: "Workspace",
+        title: "Payment center",
+        description: "Resume failed checkout and review customer billing invoices.",
+        href: "/billing",
+        value: metrics?.pending_payment_tenants,
+      },
+    ],
+    [metrics],
   );
-
-  const journeyCardsByMode = useMemo<Record<DashboardNavMode, JourneyCard[]>>(
-    () => ({
-      operations: [
-        {
-          eyebrow: "Queue",
-          title: "Payment onboarding",
-          description: "Track tenants waiting for payment completion and onboarding approval.",
-          href: "/dashboard/onboarding",
-          value: metrics?.pending_payment_tenants,
-        },
-        {
-          eyebrow: "Queue",
-          title: "Provisioning queue",
-          description: "Monitor deployments, retries, and in-progress tenant jobs.",
-          href: "/dashboard/provisioning",
-          value: metrics?.provisioning_tenants,
-        },
-        {
-          eyebrow: "Queue",
-          title: "Failures & incidents",
-          description: "Resolve failed provisioning and blocked lifecycle transitions.",
-          href: "/dashboard/incidents",
-          value: metrics?.failed_tenants,
-        },
-        {
-          eyebrow: "Queue",
-          title: "Billing operations",
-          description: "Manage overdue invoices, dunning cycle, and billing recovery.",
-          href: "/dashboard/billing-ops",
-          value: metrics?.suspended_tenants,
-        },
-      ],
-      workspace: [
-        {
-          eyebrow: "Workspace",
-          title: "Workspace overview",
-          description: "Start from a consolidated summary of tenant and platform activity.",
-          href: "/dashboard/overview",
-          value: metrics?.jobs_last_24h,
-        },
-        {
-          eyebrow: "Workspace",
-          title: "Tenant registry",
-          description: "Search workspaces and open tenant-level control pages.",
-          href: "/dashboard/registry",
-          value: metrics?.total_tenants,
-        },
-        {
-          eyebrow: "Workspace",
-          title: "Active workspaces",
-          description: "Review live tenants and continue routine workspace operations.",
-          href: "/dashboard/active",
-          value: metrics?.active_tenants,
-        },
-        {
-          eyebrow: "Workspace",
-          title: "Payment center",
-          description: "Resume failed checkout and review customer billing invoices.",
-          href: "/billing",
-          value: metrics?.pending_payment_tenants,
-        },
-      ],
-    }),
-    [metrics]
-  );
-
-  const activeModeConfig = modeConfig[mode];
-  const journeyCards = journeyCardsByMode[mode];
-  const visibleSections = sectionsByMode[mode];
+  const visibleSections = useMemo(() => getDashboardNavSectionsByMode("workspace"), []);
 
   return (
     <section className="space-y-6">
       <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Journey hub</p>
-        <h1 className="mt-1 text-3xl font-semibold text-slate-900">{activeModeConfig.title}</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">{activeModeConfig.description}</p>
-
-        <div className="mt-4 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Context mode</p>
-          <div className="inline-flex w-full max-w-sm rounded-2xl border border-slate-200 bg-slate-100/70 p-1">
-            {(Object.keys(modeConfig) as DashboardNavMode[]).map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setMode(option)}
-                className={
-                  "flex-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition " +
-                  (mode === option
-                    ? "border border-amber-200 bg-white text-amber-800 shadow-sm"
-                    : "text-slate-600 hover:text-slate-900")
-                }
-                aria-pressed={mode === option}
-              >
-                {modeConfig[option].label}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-slate-500">{activeModeConfig.switchHint}</p>
-        </div>
+        <h1 className="mt-1 text-3xl font-semibold text-slate-900">Workspace command center</h1>
+        <p className="mt-2 max-w-3xl text-sm text-slate-600">
+          Customer-facing workspace only: overview, tenant registry, account settings, and billing recovery.
+        </p>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">

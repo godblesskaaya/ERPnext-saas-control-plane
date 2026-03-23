@@ -2,117 +2,90 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { Box, Divider, List, ListItemButton, ListItemText, Paper, Stack, Typography } from "@mui/material";
 
-import {
-  getDashboardNavSectionsByMode,
-  resolveDashboardNavMode,
-  type DashboardNavItem,
-  type DashboardNavMode,
-} from "../domain/navigation";
-
-const modeConfig: Record<
-  DashboardNavMode,
-  { label: string; title: string; description: string; switchHint: string }
-> = {
-  operations: {
-    label: "Operations",
-    title: "Operations workspace",
-    description: "Navigate lifecycle, billing, support, and platform workflows.",
-    switchHint: "Queue-driven routing across onboarding, incidents, billing, and support.",
-  },
-  workspace: {
-    label: "Workspace",
-    title: "Workspace context",
-    description: "Navigate tenant records, active workspaces, and your account settings.",
-    switchHint: "Open tenant-level and account-level views for focused workspace actions.",
-  },
-};
+import { getDashboardNavSectionsByMode, type DashboardNavItem } from "../domain/navigation";
 
 function isActiveRoute(pathname: string, item: DashboardNavItem): boolean {
   const matchers = [item.href, ...(item.match ?? [])];
-  return matchers.some((matcher) => pathname === matcher || pathname.startsWith(matcher + "/"));
+  return matchers.some((matcher) => pathname === matcher || pathname.startsWith(`${matcher}/`));
 }
+
+const workspaceSections = getDashboardNavSectionsByMode("workspace");
 
 export function DashboardNav() {
   const pathname = usePathname();
-  const sectionsByMode = useMemo(
-    () => ({
-      operations: getDashboardNavSectionsByMode("operations"),
-      workspace: getDashboardNavSectionsByMode("workspace"),
-    }),
-    [],
-  );
-  const inferredMode = useMemo(() => resolveDashboardNavMode(pathname), [pathname]);
-
-  const [mode, setMode] = useState<DashboardNavMode>(inferredMode);
-
-  useEffect(() => {
-    setMode(inferredMode);
-  }, [inferredMode]);
-
-  const visibleSections = sectionsByMode[mode];
-  const activeModeConfig = modeConfig[mode];
 
   return (
-    <aside className="sticky top-24 space-y-6 self-start rounded-3xl border border-amber-200/70 bg-white/80 p-5 text-sm text-slate-700 shadow-sm">
-      <div className="space-y-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">User shell</p>
-        <p className="text-lg font-semibold text-slate-900">{activeModeConfig.title}</p>
-        <p className="text-xs text-slate-500">{activeModeConfig.description}</p>
-      </div>
+    <Paper
+      component="aside"
+      elevation={1}
+      sx={{
+        position: "sticky",
+        top: 96,
+        alignSelf: "flex-start",
+        p: 2.25,
+        borderRadius: 3,
+        border: "1px solid",
+        borderColor: "divider",
+        bgcolor: "rgba(255,255,255,0.88)",
+      }}
+    >
+      <Stack spacing={2}>
+        <Box>
+          <Typography variant="overline" sx={{ fontWeight: 700, color: "primary.main", letterSpacing: 0.7 }}>
+            User Workspace
+          </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Workspace navigation
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Key customer features only: tenants, billing, account, and settings.
+          </Typography>
+        </Box>
 
-      <div className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Navigation mode</p>
-        <div className="inline-flex w-full rounded-2xl border border-slate-200 bg-slate-100/70 p-1">
-          {(Object.keys(modeConfig) as DashboardNavMode[]).map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setMode(option)}
-              className={
-                "flex-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition " +
-                (mode === option
-                  ? "border border-amber-200 bg-white text-amber-800 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900")
-              }
-              aria-pressed={mode === option}
-            >
-              {modeConfig[option].label}
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-slate-500">{activeModeConfig.switchHint}</p>
-      </div>
+        <Divider />
 
-      {visibleSections.map((section) => (
-        <div key={section.title} className="space-y-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{section.title}</p>
-            <p className="text-xs text-slate-500">{section.description}</p>
-          </div>
-          <div className="space-y-2">
-            {section.items.map((item) => {
-              const active = isActiveRoute(pathname, item);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={
-                    "flex flex-col rounded-2xl border px-3 py-2 text-xs transition " +
-                    (active
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                      : "border-slate-200 bg-white text-slate-700 hover:border-amber-200 hover:bg-amber-50")
-                  }
-                >
-                  <span className="text-sm font-semibold">{item.label}</span>
-                  <span className="text-xs text-slate-500">{item.hint}</span>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </aside>
+        {workspaceSections.map((section) => (
+          <Box key={section.title}>
+            <Typography variant="caption" sx={{ fontWeight: 700, textTransform: "uppercase", color: "text.secondary" }}>
+              {section.title}
+            </Typography>
+            <Typography variant="caption" display="block" color="text.secondary" sx={{ mb: 1 }}>
+              {section.description}
+            </Typography>
+            <List dense disablePadding>
+              {section.items.map((item) => {
+                const active = isActiveRoute(pathname, item);
+                return (
+                  <ListItemButton
+                    key={item.href}
+                    component={Link}
+                    href={item.href}
+                    selected={active}
+                    sx={{
+                      borderRadius: 2,
+                      mb: 0.5,
+                      border: "1px solid",
+                      borderColor: active ? "primary.light" : "divider",
+                      bgcolor: active ? "rgba(13,106,106,0.08)" : "background.paper",
+                      "&:hover": { bgcolor: "rgba(245,158,11,0.1)" },
+                    }}
+                  >
+                    <ListItemText
+                      primary={item.label}
+                      secondary={item.hint}
+                      primaryTypographyProps={{ fontSize: 13.5, fontWeight: 700, color: active ? "primary.main" : "text.primary" }}
+                      secondaryTypographyProps={{ fontSize: 11.5, color: "text.secondary" }}
+                    />
+                  </ListItemButton>
+                );
+              })}
+            </List>
+          </Box>
+        ))}
+      </Stack>
+    </Paper>
   );
 }
+

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { Box, Divider, List, ListItemButton, ListItemText, Paper, Stack, Typography } from "@mui/material";
 
 import { adminNavSections } from "../domain/adminNavigation";
 
@@ -11,7 +12,7 @@ function isNavItemActive(href: string, pathname: string, searchParams: SearchPar
   const [targetPath, targetQuery = ""] = href.split("?");
 
   if (!targetQuery) {
-    return pathname === targetPath || pathname.startsWith(targetPath + "/");
+    return pathname === targetPath || pathname.startsWith(`${targetPath}/`);
   }
 
   if (pathname !== targetPath) {
@@ -41,40 +42,76 @@ export function AdminNav() {
   const searchParams = useSearchParams();
 
   return (
-    <aside className="space-y-6 rounded-3xl border border-slate-800 bg-slate-950/90 p-5 text-sm text-slate-200 shadow-sm">
-      <div className="space-y-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">Admin shell</p>
-        <p className="text-lg font-semibold text-white">Platform command center</p>
-        <p className="text-xs text-slate-400">Privileged navigation for control-plane operators.</p>
-      </div>
+    <Paper
+      component="aside"
+      elevation={1}
+      sx={{
+        position: "sticky",
+        top: 96,
+        alignSelf: "flex-start",
+        p: 2.25,
+        borderRadius: 3,
+        border: "1px solid",
+        borderColor: "divider",
+        bgcolor: "rgba(2,6,23,0.92)",
+        color: "grey.100",
+      }}
+    >
+      <Stack spacing={2}>
+        <Box>
+          <Typography variant="overline" sx={{ fontWeight: 700, color: "warning.light", letterSpacing: 0.7 }}>
+            Admin Shell
+          </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: "common.white" }}>
+            Platform command
+          </Typography>
+          <Typography variant="caption" sx={{ color: "grey.400" }}>
+            Privileged features only.
+          </Typography>
+        </Box>
 
-      {adminNavSections.map((section) => (
-        <div key={section.title} className="space-y-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{section.title}</p>
-            <p className="text-xs text-slate-500">{section.description}</p>
-          </div>
-          <div className="space-y-2">
-            {section.items.map((item) => {
-              const active = isNavItemActive(item.href, pathname, searchParams);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex flex-col rounded-2xl border px-3 py-2 text-xs transition ${
-                    active
-                      ? "border-amber-300/50 bg-amber-500/10 text-amber-100"
-                      : "border-slate-700 bg-slate-900/70 text-slate-200 hover:border-amber-400/40 hover:bg-slate-900"
-                  }`}
-                >
-                  <span className="text-sm font-semibold">{item.label}</span>
-                  <span className="text-xs text-slate-400">{item.hint}</span>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </aside>
+        <Divider sx={{ borderColor: "rgba(148,163,184,0.28)" }} />
+
+        {adminNavSections.map((section) => (
+          <Box key={section.title}>
+            <Typography variant="caption" sx={{ fontWeight: 700, textTransform: "uppercase", color: "grey.400" }}>
+              {section.title}
+            </Typography>
+            <Typography variant="caption" display="block" sx={{ color: "grey.500", mb: 1 }}>
+              {section.description}
+            </Typography>
+            <List dense disablePadding>
+              {section.items.map((item) => {
+                const active = isNavItemActive(item.href, pathname, searchParams);
+                return (
+                  <ListItemButton
+                    key={item.href}
+                    component={Link}
+                    href={item.href}
+                    selected={active}
+                    sx={{
+                      borderRadius: 2,
+                      mb: 0.5,
+                      border: "1px solid",
+                      borderColor: active ? "warning.main" : "rgba(100,116,139,0.4)",
+                      bgcolor: active ? "rgba(245,158,11,0.14)" : "rgba(15,23,42,0.75)",
+                      "&:hover": { bgcolor: "rgba(51,65,85,0.75)" },
+                    }}
+                  >
+                    <ListItemText
+                      primary={item.label}
+                      secondary={item.hint}
+                      primaryTypographyProps={{ fontSize: 13.5, fontWeight: 700, color: active ? "warning.light" : "grey.100" }}
+                      secondaryTypographyProps={{ fontSize: 11.5, color: "grey.500" }}
+                    />
+                  </ListItemButton>
+                );
+              })}
+            </List>
+          </Box>
+        ))}
+      </Stack>
+    </Paper>
   );
 }
+

@@ -3,6 +3,19 @@ import { NextRequest, NextResponse } from "next/server";
 const TOKEN_COOKIE = "erp_saas_token";
 const ROLE_COOKIE = "erp_saas_role";
 const USER_COOKIE = "erp_saas_user";
+const ADMIN_DASHBOARD_PREFIXES = [
+  "/dashboard/onboarding",
+  "/dashboard/provisioning",
+  "/dashboard/incidents",
+  "/dashboard/suspensions",
+  "/dashboard/activity",
+  "/dashboard/billing-ops",
+  "/dashboard/billing",
+  "/dashboard/support",
+  "/dashboard/support-overview",
+  "/dashboard/audit",
+  "/dashboard/platform-health",
+] as const;
 
 type JwtPayload = {
   exp?: number;
@@ -30,6 +43,10 @@ function isProtected(pathname: string): boolean {
 
 function isAdminRoute(pathname: string): boolean {
   return pathname === "/admin" || pathname.startsWith("/admin/");
+}
+
+function isAdminOnlyDashboardRoute(pathname: string): boolean {
+  return ADMIN_DASHBOARD_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 function isPublicAuthRoute(pathname: string): boolean {
@@ -130,7 +147,7 @@ export function middleware(request: NextRequest) {
   }
 
   const role = request.cookies.get(ROLE_COOKIE)?.value ?? payload?.role;
-  if (isAdminRoute(pathname) && role !== "admin") {
+  if ((isAdminRoute(pathname) || isAdminOnlyDashboardRoute(pathname)) && role !== "admin") {
     return new NextResponse(forbiddenHtml(), {
       status: 403,
       headers: {

@@ -1,4 +1,5 @@
 import type { ImpersonationLink } from "../../shared/lib/types";
+import { getApiErrorMessage } from "../../shared/lib/api";
 import {
   fetchAdminJobLogs,
   fetchAdminJobs,
@@ -64,4 +65,8 @@ export async function issueSupportImpersonationLink(
   reason: string
 ): Promise<{ supported: boolean; link: ImpersonationLink | null }> {
   return requestImpersonationLink(targetEmail, reason);
+}
+
+export function toAdminErrorMessage(error: unknown, fallback: string): string {
+  return getApiErrorMessage(error, fallback);
 }

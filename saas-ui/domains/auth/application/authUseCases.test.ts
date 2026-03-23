@@ -2,11 +2,13 @@ import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  consumeImpersonationToken,
   confirmEmailVerification,
   loadAuthHealth,
   loadAuthHealthSnapshot,
   loadBillingHealth,
   loginWithPassword,
+  refreshAuthSession,
   requestPasswordReset,
   signupAndLogin,
   submitPasswordReset,
@@ -16,8 +18,10 @@ import { api } from "../../shared/lib/api";
 const originalApi = {
   authHealth: api.authHealth,
   billingHealth: api.billingHealth,
+  exchangeImpersonationToken: api.exchangeImpersonationToken,
   forgotPassword: api.forgotPassword,
   login: api.login,
+  refreshToken: api.refreshToken,
   resetPassword: api.resetPassword,
   signup: api.signup,
   verifyEmail: api.verifyEmail,
@@ -26,8 +30,10 @@ const originalApi = {
 afterEach(() => {
   api.authHealth = originalApi.authHealth;
   api.billingHealth = originalApi.billingHealth;
+  api.exchangeImpersonationToken = originalApi.exchangeImpersonationToken;
   api.forgotPassword = originalApi.forgotPassword;
   api.login = originalApi.login;
+  api.refreshToken = originalApi.refreshToken;
   api.resetPassword = originalApi.resetPassword;
   api.signup = originalApi.signup;
   api.verifyEmail = originalApi.verifyEmail;
@@ -144,4 +150,24 @@ test("password reset and verify helpers trim inputs and apply fallback messages"
   assert.equal(forgotMessage, "If the account exists, reset instructions were sent.");
   assert.equal(resetMessage, "done");
   assert.equal(verifyMessage, "Email verified successfully. You can now continue.");
+});
+
+test("refreshAuthSession and consumeImpersonationToken map auth token flows", async () => {
+  api.refreshToken = async () => ({ access_token: "refresh-token", token_type: "bearer" });
+  api.exchangeImpersonationToken = async (token: string) => ({
+    access_token: `impersonated-${token}`,
+    token_type: "bearer",
+  });
+
+  const refreshed = await refreshAuthSession();
+  const impersonated = await consumeImpersonationToken(" support-token ", false);
+
+  assert.equal(refreshed?.access_token, "refresh-token");
+  assert.equal(impersonated.access_token, "impersonated-support-token");
+
+  api.refreshToken = async () => {
+    throw new Error("session expired");
+  };
+  const failedRefresh = await refreshAuthSession();
+  assert.equal(failedRefresh, null);
 });

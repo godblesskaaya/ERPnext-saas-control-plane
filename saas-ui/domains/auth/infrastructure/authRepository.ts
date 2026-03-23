@@ -33,3 +33,11 @@ export function authHealth(): Promise<OptionalEndpointResult<MessageResponse>> {
 export function billingHealth(): Promise<OptionalEndpointResult<MessageResponse>> {
   return api.billingHealth();
 }
+
+export function refreshSessionToken(): Promise<AuthToken> {
+  return api.refreshToken();
+}
+
+export function exchangeImpersonationToken(token: string): Promise<AuthToken> {
+  return api.exchangeImpersonationToken(token);
+}

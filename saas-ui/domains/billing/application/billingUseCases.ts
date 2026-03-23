@@ -1,4 +1,5 @@
 import type { BillingInvoice } from "../../shared/lib/types";
+import { getApiErrorMessage } from "../../shared/lib/api";
 import { summarizeInvoices } from "../domain/invoice";
 import { fetchBillingInvoices, fetchBillingPortalUrl } from "../infrastructure/billingRepository";
 
@@ -31,6 +32,10 @@ export async function loadBillingInvoicesForDetails(): Promise<BillingInvoice[]>
 
 export async function loadBillingInvoiceCatalog(): Promise<{ supported: boolean; invoices: BillingInvoice[] }> {
   return fetchBillingInvoices();
+}
+
+export function toBillingErrorMessage(error: unknown, fallback: string): string {
+  return getApiErrorMessage(error, fallback);
 }
 
 export { summarizeInvoices };

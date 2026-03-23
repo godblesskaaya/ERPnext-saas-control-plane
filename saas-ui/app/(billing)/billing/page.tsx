@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { loadBillingWorkspaceSnapshot } from "../../../domains/billing/application/billingUseCases";
-import { getApiErrorMessage } from "../../../domains/shared/lib/api";
+import { loadBillingWorkspaceSnapshot, toBillingErrorMessage } from "../../../domains/billing/application/billingUseCases";
 import type { BillingInvoice } from "../../../domains/shared/lib/types";
 
 function formatCurrency(amount?: number | null, currency?: string | null): string {
@@ -38,7 +37,7 @@ export default function BillingPage() {
         setSupported(true);
         setInvoices(snapshot.invoices);
       } catch (err) {
-        setError(getApiErrorMessage(err, "Failed to load invoices"));
+        setError(toBillingErrorMessage(err, "Failed to load invoices"));
       }
     };
 

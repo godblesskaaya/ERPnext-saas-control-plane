@@ -3,13 +3,16 @@ import { normalizeHealthMessage, safePostLoginRedirect, sanitizeAuthEmail } from
 import {
   authHealth,
   billingHealth,
+  exchangeImpersonationToken,
   forgotPassword,
   login,
+  refreshSessionToken,
   resetPassword,
   signup,
   verifyEmail,
   type AuthToken,
 } from "../infrastructure/authRepository";
+import { getApiErrorMessage } from "../../shared/lib/api";
 
 export type HealthStatus = "checking" | "ok" | "unsupported" | "unavailable";
 
@@ -105,6 +108,26 @@ export async function submitPasswordReset(token: string, newPassword: string): P
 export async function confirmEmailVerification(token: string): Promise<string> {
   const response = await verifyEmail(token.trim());
   return normalizeHealthMessage(response.message, "Email verified successfully. You can now continue.");
+}
+
+export async function refreshAuthSession(): Promise<AuthToken | null> {
+  try {
+    return await refreshSessionToken();
+  } catch {
+    return null;
+  }
+}
+
+export async function consumeImpersonationToken(token: string, persistToken = true): Promise<AuthToken> {
+  const next = await exchangeImpersonationToken(token.trim());
+  if (persistToken) {
+    saveToken(next.access_token);
+  }
+  return next;
+}
+
+export function toAuthErrorMessage(error: unknown, fallback: string): string {
+  return getApiErrorMessage(error, fallback);
 }
 
 export { safePostLoginRedirect };

@@ -13,6 +13,7 @@ import {
   loadAdminMetrics,
   loadAdminTenantPage,
   requeueDeadLetterById,
+  toAdminErrorMessage,
 } from "../../../domains/admin-ops/application/adminUseCases";
 import {
   buildTenantActionPhrase,
@@ -22,7 +23,6 @@ import {
 } from "../../../domains/admin-ops/domain/adminDashboard";
 import { JobLogPanel } from "../../../domains/shared/components/JobLogPanel";
 import { useNotifications } from "../../../domains/shared/components/NotificationsProvider";
-import { getApiErrorMessage } from "../../../domains/shared/lib/api";
 import type { AuditLogEntry, DeadLetterJob, Job, MetricsSummary, Tenant } from "../../../domains/shared/lib/types";
 
 function statusBadgeClass(status: string): string {
@@ -128,7 +128,7 @@ export default function AdminPage() {
       setTenantTotal(loaded.total);
       setTenantsError(null);
     } catch (err) {
-      setTenantsError(getApiErrorMessage(err, "Failed to load admin tenants"));
+      setTenantsError(toAdminErrorMessage(err, "Failed to load admin tenants"));
       setTenants([]);
     }
   }, [tenantLimit, tenantPage, tenantPlanFilter, tenantSearch, tenantStatusFilter]);
@@ -146,7 +146,7 @@ export default function AdminPage() {
       setDeadLetters(result.data);
       setDeadLetterError(null);
     } catch (err) {
-      setDeadLetterError(getApiErrorMessage(err, "Failed to load dead-letter queue"));
+      setDeadLetterError(toAdminErrorMessage(err, "Failed to load dead-letter queue"));
     }
   }, []);
 
@@ -163,7 +163,7 @@ export default function AdminPage() {
       setJobs(result.data);
       setJobsError(null);
     } catch (err) {
-      setJobsError(getApiErrorMessage(err, "Failed to load jobs"));
+      setJobsError(toAdminErrorMessage(err, "Failed to load jobs"));
     }
   }, []);
 
@@ -181,7 +181,7 @@ export default function AdminPage() {
       setAuditTotal(result.total);
       setAuditError(null);
     } catch (err) {
-      setAuditError(getApiErrorMessage(err, "Failed to load audit log"));
+      setAuditError(toAdminErrorMessage(err, "Failed to load audit log"));
     }
   }, [auditLimit, auditPage]);
 
@@ -209,7 +209,7 @@ export default function AdminPage() {
         }
       }
     } catch (err) {
-      setMetricsError(getApiErrorMessage(err, "Failed to load metrics"));
+      setMetricsError(toAdminErrorMessage(err, "Failed to load metrics"));
     }
   }, [addNotification]);
 
@@ -223,7 +223,7 @@ export default function AdminPage() {
       setSelectedJobSupported(true);
       setSelectedJob(result.job);
     } catch (err) {
-      setJobsError(getApiErrorMessage(err, "Failed to load job logs"));
+      setJobsError(toAdminErrorMessage(err, "Failed to load job logs"));
     }
   }, []);
 
@@ -263,7 +263,7 @@ export default function AdminPage() {
         body: `Job ${jobId.slice(0, 8)} queued for retry.`,
       });
     } catch (err) {
-      setDeadLetterError(getApiErrorMessage(err, "Failed to requeue dead-letter job"));
+      setDeadLetterError(toAdminErrorMessage(err, "Failed to requeue dead-letter job"));
     } finally {
       setRequeueJobId(null);
     }
@@ -295,7 +295,7 @@ export default function AdminPage() {
       setTenantActionReason("");
     } catch (err) {
       setTenantsError(
-        getApiErrorMessage(err, tenantAction.type === "suspend" ? "Failed to suspend tenant" : "Failed to unsuspend tenant")
+        toAdminErrorMessage(err, tenantAction.type === "suspend" ? "Failed to suspend tenant" : "Failed to unsuspend tenant")
       );
     } finally {
       setBusyTenantId(null);
@@ -308,7 +308,7 @@ export default function AdminPage() {
     try {
       await exportAdminAuditCsv(500);
     } catch (err) {
-      setAuditExportError(getApiErrorMessage(err, "Failed to export audit log."));
+      setAuditExportError(toAdminErrorMessage(err, "Failed to export audit log."));
     } finally {
       setAuditExportBusy(false);
     }
@@ -341,7 +341,7 @@ export default function AdminPage() {
         body: `Token ready for ${result.link.target_email}. Share securely and expire quickly.`,
       });
     } catch (err) {
-      setImpersonationError(getApiErrorMessage(err, "Failed to issue impersonation link."));
+      setImpersonationError(toAdminErrorMessage(err, "Failed to issue impersonation link."));
     } finally {
       setImpersonationBusy(false);
     }

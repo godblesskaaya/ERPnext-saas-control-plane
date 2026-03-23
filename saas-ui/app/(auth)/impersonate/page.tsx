@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { saveToken } from "../../../domains/auth/auth";
-import { api, getApiErrorMessage } from "../../../domains/shared/lib/api";
+import { consumeImpersonationToken, toAuthErrorMessage } from "../../../domains/auth/application/authUseCases";
 
 export default function ImpersonatePage() {
   const router = useRouter();
@@ -24,15 +23,14 @@ export default function ImpersonatePage() {
     setError(null);
     void (async () => {
       try {
-        const response = await api.exchangeImpersonationToken(token);
+        await consumeImpersonationToken(token);
         if (!active) return;
-        saveToken(response.access_token);
         setStatus("done");
         router.replace("/dashboard?impersonation=active");
       } catch (err) {
         if (!active) return;
         setStatus("error");
-        setError(getApiErrorMessage(err, "Failed to consume impersonation token."));
+        setError(toAuthErrorMessage(err, "Failed to consume impersonation token."));
       }
     })();
     return () => {

@@ -169,3 +169,18 @@ Verification notes (2026-03-18):
       - `app/(dashboard)/dashboard/platform-health/page.tsx`
 - Updated boundary allowlist in `scripts/check-import-boundaries.mjs` to remove migrated route exceptions.
 - Result: tracked exceptions reduced from 16 to 12.
+
+### Phase 7 continuation (boundary-exception reduction, batch 3)
+- Migrated additional routes off direct `shared/lib/api` imports:
+  - `app/(dashboard)/dashboard/layout.tsx` (session refresh via auth use-case)
+  - `app/(auth)/impersonate/page.tsx` (token exchange via auth use-case)
+  - `app/(billing)/billing/page.tsx` (billing error mapping via billing use-case)
+  - `app/(admin)/admin/page.tsx` (error mapping via admin use-case)
+- Extended use-cases/repositories to support these flows:
+  - `domains/auth/infrastructure/authRepository.ts` (`refreshSessionToken`, `exchangeImpersonationToken`)
+  - `domains/auth/application/authUseCases.ts` (`refreshAuthSession`, `consumeImpersonationToken`, `toAuthErrorMessage`)
+  - `domains/billing/application/billingUseCases.ts` (`toBillingErrorMessage`)
+  - `domains/admin-ops/application/adminUseCases.ts` (`toAdminErrorMessage`)
+  - updated auth use-case tests for new auth session/impersonation flows.
+- Updated boundary allowlist in `scripts/check-import-boundaries.mjs`.
+- Result: tracked exceptions reduced from 12 to 8.

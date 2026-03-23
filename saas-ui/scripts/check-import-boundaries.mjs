@@ -25,14 +25,10 @@ const rules = [
 ];
 
 const allowedExceptions = new Map([
-  ["app/(admin)/admin/page.tsx", new Set(["shared-api"])],
-  ["app/(auth)/impersonate/page.tsx", new Set(["shared-api"])],
-  ["app/(billing)/billing/page.tsx", new Set(["shared-api"])],
   ["app/(dashboard)/dashboard/activity/page.tsx", new Set(["shared-api"])],
   ["app/(dashboard)/dashboard/audit/page.tsx", new Set(["shared-api"])],
   ["app/(dashboard)/dashboard/billing-details/page.tsx", new Set(["shared-api"])],
   ["app/(dashboard)/dashboard/billing-ops/page.tsx", new Set(["shared-api"])],
-  ["app/(dashboard)/dashboard/layout.tsx", new Set(["shared-api"])],
   ["app/(dashboard)/dashboard/provisioning/page.tsx", new Set(["shared-api"])],
   ["app/(dashboard)/dashboard/support-overview/page.tsx", new Set(["shared-api"])],
   ["app/(dashboard)/dashboard/support/page.tsx", new Set(["shared-api"])],

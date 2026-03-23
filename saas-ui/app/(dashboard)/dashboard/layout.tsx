@@ -5,8 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { clearToken, getToken, saveToken } from "../../../domains/auth/auth";
+import { refreshAuthSession } from "../../../domains/auth/application/authUseCases";
 import { DashboardNav } from "../../../domains/dashboard/components/DashboardNav";
-import { api } from "../../../domains/shared/lib/api";
 
 function hasValidToken(token: string | null): boolean {
   if (!token) {
@@ -50,7 +50,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       }
 
       try {
-        const refreshed = await api.refreshToken();
+        const refreshed = await refreshAuthSession();
         if (!active) return;
         if (refreshed?.access_token) {
           saveToken(refreshed.access_token);

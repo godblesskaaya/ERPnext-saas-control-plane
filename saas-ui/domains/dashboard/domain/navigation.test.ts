@@ -26,6 +26,7 @@ test("infers workspace mode from workspace routes", () => {
   assert.equal(inferDashboardNavModeFromRoute("/dashboard/settings/preferences"), "workspace");
   assert.equal(inferDashboardNavModeFromRoute("/dashboard/overview"), "workspace");
   assert.equal(inferDashboardNavModeFromRoute("/tenants/123"), "workspace");
+  assert.equal(inferDashboardNavModeFromRoute("/billing"), "workspace");
 });
 
 test("resolve mode falls back to default for unknown routes", () => {

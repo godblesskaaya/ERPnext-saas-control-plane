@@ -151,9 +151,9 @@ export default function DashboardPage() {
         },
         {
           eyebrow: "Workspace",
-          title: "Billing workspace",
-          description: "Open invoice analytics and customer billing visibility workflows.",
-          href: "/dashboard/billing-details",
+          title: "Payment center",
+          description: "Resume failed checkout and review customer billing invoices.",
+          href: "/billing",
           value: metrics?.pending_payment_tenants,
         },
       ],

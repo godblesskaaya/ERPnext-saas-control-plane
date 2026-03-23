@@ -57,8 +57,9 @@ export const dashboardNavSections: DashboardNavSection[] = [
   {
     mode: "workspace",
     title: "Billing workspace",
-    description: "Invoice analytics and customer billing visibility.",
+    description: "Customer payment recovery and invoice visibility.",
     items: [
+      { href: "/billing", label: "Payment center", hint: "Resume checkout and review subscription invoices" },
       { href: "/dashboard/billing-details", label: "Invoice analytics", hint: "Channel and provider breakdown" },
     ],
   },

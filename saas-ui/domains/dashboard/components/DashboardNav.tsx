@@ -2,17 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { dashboardNavSections as navSections } from "../domain/navigation";
+
+import { dashboardNavSections as navSections, type DashboardNavItem } from "../domain/navigation";
+
+function isActiveRoute(pathname: string, item: DashboardNavItem): boolean {
+  const matchers = [item.href, ...(item.match ?? [])];
+  return matchers.some((matcher) => pathname === matcher || pathname.startsWith(`${matcher}/`));
+}
 
 export function DashboardNav() {
   const pathname = usePathname();
 
   return (
-    <aside className="space-y-6 rounded-3xl border border-amber-200/70 bg-white/80 p-5 text-sm text-slate-700 shadow-sm">
+    <aside className="sticky top-24 space-y-6 self-start rounded-3xl border border-amber-200/70 bg-white/80 p-5 text-sm text-slate-700 shadow-sm">
       <div className="space-y-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Platform console</p>
-        <p className="text-lg font-semibold text-slate-900">Control plane</p>
-        <p className="text-xs text-slate-500">Separate lifecycle, billing, and support operations.</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">User shell</p>
+        <p className="text-lg font-semibold text-slate-900">Operations workspace</p>
+        <p className="text-xs text-slate-500">Navigate lifecycle, billing, support, and platform workflows.</p>
       </div>
 
       {navSections.map((section) => (
@@ -23,7 +29,7 @@ export function DashboardNav() {
           </div>
           <div className="space-y-2">
             {section.items.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const active = isActiveRoute(pathname, item);
               return (
                 <Link
                   key={item.href}

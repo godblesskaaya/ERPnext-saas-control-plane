@@ -106,6 +106,21 @@ Verification notes (2026-03-18):
 - Refactor admin pages into `domains/admin-ops/*` bounded context.
 - Replace direct shared API calls with context repositories.
 
+### Phase 6 slice delivered (admin-ops bounded context extraction)
+- Introduced Admin Ops bounded-context layers:
+  - `domains/admin-ops/infrastructure/adminRepository.ts`
+  - `domains/admin-ops/application/adminUseCases.ts`
+  - `domains/admin-ops/domain/adminDashboard.ts`
+- Refactored admin page to consume admin-ops application/domain APIs instead of direct `shared/lib/api` access:
+  - `app/(admin)/admin/page.tsx`
+- Added focused tests for admin-ops domain/application behavior:
+  - `domains/admin-ops/domain/adminDashboard.test.ts`
+  - `domains/admin-ops/application/adminUseCases.test.ts`
+- Verification notes (2026-03-23):
+  - `npx --yes tsx --test domains/admin-ops/domain/adminDashboard.test.ts domains/admin-ops/application/adminUseCases.test.ts` ✅ (7 passing)
+  - `npx tsc --noEmit` ✅
+  - `npm run build` ✅
+
 ### Phase 7
 - Add contract tests per bounded context for use-cases.
 - Enforce import boundaries (lint rule) to block page → shared infrastructure shortcuts.

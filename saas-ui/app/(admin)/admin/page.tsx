@@ -2,9 +2,27 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  executeTenantLifecycleAction,
+  exportAdminAuditCsv,
+  issueSupportImpersonationLink,
+  loadAdminAuditLog,
+  loadAdminDeadLetterQueue,
+  loadAdminJobLogs,
+  loadAdminJobs,
+  loadAdminMetrics,
+  loadAdminTenantPage,
+  requeueDeadLetterById,
+} from "../../../domains/admin-ops/application/adminUseCases";
+import {
+  buildTenantActionPhrase,
+  deriveAdminMetricAlertKey,
+  deriveAdminMetricAlerts,
+  deriveAdminTenantCounts,
+} from "../../../domains/admin-ops/domain/adminDashboard";
 import { JobLogPanel } from "../../../domains/shared/components/JobLogPanel";
 import { useNotifications } from "../../../domains/shared/components/NotificationsProvider";
-import { api, getApiErrorMessage } from "../../../domains/shared/lib/api";
+import { getApiErrorMessage } from "../../../domains/shared/lib/api";
 import type { AuditLogEntry, DeadLetterJob, Job, MetricsSummary, Tenant } from "../../../domains/shared/lib/types";
 
 function statusBadgeClass(status: string): string {
@@ -99,21 +117,15 @@ export default function AdminPage() {
 
   const loadTenants = useCallback(async () => {
     try {
-      const paged = await api.listAllTenantsPaged(
-        tenantPage,
-        tenantLimit,
-        tenantStatusFilter === "all" ? undefined : tenantStatusFilter,
-        tenantSearch.trim(),
-        tenantPlanFilter === "all" ? undefined : tenantPlanFilter
-      );
-      if (paged.supported) {
-        setTenants(paged.data.data);
-        setTenantTotal(paged.data.total);
-      } else {
-        const data = await api.listAllTenants();
-        setTenants(data);
-        setTenantTotal(data.length);
-      }
+      const loaded = await loadAdminTenantPage({
+        page: tenantPage,
+        limit: tenantLimit,
+        status: tenantStatusFilter === "all" ? undefined : tenantStatusFilter,
+        search: tenantSearch.trim(),
+        plan: tenantPlanFilter === "all" ? undefined : tenantPlanFilter,
+      });
+      setTenants(loaded.tenants);
+      setTenantTotal(loaded.total);
       setTenantsError(null);
     } catch (err) {
       setTenantsError(getApiErrorMessage(err, "Failed to load admin tenants"));
@@ -123,7 +135,7 @@ export default function AdminPage() {
 
   const loadDeadLetters = useCallback(async () => {
     try {
-      const result = await api.listDeadLetterJobs();
+      const result = await loadAdminDeadLetterQueue();
       if (!result.supported) {
         setDeadLetterSupported(false);
         setDeadLetters([]);
@@ -140,7 +152,7 @@ export default function AdminPage() {
 
   const loadJobs = useCallback(async () => {
     try {
-      const result = await api.listAdminJobs(100);
+      const result = await loadAdminJobs(100);
       if (!result.supported) {
         setJobsSupported(false);
         setJobs([]);
@@ -157,7 +169,7 @@ export default function AdminPage() {
 
   const loadAuditLog = useCallback(async () => {
     try {
-      const result = await api.listAuditLog(auditPage, auditLimit);
+      const result = await loadAdminAuditLog(auditPage, auditLimit);
       if (!result.supported) {
         setAuditSupported(false);
         setAuditLog([]);
@@ -165,8 +177,8 @@ export default function AdminPage() {
         return;
       }
       setAuditSupported(true);
-      setAuditLog(result.data.data);
-      setAuditTotal(result.data.total);
+      setAuditLog(result.entries);
+      setAuditTotal(result.total);
       setAuditError(null);
     } catch (err) {
       setAuditError(getApiErrorMessage(err, "Failed to load audit log"));
@@ -175,32 +187,25 @@ export default function AdminPage() {
 
   const loadMetrics = useCallback(async () => {
     try {
-      const result = await api.getAdminMetrics();
+      const result = await loadAdminMetrics();
       if (!result.supported) {
         setMetricsSupported(false);
         setMetrics(null);
         return;
       }
       setMetricsSupported(true);
-      setMetrics(result.data);
+      setMetrics(result.metrics);
       setMetricsError(null);
 
-      const key = `${result.data.failed_tenants}-${result.data.dead_letter_count}-${result.data.provisioning_tenants}`;
+      if (!result.metrics) {
+        return;
+      }
+
+      const key = deriveAdminMetricAlertKey(result.metrics);
       if (lastMetricsKey.current !== key) {
         lastMetricsKey.current = key;
-        if (result.data.failed_tenants > 0) {
-          addNotification({
-            type: "warning",
-            title: "Provisioning failures detected",
-            body: `${result.data.failed_tenants} tenant(s) are in failed state.`,
-          });
-        }
-        if (result.data.dead_letter_count > 0) {
-          addNotification({
-            type: "warning",
-            title: "Dead-letter queue backlog",
-            body: `${result.data.dead_letter_count} job(s) waiting for requeue.`,
-          });
+        for (const alert of deriveAdminMetricAlerts(result.metrics)) {
+          addNotification(alert);
         }
       }
     } catch (err) {
@@ -210,13 +215,13 @@ export default function AdminPage() {
 
   const loadJobLogs = useCallback(async (jobId: string) => {
     try {
-      const result = await api.getAdminJobLogs(jobId);
+      const result = await loadAdminJobLogs(jobId);
       if (!result.supported) {
         setSelectedJobSupported(false);
         return;
       }
       setSelectedJobSupported(true);
-      setSelectedJob(result.data);
+      setSelectedJob(result.job);
     } catch (err) {
       setJobsError(getApiErrorMessage(err, "Failed to load job logs"));
     }
@@ -234,24 +239,10 @@ export default function AdminPage() {
     setTenantPage(1);
   }, [tenantPlanFilter, tenantSearch, tenantStatusFilter]);
 
-  const suspendedCount = useMemo(
-    () =>
-      tenants.filter((tenant) =>
-        ["suspended", "suspended_admin", "suspended_billing"].includes(tenant.status.toLowerCase())
-      ).length,
+  const { suspendedCount, provisioningCount, failedCount, activeCount } = useMemo(
+    () => deriveAdminTenantCounts(tenants),
     [tenants]
   );
-  const provisioningCount = useMemo(
-    () =>
-      tenants.filter((tenant) =>
-        ["pending", "pending_payment", "provisioning", "upgrading", "restoring", "pending_deletion"].includes(
-          tenant.status.toLowerCase()
-        )
-      ).length,
-    [tenants]
-  );
-  const failedCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "failed").length, [tenants]);
-  const activeCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "active").length, [tenants]);
 
   const tenantTotalPages = Math.max(1, Math.ceil(tenantTotal / tenantLimit));
   const auditTotalPages = Math.max(1, Math.ceil(auditTotal / auditLimit));
@@ -259,7 +250,7 @@ export default function AdminPage() {
   const requeueDeadLetter = async (jobId: string) => {
     setRequeueJobId(jobId);
     try {
-      const result = await api.requeueDeadLetterJob(jobId);
+      const result = await requeueDeadLetterById(jobId);
       if (!result.supported) {
         setDeadLetterError("Requeue endpoint is not available on this backend.");
         return;
@@ -289,18 +280,14 @@ export default function AdminPage() {
     setTenantsError(null);
     try {
       const reason = tenantActionReason.trim() || undefined;
-      if (tenantAction.type === "suspend") {
-        const result = await api.suspendTenant(tenantAction.tenant.id, reason);
-        if (!result.supported) {
-          setTenantsError("Suspend endpoint is not available on this backend.");
-          return;
-        }
-      } else {
-        const result = await api.unsuspendTenant(tenantAction.tenant.id, reason);
-        if (!result.supported) {
-          setTenantsError("Unsuspend endpoint is not available on this backend.");
-          return;
-        }
+      const result = await executeTenantLifecycleAction(tenantAction.type, tenantAction.tenant.id, reason);
+      if (!result.supported) {
+        setTenantsError(
+          tenantAction.type === "suspend"
+            ? "Suspend endpoint is not available on this backend."
+            : "Unsuspend endpoint is not available on this backend."
+        );
+        return;
       }
       await loadTenants();
       setTenantAction(null);
@@ -319,7 +306,7 @@ export default function AdminPage() {
     setAuditExportBusy(true);
     setAuditExportError(null);
     try {
-      await api.downloadAuditLogCsv(500);
+      await exportAdminAuditCsv(500);
     } catch (err) {
       setAuditExportError(getApiErrorMessage(err, "Failed to export audit log."));
     } finally {
@@ -337,17 +324,21 @@ export default function AdminPage() {
     setImpersonationBusy(true);
     setImpersonationError(null);
     try {
-      const result = await api.requestImpersonationLink(email, reason);
+      const result = await issueSupportImpersonationLink(email, reason);
       if (!result.supported) {
         setImpersonationError("Impersonation endpoint is not available on this backend.");
         return;
       }
-      setImpersonationLink(result.data.url);
-      setImpersonationToken(result.data.token);
+      if (!result.link) {
+        setImpersonationError("Impersonation response missing link payload.");
+        return;
+      }
+      setImpersonationLink(result.link.url);
+      setImpersonationToken(result.link.token);
       addNotification({
         type: "warning",
         title: "Impersonation link issued",
-        body: `Token ready for ${result.data.target_email}. Share securely and expire quickly.`,
+        body: `Token ready for ${result.link.target_email}. Share securely and expire quickly.`,
       });
     } catch (err) {
       setImpersonationError(getApiErrorMessage(err, "Failed to issue impersonation link."));
@@ -616,7 +607,7 @@ export default function AdminPage() {
                             setTenantAction({
                               type: "unsuspend",
                               tenant,
-                              phrase: tenant.subdomain.toUpperCase(),
+                              phrase: buildTenantActionPhrase(tenant.subdomain),
                             });
                             setTenantActionInput("");
                             setTenantActionReason("");
@@ -634,7 +625,7 @@ export default function AdminPage() {
                             setTenantAction({
                               type: "suspend",
                               tenant,
-                              phrase: tenant.subdomain.toUpperCase(),
+                              phrase: buildTenantActionPhrase(tenant.subdomain),
                             });
                             setTenantActionInput("");
                             setTenantActionReason("");

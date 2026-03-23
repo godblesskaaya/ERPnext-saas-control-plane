@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { api, getApiErrorMessage } from "../../../../domains/shared/lib/api";
+import {
+  loadAdminJobs,
+  loadTenantCatalog,
+  toAdminErrorMessage,
+} from "../../../../domains/admin-ops/application/adminUseCases";
 import type { Job, Tenant } from "../../../../domains/shared/lib/types";
 
 function formatDate(value?: string | null): string {
@@ -30,9 +34,9 @@ export default function DashboardActivityPage() {
     setLoading(true);
     setError(null);
     try {
-      const [jobsResult, tenantList] = await Promise.all([api.listAdminJobs(50), api.listTenants()]);
+      const [jobsResult, tenantList] = await Promise.all([loadAdminJobs(50), loadTenantCatalog()]);
       if (jobsResult.supported) {
-        setJobs(jobsResult.data ?? []);
+        setJobs(jobsResult.data);
       } else {
         setError("Jobs timeline is not enabled on this backend.");
       }
@@ -42,7 +46,7 @@ export default function DashboardActivityPage() {
       });
       setTenantMap(map);
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to load job activity."));
+      setError(toAdminErrorMessage(err, "Failed to load job activity."));
     } finally {
       setLoading(false);
     }

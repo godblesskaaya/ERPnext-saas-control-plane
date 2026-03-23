@@ -2,9 +2,11 @@ import { api } from "../../shared/lib/api";
 import type {
   AuditLogEntry,
   DeadLetterJob,
+  DunningItem,
   ImpersonationLink,
   Job,
   MetricsSummary,
+  SupportNote,
   Tenant,
 } from "../../shared/lib/types";
 
@@ -111,6 +113,34 @@ export async function fetchAdminMetrics(): Promise<{ supported: boolean; metrics
     return { supported: false, metrics: null };
   }
   return { supported: true, metrics: result.data };
+}
+
+export async function fetchTenantCatalog(): Promise<Tenant[]> {
+  return api.listTenants();
+}
+
+export async function fetchSupportNotesCatalog(): Promise<OptionalListResult<SupportNote>> {
+  const result = await api.listSupportNotesAll();
+  if (!result.supported) {
+    return { supported: false, data: [] };
+  }
+  return { supported: true, data: result.data };
+}
+
+export async function fetchBillingDunningQueue(): Promise<OptionalListResult<DunningItem>> {
+  const result = await api.listBillingDunning();
+  if (!result.supported) {
+    return { supported: false, data: [] };
+  }
+  return { supported: true, data: result.data };
+}
+
+export async function triggerBillingDunningCycle(dryRun = false): Promise<{ supported: boolean; message: string }> {
+  const result = await api.runBillingDunningCycle(dryRun);
+  if (!result.supported) {
+    return { supported: false, message: "" };
+  }
+  return { supported: true, message: result.data.message || "Dunning cycle queued." };
 }
 
 export async function requeueDeadLetterJob(jobId: string): Promise<{ supported: boolean }> {

@@ -4,24 +4,36 @@ import test, { afterEach } from "node:test";
 import {
   executeTenantLifecycleAction,
   issueSupportImpersonationLink,
+  loadBillingDunningQueue,
+  loadSupportNotesCatalog,
+  loadTenantCatalog,
   loadAdminTenantPage,
+  queueBillingDunningCycle,
 } from "./adminUseCases";
 import { api } from "../../shared/lib/api";
 
 const originalApi = {
+  listBillingDunning: api.listBillingDunning,
   listAllTenants: api.listAllTenants,
   listAllTenantsPaged: api.listAllTenantsPaged,
+  listSupportNotesAll: api.listSupportNotesAll,
+  listTenants: api.listTenants,
   suspendTenant: api.suspendTenant,
   unsuspendTenant: api.unsuspendTenant,
   requestImpersonationLink: api.requestImpersonationLink,
+  runBillingDunningCycle: api.runBillingDunningCycle,
 };
 
 afterEach(() => {
+  api.listBillingDunning = originalApi.listBillingDunning;
   api.listAllTenants = originalApi.listAllTenants;
   api.listAllTenantsPaged = originalApi.listAllTenantsPaged;
+  api.listSupportNotesAll = originalApi.listSupportNotesAll;
+  api.listTenants = originalApi.listTenants;
   api.suspendTenant = originalApi.suspendTenant;
   api.unsuspendTenant = originalApi.unsuspendTenant;
   api.requestImpersonationLink = originalApi.requestImpersonationLink;
+  api.runBillingDunningCycle = originalApi.runBillingDunningCycle;
 });
 
 test("loadAdminTenantPage uses paged endpoint when supported", async () => {
@@ -122,4 +134,37 @@ test("issueSupportImpersonationLink returns unsupported when endpoint is absent"
   const result = await issueSupportImpersonationLink("owner@example.com", "support");
   assert.equal(result.supported, false);
   assert.equal(result.link, null);
+});
+
+test("support/billing dashboard catalog use-cases map optional endpoint contracts", async () => {
+  api.listTenants = async () => [
+    {
+      id: "tenant-1",
+      owner_id: "owner-1",
+      subdomain: "alpha",
+      domain: "alpha.example.com",
+      site_name: "alpha",
+      company_name: "Alpha",
+      plan: "business",
+      status: "active",
+      created_at: "2026-03-23T00:00:00Z",
+      updated_at: "2026-03-23T00:00:00Z",
+    },
+  ];
+  api.listSupportNotesAll = async () => ({ supported: true, data: [] });
+  api.listBillingDunning = async () => ({ supported: true, data: [] });
+  api.runBillingDunningCycle = async (dryRun = false) => ({
+    supported: true,
+    data: { message: dryRun ? "dry run queued" : "cycle queued" },
+  });
+
+  const tenants = await loadTenantCatalog();
+  const notes = await loadSupportNotesCatalog();
+  const dunning = await loadBillingDunningQueue();
+  const cycle = await queueBillingDunningCycle(true);
+
+  assert.equal(tenants.length, 1);
+  assert.equal(notes.supported, true);
+  assert.equal(dunning.supported, true);
+  assert.deepEqual(cycle, { supported: true, message: "dry run queued" });
 });

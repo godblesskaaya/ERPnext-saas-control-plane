@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-import { api, getApiErrorMessage } from "../../../../domains/shared/lib/api";
+import { loadAuthHealth } from "../../../../domains/auth/application/authUseCases";
+import { loadAdminMetrics, toAdminErrorMessage } from "../../../../domains/admin-ops/application/adminUseCases";
 import type { MetricsSummary } from "../../../../domains/shared/lib/types";
 
 function metricCard(label: string, value: number | string, hint: string, tone: "default" | "warn" = "default") {
@@ -29,19 +30,15 @@ export default function SupportOverviewPage() {
     setLoading(true);
     setError(null);
     try {
-      const [metricsResult, authResult] = await Promise.all([api.getAdminMetrics(), api.authHealth()]);
+      const [metricsResult, authResult] = await Promise.all([loadAdminMetrics(), loadAuthHealth()]);
       if (metricsResult.supported) {
-        setMetrics(metricsResult.data);
+        setMetrics(metricsResult.metrics);
       } else {
         setError("Support metrics are not enabled on this backend.");
       }
-      if (authResult.supported) {
-        setAuthHealth(authResult.data.message ?? "ok");
-      } else {
-        setAuthHealth("unsupported");
-      }
+      setAuthHealth(authResult.message ?? "ok");
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to load support metrics."));
+      setError(toAdminErrorMessage(err, "Failed to load support metrics."));
     } finally {
       setLoading(false);
     }

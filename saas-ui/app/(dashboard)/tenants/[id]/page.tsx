@@ -4,7 +4,32 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { JobLogPanel } from "../../../../domains/shared/components/JobLogPanel";
-import { api, getApiErrorMessage, isSessionExpiredError } from "../../../../domains/shared/lib/api";
+import {
+  createTenantDomain,
+  createTenantSupportNote,
+  deleteTenantDomain,
+  inviteTenantMember,
+  isTenantDetailSessionExpired,
+  loadTenantAuditEvents,
+  loadTenantBackupManifest,
+  loadTenantCurrentUser,
+  loadTenantDetail,
+  loadTenantDomains as loadTenantDomainsUseCase,
+  loadTenantMembers as loadTenantMembersUseCase,
+  loadTenantRecentJobs,
+  loadTenantSubscription as loadTenantSubscriptionUseCase,
+  loadTenantSummary as loadTenantSummaryUseCase,
+  loadTenantSupportNotes as loadTenantSupportNotesUseCase,
+  removeTenantMember,
+  restoreTenantFromBackup,
+  retryTenantProvisioningAction,
+  suspendTenantAccess,
+  toTenantDetailErrorMessage,
+  unsuspendTenantAccess,
+  updateTenantMemberRole,
+  updateTenantSupportNote,
+  verifyTenantDomain,
+} from "../../../../domains/tenant-ops/application/tenantDetailUseCases";
 import type {
   AuditLogEntry,
   BackupManifestEntry,
@@ -156,14 +181,14 @@ export default function TenantDetailPage() {
   const loadTenant = useCallback(async () => {
     if (!id) return;
     try {
-      const nextTenant = await api.getTenant(id);
+      const nextTenant = await loadTenantDetail(id);
       setTenant(nextTenant);
       setError(null);
     } catch (err) {
-      if (isSessionExpiredError(err)) {
+      if (isTenantDetailSessionExpired(err)) {
         setError("Session expired. Please log in again.");
       } else {
-        setError(getApiErrorMessage(err, "Failed to load tenant"));
+        setError(toTenantDetailErrorMessage(err, "Failed to load tenant"));
       }
       setTenant(null);
     }
@@ -171,10 +196,10 @@ export default function TenantDetailPage() {
 
   const loadCurrentUser = useCallback(async () => {
     try {
-      const user = await api.getCurrentUser();
+      const user = await loadTenantCurrentUser();
       setCurrentUser(user);
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to load profile"));
+      setError(toTenantDetailErrorMessage(err, "Failed to load profile"));
     }
   }, []);
 
@@ -182,14 +207,14 @@ export default function TenantDetailPage() {
     if (!id) return;
     setRetrying(true);
     try {
-      const result = await api.retryTenant(id);
+      const result = await retryTenantProvisioningAction(id);
       if (!result.supported) {
         setError("Retry endpoint is not available on this backend.");
         return;
       }
       await loadTenant();
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to retry provisioning"));
+      setError(toTenantDetailErrorMessage(err, "Failed to retry provisioning"));
     } finally {
       setRetrying(false);
     }
@@ -198,7 +223,7 @@ export default function TenantDetailPage() {
   const loadBackups = useCallback(async () => {
     if (!id) return;
     try {
-      const result = await api.listTenantBackups(id);
+      const result = await loadTenantBackupManifest(id);
       if (!result.supported) {
         setBackupsSupported(false);
         setBackups([]);
@@ -207,14 +232,14 @@ export default function TenantDetailPage() {
       setBackupsSupported(true);
       setBackups(result.data);
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to load backup history"));
+      setError(toTenantDetailErrorMessage(err, "Failed to load backup history"));
     }
   }, [id]);
 
   const loadAuditLog = useCallback(async () => {
     if (!id) return;
     try {
-      const result = await api.listTenantAuditLog(id, auditPage, auditLimit);
+      const result = await loadTenantAuditEvents(id, auditPage, auditLimit);
       if (!result.supported) {
         setAuditSupported(false);
         setAuditLog([]);
@@ -226,14 +251,14 @@ export default function TenantDetailPage() {
       setAuditTotal(result.data.total);
       setAuditError(null);
     } catch (err) {
-      setAuditError(getApiErrorMessage(err, "Failed to load activity log"));
+      setAuditError(toTenantDetailErrorMessage(err, "Failed to load activity log"));
     }
   }, [auditLimit, auditPage, id]);
 
   const loadMembers = useCallback(async () => {
     if (!id) return;
     try {
-      const result = await api.listTenantMembers(id);
+      const result = await loadTenantMembersUseCase(id);
       if (!result.supported) {
         setMembersSupported(false);
         setMembers([]);
@@ -244,14 +269,14 @@ export default function TenantDetailPage() {
       setMembers(result.data);
       setMembersError(null);
     } catch (err) {
-      setMembersError(getApiErrorMessage(err, "Failed to load team members"));
+      setMembersError(toTenantDetailErrorMessage(err, "Failed to load team members"));
     }
   }, [id]);
 
   const loadDomains = useCallback(async () => {
     if (!id) return;
     try {
-      const result = await api.listTenantDomains(id);
+      const result = await loadTenantDomainsUseCase(id);
       if (!result.supported) {
         setDomainsSupported(false);
         setDomains([]);
@@ -262,14 +287,14 @@ export default function TenantDetailPage() {
       setDomains(result.data);
       setDomainsError(null);
     } catch (err) {
-      setDomainsError(getApiErrorMessage(err, "Failed to load custom domains"));
+      setDomainsError(toTenantDetailErrorMessage(err, "Failed to load custom domains"));
     }
   }, [id]);
 
   const loadSupportNotes = useCallback(async () => {
     if (!id || currentUser?.role !== "admin") return;
     try {
-      const result = await api.listSupportNotes(id);
+      const result = await loadTenantSupportNotesUseCase(id);
       if (!result.supported) {
         setSupportNotesSupported(false);
         setSupportNotes([]);
@@ -280,14 +305,14 @@ export default function TenantDetailPage() {
       setSupportNotes(result.data);
       setSupportNotesError(null);
     } catch (err) {
-      setSupportNotesError(getApiErrorMessage(err, "Failed to load support notes"));
+      setSupportNotesError(toTenantDetailErrorMessage(err, "Failed to load support notes"));
     }
   }, [currentUser?.role, id]);
 
   const loadRecentJobs = useCallback(async () => {
     if (!id) return;
     try {
-      const result = await api.listAdminJobs(40);
+      const result = await loadTenantRecentJobs(id, 40, 5);
       if (!result.supported) {
         setRecentJobsSupported(false);
         setRecentJobs([]);
@@ -295,18 +320,17 @@ export default function TenantDetailPage() {
         return;
       }
       setRecentJobsSupported(true);
-      const filtered = (result.data ?? []).filter((job) => job.tenant_id === id).slice(0, 5);
-      setRecentJobs(filtered);
+      setRecentJobs(result.data ?? []);
       setRecentJobsError(null);
     } catch (err) {
-      setRecentJobsError(getApiErrorMessage(err, "Failed to load recent jobs"));
+      setRecentJobsError(toTenantDetailErrorMessage(err, "Failed to load recent jobs"));
     }
   }, [id]);
 
   const loadTenantSummary = useCallback(async () => {
     if (!id) return;
     try {
-      const result = await api.getTenantSummary(id);
+      const result = await loadTenantSummaryUseCase(id);
       if (!result.supported) {
         setTenantSummary(null);
         setTenantSummaryError("Tenant summary endpoint not available.");
@@ -315,14 +339,14 @@ export default function TenantDetailPage() {
       setTenantSummary(result.data);
       setTenantSummaryError(null);
     } catch (err) {
-      setTenantSummaryError(getApiErrorMessage(err, "Failed to load tenant summary"));
+      setTenantSummaryError(toTenantDetailErrorMessage(err, "Failed to load tenant summary"));
     }
   }, [id]);
 
   const loadSubscription = useCallback(async () => {
     if (!id) return;
     try {
-      const result = await api.getTenantSubscription(id);
+      const result = await loadTenantSubscriptionUseCase(id);
       if (!result.supported) {
         // AGENT-NOTE: older deployed API versions may not expose subscription endpoint yet.
         // Keep tenant operations page usable with a non-fatal fallback instead of hard failure.
@@ -335,7 +359,7 @@ export default function TenantDetailPage() {
       setSubscription(result.data);
       setSubscriptionError(null);
     } catch (err) {
-      setSubscriptionError(getApiErrorMessage(err, "Failed to load subscription details"));
+      setSubscriptionError(toTenantDetailErrorMessage(err, "Failed to load subscription details"));
     }
   }, [id]);
 
@@ -516,7 +540,7 @@ export default function TenantDetailPage() {
                       setActionError(null);
                       setActionNotice(null);
                       try {
-                        const result = await api.suspendTenant(tenant.id, actionReason.trim() || undefined);
+                        const result = await suspendTenantAccess(tenant.id, actionReason.trim() || undefined);
                         if (!result.supported) {
                           setActionError("Suspend action is not enabled on this backend.");
                           return;
@@ -524,7 +548,7 @@ export default function TenantDetailPage() {
                         setActionNotice("Tenant suspended successfully.");
                         await loadTenant();
                       } catch (err) {
-                        setActionError(getApiErrorMessage(err, "Failed to suspend tenant."));
+                        setActionError(toTenantDetailErrorMessage(err, "Failed to suspend tenant."));
                       } finally {
                         setActionBusy(false);
                       }
@@ -541,7 +565,7 @@ export default function TenantDetailPage() {
                       setActionError(null);
                       setActionNotice(null);
                       try {
-                        const result = await api.unsuspendTenant(tenant.id, actionReason.trim() || undefined);
+                        const result = await unsuspendTenantAccess(tenant.id, actionReason.trim() || undefined);
                         if (!result.supported) {
                           setActionError("Unsuspend action is not enabled on this backend.");
                           return;
@@ -549,7 +573,7 @@ export default function TenantDetailPage() {
                         setActionNotice("Tenant unsuspended successfully.");
                         await loadTenant();
                       } catch (err) {
-                        setActionError(getApiErrorMessage(err, "Failed to unsuspend tenant."));
+                        setActionError(toTenantDetailErrorMessage(err, "Failed to unsuspend tenant."));
                       } finally {
                         setActionBusy(false);
                       }
@@ -879,7 +903,7 @@ export default function TenantDetailPage() {
                       setRestoreError(null);
                       setRestoreNotice(null);
                       try {
-                        const result = await api.restoreTenant(tenant.id, restoreTarget.id);
+                        const result = await restoreTenantFromBackup(tenant.id, restoreTarget.id);
                         if (!result.supported) {
                           setRestoreError("Restore endpoint is not available on this backend.");
                           return;
@@ -891,7 +915,7 @@ export default function TenantDetailPage() {
                           router.push(`/tenants/${tenant.id}?job=${result.data.id}`);
                         }
                       } catch (err) {
-                        setRestoreError(getApiErrorMessage(err, "Failed to queue restore"));
+                        setRestoreError(toTenantDetailErrorMessage(err, "Failed to queue restore"));
                       } finally {
                         setRestoreBusy(false);
                       }
@@ -959,7 +983,7 @@ export default function TenantDetailPage() {
                     setAddingDomain(true);
                     setDomainsError(null);
                     try {
-                      const result = await api.createTenantDomain(id, domainInput.trim());
+                      const result = await createTenantDomain(id, domainInput.trim());
                       if (!result.supported) {
                         setDomainsSupported(false);
                         return;
@@ -967,7 +991,7 @@ export default function TenantDetailPage() {
                       setDomainInput("");
                       await loadDomains();
                     } catch (err) {
-                      setDomainsError(getApiErrorMessage(err, "Failed to add domain"));
+                      setDomainsError(toTenantDetailErrorMessage(err, "Failed to add domain"));
                     } finally {
                       setAddingDomain(false);
                     }
@@ -1029,14 +1053,14 @@ export default function TenantDetailPage() {
                                   setVerifyingDomainId(mapping.id);
                                   setDomainsError(null);
                                   try {
-                                    const result = await api.verifyTenantDomain(id, mapping.id, mapping.verification_token);
+                                    const result = await verifyTenantDomain(id, mapping.id, mapping.verification_token);
                                     if (!result.supported) {
                                       setDomainsSupported(false);
                                       return;
                                     }
                                     await loadDomains();
                                   } catch (err) {
-                                    setDomainsError(getApiErrorMessage(err, "Failed to verify domain"));
+                                    setDomainsError(toTenantDetailErrorMessage(err, "Failed to verify domain"));
                                   } finally {
                                     setVerifyingDomainId(null);
                                   }
@@ -1053,14 +1077,14 @@ export default function TenantDetailPage() {
                                 setRemovingDomainId(mapping.id);
                                 setDomainsError(null);
                                 try {
-                                  const result = await api.deleteTenantDomain(id, mapping.id);
+                                  const result = await deleteTenantDomain(id, mapping.id);
                                   if (!result.supported) {
                                     setDomainsSupported(false);
                                     return;
                                   }
                                   await loadDomains();
                                 } catch (err) {
-                                  setDomainsError(getApiErrorMessage(err, "Failed to remove domain"));
+                                  setDomainsError(toTenantDetailErrorMessage(err, "Failed to remove domain"));
                                 } finally {
                                   setRemovingDomainId(null);
                                 }
@@ -1129,7 +1153,7 @@ export default function TenantDetailPage() {
                     setInviting(true);
                     setMembersError(null);
                     try {
-                      const result = await api.inviteTenantMember(id, {
+                      const result = await inviteTenantMember(id, {
                         email: inviteEmail.trim(),
                         role: inviteRole,
                       });
@@ -1140,7 +1164,7 @@ export default function TenantDetailPage() {
                       setInviteEmail("");
                       await loadMembers();
                     } catch (err) {
-                      setMembersError(getApiErrorMessage(err, "Failed to invite member"));
+                      setMembersError(toTenantDetailErrorMessage(err, "Failed to invite member"));
                     } finally {
                       setInviting(false);
                     }
@@ -1185,14 +1209,14 @@ export default function TenantDetailPage() {
                                 setUpdatingMemberId(member.id);
                                 setMembersError(null);
                                 try {
-                                  const result = await api.updateTenantMemberRole(id, member.id, nextRole);
+                                  const result = await updateTenantMemberRole(id, member.id, nextRole);
                                   if (!result.supported) {
                                     setMembersError("Member update endpoint is not available on this backend.");
                                     return;
                                   }
                                   await loadMembers();
                                 } catch (err) {
-                                  setMembersError(getApiErrorMessage(err, "Failed to update member role"));
+                                  setMembersError(toTenantDetailErrorMessage(err, "Failed to update member role"));
                                 } finally {
                                   setUpdatingMemberId(null);
                                 }
@@ -1220,14 +1244,14 @@ export default function TenantDetailPage() {
                                 setRemovingMemberId(member.id);
                                 setMembersError(null);
                                 try {
-                                  const result = await api.removeTenantMember(id, member.id);
+                                  const result = await removeTenantMember(id, member.id);
                                   if (!result.supported) {
                                     setMembersError("Member removal endpoint is not available on this backend.");
                                     return;
                                   }
                                   await loadMembers();
                                 } catch (err) {
-                                  setMembersError(getApiErrorMessage(err, "Failed to remove member"));
+                                  setMembersError(toTenantDetailErrorMessage(err, "Failed to remove member"));
                                 } finally {
                                   setRemovingMemberId(null);
                                 }
@@ -1289,7 +1313,7 @@ export default function TenantDetailPage() {
                     setAddingDomain(true);
                     setDomainsError(null);
                     try {
-                      const result = await api.createTenantDomain(id, domainInput.trim());
+                      const result = await createTenantDomain(id, domainInput.trim());
                       if (!result.supported) {
                         setDomainsError("Custom domain endpoint is not available on this backend.");
                         return;
@@ -1297,7 +1321,7 @@ export default function TenantDetailPage() {
                       setDomainInput("");
                       await loadDomains();
                     } catch (err) {
-                      setDomainsError(getApiErrorMessage(err, "Failed to add domain"));
+                      setDomainsError(toTenantDetailErrorMessage(err, "Failed to add domain"));
                     } finally {
                       setAddingDomain(false);
                     }
@@ -1349,14 +1373,14 @@ export default function TenantDetailPage() {
                                 setVerifyingDomainId(domain.id);
                                 setDomainsError(null);
                                 try {
-                                  const result = await api.verifyTenantDomain(id, domain.id, domain.verification_token);
+                                  const result = await verifyTenantDomain(id, domain.id, domain.verification_token);
                                   if (!result.supported) {
                                     setDomainsError("Domain verification endpoint is not available on this backend.");
                                     return;
                                   }
                                   await loadDomains();
                                 } catch (err) {
-                                  setDomainsError(getApiErrorMessage(err, "Failed to verify domain"));
+                                  setDomainsError(toTenantDetailErrorMessage(err, "Failed to verify domain"));
                                 } finally {
                                   setVerifyingDomainId(null);
                                 }
@@ -1372,14 +1396,14 @@ export default function TenantDetailPage() {
                                 setRemovingDomainId(domain.id);
                                 setDomainsError(null);
                                 try {
-                                  const result = await api.deleteTenantDomain(id, domain.id);
+                                  const result = await deleteTenantDomain(id, domain.id);
                                   if (!result.supported) {
                                     setDomainsError("Domain removal endpoint is not available on this backend.");
                                     return;
                                   }
                                   await loadDomains();
                                 } catch (err) {
-                                  setDomainsError(getApiErrorMessage(err, "Failed to remove domain"));
+                                  setDomainsError(toTenantDetailErrorMessage(err, "Failed to remove domain"));
                                 } finally {
                                   setRemovingDomainId(null);
                                 }
@@ -1491,7 +1515,7 @@ export default function TenantDetailPage() {
                         setSavingSupportNote(true);
                         setSupportNotesError(null);
                         try {
-                          const result = await api.createSupportNote(
+                          const result = await createTenantSupportNote(
                             id,
                             supportNoteCategory,
                             supportNoteText.trim(),
@@ -1504,7 +1528,7 @@ export default function TenantDetailPage() {
                           setSupportNoteText("");
                           await loadSupportNotes();
                         } catch (err) {
-                          setSupportNotesError(getApiErrorMessage(err, "Failed to save note"));
+                          setSupportNotesError(toTenantDetailErrorMessage(err, "Failed to save note"));
                         } finally {
                           setSavingSupportNote(false);
                         }
@@ -1574,7 +1598,7 @@ export default function TenantDetailPage() {
                             if (!note.id) return;
                             setSavingSupportNote(true);
                             try {
-                              const result = await api.updateSupportNote(note.id, {
+                              const result = await updateTenantSupportNote(note.id, {
                                 status: note.status === "resolved" ? "open" : "resolved",
                               });
                               if (!result.supported) {
@@ -1583,7 +1607,7 @@ export default function TenantDetailPage() {
                               }
                               await loadSupportNotes();
                             } catch (err) {
-                              setSupportNotesError(getApiErrorMessage(err, "Failed to update support note"));
+                              setSupportNotesError(toTenantDetailErrorMessage(err, "Failed to update support note"));
                             } finally {
                               setSavingSupportNote(false);
                             }

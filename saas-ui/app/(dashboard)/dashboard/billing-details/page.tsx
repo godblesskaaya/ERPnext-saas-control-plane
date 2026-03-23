@@ -2,9 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { loadBillingInvoiceCatalog, summarizeInvoices } from "../../../../domains/billing/application/billingUseCases";
+import {
+  loadBillingInvoiceCatalog,
+  summarizeInvoices,
+  toBillingErrorMessage,
+} from "../../../../domains/billing/application/billingUseCases";
 import { paymentChannelFromInvoice, providerFromInvoice } from "../../../../domains/billing/domain/invoice";
-import { getApiErrorMessage } from "../../../../domains/shared/lib/api";
 import type { BillingInvoice } from "../../../../domains/shared/lib/types";
 
 function formatDate(value?: string | null): string {
@@ -46,7 +49,7 @@ export default function BillingDetailsPage() {
       }
       setInvoices(result.invoices);
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to load billing invoices."));
+      setError(toBillingErrorMessage(err, "Failed to load billing invoices."));
     } finally {
       setLoading(false);
     }

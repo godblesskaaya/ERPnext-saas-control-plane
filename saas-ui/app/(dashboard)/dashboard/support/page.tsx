@@ -2,8 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  loadSupportNotesCatalog,
+  loadTenantCatalog,
+  toAdminErrorMessage,
+} from "../../../../domains/admin-ops/application/adminUseCases";
 import { WorkspaceQueuePage } from "../../../../domains/dashboard/components/WorkspaceQueuePage";
-import { api, getApiErrorMessage } from "../../../../domains/shared/lib/api";
 import type { SupportNote, Tenant } from "../../../../domains/shared/lib/types";
 
 function getSlaState(note: SupportNote) {
@@ -30,7 +34,7 @@ export default function DashboardSupportPage() {
     setNotesLoading(true);
     setNotesError(null);
     try {
-      const [notesResult, tenantsResult] = await Promise.all([api.listSupportNotesAll(), api.listTenants()]);
+      const [notesResult, tenantsResult] = await Promise.all([loadSupportNotesCatalog(), loadTenantCatalog()]);
       if (!notesResult.supported) {
         setNotesError("Support notes are not available on this backend.");
         return;
@@ -42,7 +46,7 @@ export default function DashboardSupportPage() {
       });
       setTenants(tenantMap);
     } catch (err) {
-      setNotesError(getApiErrorMessage(err, "Failed to load support notes."));
+      setNotesError(toAdminErrorMessage(err, "Failed to load support notes."));
     } finally {
       setNotesLoading(false);
     }

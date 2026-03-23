@@ -4,7 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 
 import { WorkspaceQueuePage } from "../../../../domains/dashboard/components/WorkspaceQueuePage";
 import { JobLogPanel } from "../../../../domains/shared/components/JobLogPanel";
-import { api, getApiErrorMessage } from "../../../../domains/shared/lib/api";
+import {
+  loadAdminJobs,
+  loadTenantCatalog,
+  toAdminErrorMessage,
+} from "../../../../domains/admin-ops/application/adminUseCases";
 import type { Job, Tenant } from "../../../../domains/shared/lib/types";
 
 function formatDate(value?: string | null): string {
@@ -39,9 +43,9 @@ export default function DashboardProvisioningPage() {
     setLoadingJobs(true);
     setJobsError(null);
     try {
-      const [jobsResult, tenantList] = await Promise.all([api.listAdminJobs(80), api.listTenants()]);
+      const [jobsResult, tenantList] = await Promise.all([loadAdminJobs(80), loadTenantCatalog()]);
       if (jobsResult.supported) {
-        setJobs((jobsResult.data ?? []).filter(isProvisioningJob));
+        setJobs(jobsResult.data.filter(isProvisioningJob));
       } else {
         setJobsError("Provisioning job logs are not enabled on this backend.");
         setJobs([]);
@@ -52,7 +56,7 @@ export default function DashboardProvisioningPage() {
       });
       setTenantMap(map);
     } catch (err) {
-      setJobsError(getApiErrorMessage(err, "Failed to load provisioning jobs."));
+      setJobsError(toAdminErrorMessage(err, "Failed to load provisioning jobs."));
     } finally {
       setLoadingJobs(false);
     }

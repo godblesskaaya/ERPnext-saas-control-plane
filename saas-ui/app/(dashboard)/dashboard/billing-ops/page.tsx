@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-import { api, getApiErrorMessage } from "../../../../domains/shared/lib/api";
+import {
+  loadBillingDunningQueue,
+  queueBillingDunningCycle,
+  toAdminErrorMessage,
+} from "../../../../domains/admin-ops/application/adminUseCases";
 import type { DunningItem } from "../../../../domains/shared/lib/types";
 
 function statusTone(status: string): string {
@@ -32,14 +36,14 @@ export default function BillingOpsPage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.listBillingDunning();
+      const result = await loadBillingDunningQueue();
       if (result.supported) {
-        setTenants(result.data ?? []);
+        setTenants(result.data);
       } else {
         setError("Billing dunning endpoint is not enabled on this backend.");
       }
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to load billing operations."));
+      setError(toAdminErrorMessage(err, "Failed to load billing operations."));
     } finally {
       setLoading(false);
     }
@@ -54,15 +58,15 @@ export default function BillingOpsPage() {
     setCycleNotice(null);
     setCycleError(null);
     try {
-      const result = await api.runBillingDunningCycle(dryRun);
+      const result = await queueBillingDunningCycle(dryRun);
       if (!result.supported) {
         setCycleError("Dunning cycle endpoint is not enabled on this backend.");
         return;
       }
-      setCycleNotice(result.data.message || "Dunning cycle queued.");
+      setCycleNotice(result.message || "Dunning cycle queued.");
       await load();
     } catch (err) {
-      setCycleError(getApiErrorMessage(err, "Failed to queue dunning cycle."));
+      setCycleError(toAdminErrorMessage(err, "Failed to queue dunning cycle."));
     } finally {
       setRunningCycle(false);
     }

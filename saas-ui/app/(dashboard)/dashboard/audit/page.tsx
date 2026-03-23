@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { api, getApiErrorMessage } from "../../../../domains/shared/lib/api";
+import {
+  exportAdminAuditCsv,
+  loadAdminAuditLog,
+  loadAdminMetrics,
+  toAdminErrorMessage,
+} from "../../../../domains/admin-ops/application/adminUseCases";
 import type { AuditLogEntry, MetricsSummary } from "../../../../domains/shared/lib/types";
 
 type AuditState = {
@@ -47,25 +52,28 @@ export default function DashboardAuditPage() {
     setLoading(true);
     setError(null);
     try {
-      const [auditResult, metricsResult] = await Promise.all([api.listAuditLog(page, audit.limit), api.getAdminMetrics()]);
+      const [auditResult, metricsResult] = await Promise.all([
+        loadAdminAuditLog(page, audit.limit),
+        loadAdminMetrics(),
+      ]);
       if (auditResult.supported) {
         setAudit({
-          entries: auditResult.data.data,
-          total: auditResult.data.total,
-          page: auditResult.data.page,
-          limit: auditResult.data.limit,
+          entries: auditResult.entries,
+          total: auditResult.total,
+          page,
+          limit: audit.limit,
         });
       } else {
         setError("Audit log is not enabled on this backend.");
       }
 
       if (metricsResult.supported) {
-        setMetrics(metricsResult.data);
+        setMetrics(metricsResult.metrics);
       } else {
         setMetricsSupported(false);
       }
     } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to load audit log."));
+      setError(toAdminErrorMessage(err, "Failed to load audit log."));
     } finally {
       setLoading(false);
     }
@@ -85,9 +93,9 @@ export default function DashboardAuditPage() {
     setExporting(true);
     setExportError(null);
     try {
-      await api.downloadAuditLogCsv(500);
+      await exportAdminAuditCsv(500);
     } catch (err) {
-      setExportError(getApiErrorMessage(err, "Failed to export audit log."));
+      setExportError(toAdminErrorMessage(err, "Failed to export audit log."));
     } finally {
       setExporting(false);
     }

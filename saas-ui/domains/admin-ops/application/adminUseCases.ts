@@ -6,11 +6,15 @@ import {
   fetchAdminMetrics,
   fetchAdminTenants,
   fetchAuditLog,
+  fetchBillingDunningQueue,
   fetchDeadLetterJobs,
+  fetchSupportNotesCatalog,
+  fetchTenantCatalog,
   requeueDeadLetterJob,
   requestImpersonationLink,
   suspendTenant,
   unsuspendTenant,
+  triggerBillingDunningCycle,
   type AdminTenantQuery,
   downloadAuditCsv,
 } from "../infrastructure/adminRepository";
@@ -39,6 +43,22 @@ export async function loadAdminAuditLog(page: number, limit: number) {
 
 export async function loadAdminMetrics() {
   return fetchAdminMetrics();
+}
+
+export async function loadTenantCatalog() {
+  return fetchTenantCatalog();
+}
+
+export async function loadSupportNotesCatalog() {
+  return fetchSupportNotesCatalog();
+}
+
+export async function loadBillingDunningQueue() {
+  return fetchBillingDunningQueue();
+}
+
+export async function queueBillingDunningCycle(dryRun = false) {
+  return triggerBillingDunningCycle(dryRun);
 }
 
 export async function requeueDeadLetterById(jobId: string) {

@@ -24,16 +24,7 @@ const rules = [
   },
 ];
 
-const allowedExceptions = new Map([
-  ["app/(dashboard)/dashboard/activity/page.tsx", new Set(["shared-api"])],
-  ["app/(dashboard)/dashboard/audit/page.tsx", new Set(["shared-api"])],
-  ["app/(dashboard)/dashboard/billing-details/page.tsx", new Set(["shared-api"])],
-  ["app/(dashboard)/dashboard/billing-ops/page.tsx", new Set(["shared-api"])],
-  ["app/(dashboard)/dashboard/provisioning/page.tsx", new Set(["shared-api"])],
-  ["app/(dashboard)/dashboard/support-overview/page.tsx", new Set(["shared-api"])],
-  ["app/(dashboard)/dashboard/support/page.tsx", new Set(["shared-api"])],
-  ["app/(dashboard)/tenants/[id]/page.tsx", new Set(["shared-api"])],
-]);
+const allowedExceptions = new Map();
 
 async function listSourceFiles(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -90,8 +81,8 @@ if (violations.length > 0) {
   process.exit(1);
 }
 
-// AGENT-NOTE: Existing pages are allowlisted while ongoing page-layer migration completes.
-// This gate prevents new app-layer imports of shared API/infrastructure and shrinks allowlist over time.
+// AGENT-NOTE: App-layer migration completed for shared API/infrastructure coupling.
+// Keep exception list empty; add only temporary scoped exceptions when an active migration requires it.
 console.log(
   `Import boundary check passed for ${files.length} app files (exceptions tracked: ${allowedExceptions.size}).`
 );

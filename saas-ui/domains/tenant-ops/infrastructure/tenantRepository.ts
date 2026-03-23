@@ -1,5 +1,19 @@
 import { api } from "../../shared/lib/api";
-import type { Tenant, UserProfile } from "../../shared/lib/types";
+import type {
+  AuditLogEntry,
+  BackupManifestEntry,
+  DomainMapping,
+  Job,
+  MessageResponse,
+  OptionalEndpointResult,
+  PaginatedResult,
+  SupportNote,
+  Tenant,
+  TenantMember,
+  TenantSubscription,
+  TenantSummary,
+  UserProfile,
+} from "../../shared/lib/types";
 
 export type TenantQueueQuery = {
   page: number;
@@ -55,4 +69,141 @@ export async function fetchTenantQueue(query: TenantQueueQuery): Promise<TenantQ
 
 export async function fetchCurrentUserProfile(): Promise<UserProfile> {
   return api.getCurrentUser();
+}
+
+export async function fetchTenantById(tenantId: string): Promise<Tenant> {
+  return api.getTenant(tenantId);
+}
+
+export async function retryTenantById(tenantId: string): Promise<OptionalEndpointResult<Job>> {
+  return api.retryTenant(tenantId);
+}
+
+export async function fetchTenantBackups(
+  tenantId: string
+): Promise<OptionalEndpointResult<BackupManifestEntry[]>> {
+  return api.listTenantBackups(tenantId);
+}
+
+export async function fetchTenantAuditLog(
+  tenantId: string,
+  page = 1,
+  limit = 50
+): Promise<OptionalEndpointResult<PaginatedResult<AuditLogEntry>>> {
+  return api.listTenantAuditLog(tenantId, page, limit);
+}
+
+export async function fetchTenantMembers(
+  tenantId: string
+): Promise<OptionalEndpointResult<TenantMember[]>> {
+  return api.listTenantMembers(tenantId);
+}
+
+export async function fetchTenantDomains(
+  tenantId: string
+): Promise<OptionalEndpointResult<DomainMapping[]>> {
+  return api.listTenantDomains(tenantId);
+}
+
+export async function createTenantDomainMapping(
+  tenantId: string,
+  domain: string
+): Promise<OptionalEndpointResult<DomainMapping>> {
+  return api.createTenantDomain(tenantId, domain);
+}
+
+export async function verifyTenantDomainMapping(
+  tenantId: string,
+  mappingId: string,
+  token?: string | null
+): Promise<OptionalEndpointResult<DomainMapping>> {
+  return api.verifyTenantDomain(tenantId, mappingId, token);
+}
+
+export async function deleteTenantDomainMapping(
+  tenantId: string,
+  mappingId: string
+): Promise<OptionalEndpointResult<MessageResponse>> {
+  return api.deleteTenantDomain(tenantId, mappingId);
+}
+
+export async function inviteTenantWorkspaceMember(
+  tenantId: string,
+  payload: { email: string; role: string }
+): Promise<OptionalEndpointResult<TenantMember>> {
+  return api.inviteTenantMember(tenantId, payload);
+}
+
+export async function updateTenantWorkspaceMemberRole(
+  tenantId: string,
+  memberId: string,
+  role: string
+): Promise<OptionalEndpointResult<TenantMember>> {
+  return api.updateTenantMemberRole(tenantId, memberId, role);
+}
+
+export async function removeTenantWorkspaceMember(
+  tenantId: string,
+  memberId: string
+): Promise<OptionalEndpointResult<MessageResponse>> {
+  return api.removeTenantMember(tenantId, memberId);
+}
+
+export async function fetchTenantSupportNotes(
+  tenantId: string
+): Promise<OptionalEndpointResult<SupportNote[]>> {
+  return api.listSupportNotes(tenantId);
+}
+
+export async function createTenantSupportNoteRecord(
+  tenantId: string,
+  category: string,
+  note: string,
+  extras?: { owner_name?: string; owner_contact?: string; sla_due_at?: string; status?: string }
+): Promise<OptionalEndpointResult<SupportNote>> {
+  return api.createSupportNote(tenantId, category, note, extras);
+}
+
+export async function updateTenantSupportNoteRecord(
+  noteId: string,
+  payload: Partial<SupportNote>
+): Promise<OptionalEndpointResult<SupportNote>> {
+  return api.updateSupportNote(noteId, payload);
+}
+
+export async function fetchTenantJobs(limit = 40): Promise<OptionalEndpointResult<Job[]>> {
+  return api.listAdminJobs(limit);
+}
+
+export async function fetchTenantSummary(
+  tenantId: string
+): Promise<OptionalEndpointResult<TenantSummary>> {
+  return api.getTenantSummary(tenantId);
+}
+
+export async function fetchTenantSubscription(
+  tenantId: string
+): Promise<OptionalEndpointResult<TenantSubscription>> {
+  return api.getTenantSubscription(tenantId);
+}
+
+export async function restoreTenantByBackup(
+  tenantId: string,
+  backupId: string
+): Promise<OptionalEndpointResult<Job>> {
+  return api.restoreTenant(tenantId, backupId);
+}
+
+export async function suspendTenantWorkspace(
+  tenantId: string,
+  reason?: string
+): Promise<OptionalEndpointResult<MessageResponse>> {
+  return api.suspendTenant(tenantId, reason);
+}
+
+export async function unsuspendTenantWorkspace(
+  tenantId: string,
+  reason?: string
+): Promise<OptionalEndpointResult<MessageResponse>> {
+  return api.unsuspendTenant(tenantId, reason);
 }

@@ -24,13 +24,16 @@ export const adminNavSections: AdminNavSection[] = [
     ],
   },
   {
-    title: "Operational handoff",
-    description: "Escalate into dashboard surfaces when user-facing action is required.",
+    title: "Admin operations routes",
+    description: "Dedicated admin surfaces with clear separation from user workspace routes.",
     items: [
-      { href: "/dashboard/overview", label: "Dashboard: Tenant operations", hint: "Tenant lifecycle and queue handling" },
-      { href: "/dashboard/platform-health", label: "Dashboard: Platform health", hint: "Infrastructure and queue checks" },
-      { href: "/dashboard/audit", label: "Dashboard: Audit & policy", hint: "Compliance trail and export workflows" },
-      { href: "/dashboard/billing-ops", label: "Dashboard: Billing operations", hint: "Dunning and payment escalations" },
+      { href: "/admin/onboarding", label: "Payment onboarding", hint: "Awaiting payment confirmations and activation state" },
+      { href: "/admin/provisioning", label: "Provisioning queue", hint: "Deployments, retries, and stuck lifecycle runs" },
+      { href: "/admin/incidents", label: "Incidents", hint: "Failure triage and recovery actions" },
+      { href: "/admin/billing-ops", label: "Billing operations", hint: "Dunning, retries, and payment escalations" },
+      { href: "/admin/platform-health", label: "Platform health", hint: "Infrastructure, queue, and service checks" },
+      { href: "/admin/audit", label: "Audit & policy", hint: "Compliance trail and export workflows" },
+      { href: "/admin/support", label: "Support queue", hint: "Cases, notes, and SLA visibility" },
     ],
   },
 ];

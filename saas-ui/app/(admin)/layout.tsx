@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Box, Container } from "@mui/material";
 
 import { refreshAuthSession } from "../../domains/auth/application/authUseCases";
 import { clearToken, getToken, saveToken } from "../../domains/auth/auth";
@@ -110,13 +111,20 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto max-w-7xl px-4 py-6">
-        <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+    <Box sx={{ minHeight: "100vh", bgcolor: "#020617", color: "grey.100", py: { xs: 2, md: 3 } }}>
+      <Container maxWidth="xl">
+        <Box
+          sx={{
+            display: "grid",
+            gap: 3,
+            gridTemplateColumns: { xs: "1fr", lg: "280px minmax(0,1fr)" },
+            alignItems: "start",
+          }}
+        >
           <AdminNav />
-          <div className="space-y-6">{children}</div>
-        </div>
-      </div>
-    </div>
+          <Box sx={{ display: "grid", gap: 3 }}>{children}</Box>
+        </Box>
+      </Container>
+    </Box>
   );
 }

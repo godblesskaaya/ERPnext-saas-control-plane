@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { Box, Container } from "@mui/material";
 
 import { refreshAuthSession } from "../../auth/application/authUseCases";
 import { clearToken, getToken, saveToken } from "../../auth/auth";
@@ -69,13 +70,20 @@ export function UserShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f5ef]">
-      <div className="mx-auto max-w-7xl px-4 py-6">
-        <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
+    <Box sx={{ minHeight: "100vh", bgcolor: "#f8f5ef", py: { xs: 2, md: 3 } }}>
+      <Container maxWidth="xl">
+        <Box
+          sx={{
+            display: "grid",
+            gap: 3,
+            gridTemplateColumns: { xs: "1fr", lg: "300px minmax(0,1fr)" },
+            alignItems: "start",
+          }}
+        >
           <DashboardNav />
-          <div className="space-y-6">{children}</div>
-        </div>
-      </div>
-    </div>
+          <Box sx={{ display: "grid", gap: 3 }}>{children}</Box>
+        </Box>
+      </Container>
+    </Box>
   );
 }

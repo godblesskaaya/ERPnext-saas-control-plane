@@ -16,6 +16,19 @@ const ADMIN_DASHBOARD_PREFIXES = [
   "/dashboard/audit",
   "/dashboard/platform-health",
 ] as const;
+const ADMIN_DASHBOARD_ROUTE_REDIRECTS: Record<(typeof ADMIN_DASHBOARD_PREFIXES)[number], string> = {
+  "/dashboard/onboarding": "/admin/onboarding",
+  "/dashboard/provisioning": "/admin/provisioning",
+  "/dashboard/incidents": "/admin/incidents",
+  "/dashboard/suspensions": "/admin/suspensions",
+  "/dashboard/activity": "/admin/activity",
+  "/dashboard/billing-ops": "/admin/billing-ops",
+  "/dashboard/billing": "/admin/billing",
+  "/dashboard/support": "/admin/support",
+  "/dashboard/support-overview": "/admin/support-overview",
+  "/dashboard/audit": "/admin/audit",
+  "/dashboard/platform-health": "/admin/platform-health",
+};
 
 type JwtPayload = {
   exp?: number;
@@ -47,6 +60,17 @@ function isAdminRoute(pathname: string): boolean {
 
 function isAdminOnlyDashboardRoute(pathname: string): boolean {
   return ADMIN_DASHBOARD_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
+function resolveAdminDashboardRedirect(pathname: string): string | null {
+  for (const prefix of ADMIN_DASHBOARD_PREFIXES) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
+      const targetPrefix = ADMIN_DASHBOARD_ROUTE_REDIRECTS[prefix];
+      const suffix = pathname.slice(prefix.length);
+      return `${targetPrefix}${suffix}`;
+    }
+  }
+  return null;
 }
 
 function isPublicAuthRoute(pathname: string): boolean {
@@ -147,6 +171,23 @@ export function middleware(request: NextRequest) {
   }
 
   const role = request.cookies.get(ROLE_COOKIE)?.value ?? payload?.role;
+  const adminDashboardRedirect = resolveAdminDashboardRedirect(pathname);
+  if (adminDashboardRedirect) {
+    if (role !== "admin") {
+      return new NextResponse(forbiddenHtml(), {
+        status: 403,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store",
+        },
+      });
+    }
+
+    const destination = new URL(adminDashboardRedirect, request.url);
+    destination.search = request.nextUrl.search;
+    return NextResponse.redirect(destination);
+  }
+
   if ((isAdminRoute(pathname) || isAdminOnlyDashboardRoute(pathname)) && role !== "admin") {
     return new NextResponse(forbiddenHtml(), {
       status: 403,
@@ -162,6 +203,7 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/admin",
     "/billing",
     "/dashboard/:path*",
     "/billing/:path*",

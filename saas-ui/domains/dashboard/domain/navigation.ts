@@ -6,6 +6,7 @@ export const dashboardNavSections: DashboardNavSection[] = [
     title: "Tenant lifecycle",
     description: "Provisioning state, tenant health, and active operations.",
     items: [
+      { href: "/dashboard", label: "Journey hub", hint: "Route by workflow" },
       { href: "/dashboard/overview", label: "Operations overview", hint: "Live platform snapshot" },
       { href: "/dashboard/registry", label: "Tenant directory", hint: "Search & tenant registry" },
       { href: "/dashboard/onboarding", label: "Payment onboarding", hint: "Pending payment state" },

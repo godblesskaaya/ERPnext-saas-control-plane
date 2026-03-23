@@ -18,6 +18,8 @@ import type {
   UserProfile,
 } from "../../../../domains/shared/lib/types";
 
+const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed", "deleted", "canceled", "cancelled"]);
+
 function statusClass(status: string): string {
   const normalized = status.toLowerCase();
   if (normalized === "active") return "bg-emerald-100 text-emerald-800";
@@ -400,6 +402,12 @@ export default function TenantDetailPage() {
     return supportNotes.filter((note) => (note.status ?? "open") === supportNoteFilter);
   }, [supportNoteFilter, supportNotes]);
 
+  const activeRecentJob = useMemo(
+    () => recentJobs.find((job) => !TERMINAL_JOB_STATUSES.has((job.status || "").toLowerCase())),
+    [recentJobs]
+  );
+  const liveJobId = jobId || activeRecentJob?.id;
+
   useEffect(() => {
     setAuditPage(1);
   }, [id]);
@@ -575,7 +583,23 @@ export default function TenantDetailPage() {
                       <div key={job.id} className="rounded-xl border border-slate-200 px-2 py-1">
                         <p className="text-xs font-semibold text-slate-700">{job.type}</p>
                         <p className="text-[11px] text-slate-500">{formatTimestamp(job.created_at)}</p>
-                        <p className="text-[11px] text-slate-500">Status: {job.status}</p>
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <p className="text-[11px] text-slate-500">
+                            Status: {job.status}
+                            {!TERMINAL_JOB_STATUSES.has((job.status || "").toLowerCase())
+                              ? " · in progress"
+                              : ""}
+                          </p>
+                          <button
+                            className="rounded-full border border-amber-200 px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:border-amber-300"
+                            onClick={() => {
+                              if (!id) return;
+                              router.replace(`/tenants/${id}?job=${job.id}#jobs`);
+                            }}
+                          >
+                            View logs
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -745,12 +769,24 @@ export default function TenantDetailPage() {
         )}
       </div>
 
-      {jobId ? (
-        <div id="jobs" className="space-y-2 rounded-3xl border border-amber-200/70 bg-white/80 p-6">
-          <h2 className="text-lg font-semibold text-slate-900">Realtime job progress</h2>
-          <JobLogPanel jobId={jobId} />
-        </div>
-      ) : null}
+      <div id="jobs" className="space-y-2 rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+        <h2 className="text-lg font-semibold text-slate-900">Realtime job progress</h2>
+        {liveJobId ? (
+          <>
+            {!jobId && activeRecentJob ? (
+              <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                Auto-following latest active job: <span className="font-semibold">{activeRecentJob.type}</span> (
+                {activeRecentJob.status})
+              </p>
+            ) : null}
+            <JobLogPanel jobId={liveJobId} />
+          </>
+        ) : (
+          <p className="rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+            No active jobs right now. Select a recent operation to open logs.
+          </p>
+        )}
+      </div>
 
       <div id="backups" className="space-y-2 rounded-3xl border border-amber-200/70 bg-white/80 p-6">
         <div className="flex items-center justify-between gap-2">

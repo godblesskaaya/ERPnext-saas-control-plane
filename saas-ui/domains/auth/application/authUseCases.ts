@@ -8,6 +8,7 @@ import {
   login,
   refreshSessionToken,
   resetPassword,
+  subscribeAuthSessionExpired,
   signup,
   verifyEmail,
   type AuthToken,
@@ -124,6 +125,10 @@ export async function consumeImpersonationToken(token: string, persistToken = tr
     saveToken(next.access_token);
   }
   return next;
+}
+
+export function onAuthSessionExpired(listener: () => void): () => void {
+  return subscribeAuthSessionExpired(listener);
 }
 
 export function toAuthErrorMessage(error: unknown, fallback: string): string {

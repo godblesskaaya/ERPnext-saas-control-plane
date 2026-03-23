@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
-import { api, onSessionExpired } from "../lib/api";
+import { onAuthSessionExpired, refreshAuthSession } from "../../auth/application/authUseCases";
 import { clearToken, getToken, saveToken } from "../../auth/auth";
 
 type TokenPayload = {
@@ -41,12 +41,12 @@ export function SessionManager() {
       if (refreshingRef.current) return;
       refreshingRef.current = true;
       try {
-        const result = await api.refreshToken();
+        const result = await refreshAuthSession();
         if (result?.access_token) {
           saveToken(result.access_token);
+        } else {
+          clearToken();
         }
-      } catch {
-        clearToken();
       } finally {
         refreshingRef.current = false;
       }
@@ -61,7 +61,7 @@ export function SessionManager() {
   }, []);
 
   useEffect(() => {
-    return onSessionExpired(() => {
+    return onAuthSessionExpired(() => {
       router.push(`/login?reason=session-expired&next=${encodeURIComponent(window.location.pathname)}`);
     });
   }, [router]);

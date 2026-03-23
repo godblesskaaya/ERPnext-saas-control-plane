@@ -1,4 +1,4 @@
-import { api } from "../../shared/lib/api";
+import { api, onSessionExpired } from "../../shared/lib/api";
 import type { MessageResponse, OptionalEndpointResult, UserProfile } from "../../shared/lib/types";
 
 export type AuthToken = {
@@ -40,4 +40,8 @@ export function refreshSessionToken(): Promise<AuthToken> {
 
 export function exchangeImpersonationToken(token: string): Promise<AuthToken> {
   return api.exchangeImpersonationToken(token);
+}
+
+export function subscribeAuthSessionExpired(listener: () => void): () => void {
+  return onSessionExpired(listener);
 }

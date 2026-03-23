@@ -124,3 +124,21 @@ Verification notes (2026-03-18):
 ### Phase 7
 - Add contract tests per bounded context for use-cases.
 - Enforce import boundaries (lint rule) to block page → shared infrastructure shortcuts.
+
+### Phase 7 slice delivered (contract coverage + boundary gate)
+- Added contract-focused tests for additional bounded contexts:
+  - `domains/billing/application/billingUseCases.test.ts`
+  - `domains/onboarding/application/onboardingUseCases.contract.test.ts`
+- Added app-layer import boundary gate:
+  - `scripts/check-import-boundaries.mjs`
+  - `package.json` scripts:
+    - `check:boundaries`
+    - `prebuild` now runs boundary checks before every build
+    - `test:contracts` for bounded-context contract suites
+- Boundary gate currently runs with explicit transitional allowlist for existing page-level direct `shared/lib/api` imports and blocks new shortcuts by default.
+  - AGENT-NOTE: Existing direct imports remain as tracked migration debt while route-by-route extraction continues.
+- Verification notes (2026-03-23):
+  - `npm run check:boundaries` ✅
+  - `npx --yes tsx --test domains/billing/application/billingUseCases.test.ts domains/onboarding/application/onboardingUseCases.contract.test.ts domains/admin-ops/domain/adminDashboard.test.ts domains/admin-ops/application/adminUseCases.test.ts` ✅ (14 passing)
+  - `npx tsc --noEmit` ✅
+  - `npm run build` ✅

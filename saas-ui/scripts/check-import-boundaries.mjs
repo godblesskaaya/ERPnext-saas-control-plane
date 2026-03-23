@@ -1,0 +1,106 @@
+#!/usr/bin/env node
+
+import { promises as fs } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, "..");
+const appDir = path.join(rootDir, "app");
+
+const importPattern = /import\s+[^"']*from\s+["']([^"']+)["']/g;
+
+const rules = [
+  {
+    id: "shared-api",
+    pattern: /domains\/shared\/lib\/api$/,
+    message: "App routes must consume domain application/use-case APIs, not shared infrastructure API client.",
+  },
+  {
+    id: "domain-infrastructure",
+    pattern: /domains\/[^/]+\/infrastructure\//,
+    message: "App routes should not import domain infrastructure adapters directly.",
+  },
+];
+
+const allowedExceptions = new Map([
+  ["app/(admin)/admin/page.tsx", new Set(["shared-api"])],
+  ["app/(auth)/impersonate/page.tsx", new Set(["shared-api"])],
+  ["app/(billing)/billing/page.tsx", new Set(["shared-api"])],
+  ["app/(dashboard)/dashboard/account/page.tsx", new Set(["shared-api"])],
+  ["app/(dashboard)/dashboard/activity/page.tsx", new Set(["shared-api"])],
+  ["app/(dashboard)/dashboard/audit/page.tsx", new Set(["shared-api"])],
+  ["app/(dashboard)/dashboard/billing-details/page.tsx", new Set(["shared-api"])],
+  ["app/(dashboard)/dashboard/billing-ops/page.tsx", new Set(["shared-api"])],
+  ["app/(dashboard)/dashboard/layout.tsx", new Set(["shared-api"])],
+  ["app/(dashboard)/dashboard/overview/page.tsx", new Set(["shared-api"])],
+  ["app/(dashboard)/dashboard/page.tsx", new Set(["shared-api"])],
+  ["app/(dashboard)/dashboard/platform-health/page.tsx", new Set(["shared-api"])],
+  ["app/(dashboard)/dashboard/provisioning/page.tsx", new Set(["shared-api"])],
+  ["app/(dashboard)/dashboard/settings/page.tsx", new Set(["shared-api"])],
+  ["app/(dashboard)/dashboard/support-overview/page.tsx", new Set(["shared-api"])],
+  ["app/(dashboard)/dashboard/support/page.tsx", new Set(["shared-api"])],
+  ["app/(dashboard)/tenants/[id]/page.tsx", new Set(["shared-api"])],
+]);
+
+async function listSourceFiles(dir) {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const files = [];
+
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await listSourceFiles(fullPath)));
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    if (!fullPath.endsWith(".ts") && !fullPath.endsWith(".tsx")) continue;
+    files.push(fullPath);
+  }
+
+  return files;
+}
+
+function normalizePath(filePath) {
+  return path.relative(rootDir, filePath).split(path.sep).join("/");
+}
+
+const files = await listSourceFiles(appDir);
+const violations = [];
+
+for (const filePath of files) {
+  const relativePath = normalizePath(filePath);
+  const source = await fs.readFile(filePath, "utf8");
+  const allowed = allowedExceptions.get(relativePath) ?? new Set();
+
+  for (const match of source.matchAll(importPattern)) {
+    const specifier = match[1] ?? "";
+    for (const rule of rules) {
+      if (!rule.pattern.test(specifier)) continue;
+      if (allowed.has(rule.id)) continue;
+      violations.push({
+        file: relativePath,
+        specifier,
+        rule: rule.id,
+        message: rule.message,
+      });
+    }
+  }
+}
+
+if (violations.length > 0) {
+  console.error("Import boundary check failed.\n");
+  for (const violation of violations) {
+    console.error(`- [${violation.rule}] ${violation.file}`);
+    console.error(`  import: ${violation.specifier}`);
+    console.error(`  ${violation.message}`);
+  }
+  process.exit(1);
+}
+
+// AGENT-NOTE: Existing pages are allowlisted while ongoing page-layer migration completes.
+// This gate prevents new app-layer imports of shared API/infrastructure and shrinks allowlist over time.
+console.log(
+  `Import boundary check passed for ${files.length} app files (exceptions tracked: ${allowedExceptions.size}).`
+);

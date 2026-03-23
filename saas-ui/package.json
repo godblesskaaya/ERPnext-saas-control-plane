@@ -4,9 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "check:boundaries": "node scripts/check-import-boundaries.mjs",
+    "prebuild": "npm run check:boundaries",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:contracts": "npx --yes tsx --test \"domains/**/*.test.ts\" \"domains/**/*.contract.test.ts\""
   },
   "dependencies": {
     "next": "15.5.12",

@@ -23,7 +23,7 @@ function decodePayload(token: string): JwtPayload | null {
 }
 
 function isProtected(pathname: string): boolean {
-  return ["/dashboard", "/admin", "/onboarding", "/tenants"].some(
+  return ["/dashboard", "/billing", "/admin", "/onboarding", "/tenants"].some(
     (base) => pathname === base || pathname.startsWith(`${base}/`),
   );
 }
@@ -145,7 +145,9 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/billing",
     "/dashboard/:path*",
+    "/billing/:path*",
     "/admin/:path*",
     "/onboarding/:path*",
     "/tenants/:path*",

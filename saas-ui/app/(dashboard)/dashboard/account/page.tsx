@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { api, getApiErrorMessage } from "../../../../domains/shared/lib/api";
+import {
+  loadAccountBillingInvoices,
+  loadAccountBillingPortal,
+  loadAccountProfile,
+  pickLatestInvoice,
+  toAccountErrorMessage,
+} from "../../../../domains/account/application/accountUseCases";
 import type { BillingInvoice, UserProfile } from "../../../../domains/shared/lib/types";
 
 function formatMoney(amount?: number | null, currency?: string | null): string {
@@ -36,13 +42,13 @@ export default function DashboardAccountPage() {
     let active = true;
     void (async () => {
       try {
-        const next = await api.getCurrentUser();
+        const next = await loadAccountProfile();
         if (!active) return;
         setProfile(next);
         setProfileError(null);
       } catch (err) {
         if (!active) return;
-        setProfileError(getApiErrorMessage(err, "Failed to load profile"));
+        setProfileError(toAccountErrorMessage(err, "Failed to load profile"));
       }
     })();
     return () => {
@@ -54,22 +60,22 @@ export default function DashboardAccountPage() {
     let active = true;
     void (async () => {
       try {
-        const result = await api.getBillingPortal();
+        const result = await loadAccountBillingPortal();
         if (!active) return;
         if (!result.supported) {
           setPortalUrl(null);
           return;
         }
-        setPortalUrl(result.data.url);
+        setPortalUrl(result.url);
       } catch (err) {
         if (!active) return;
-        setPortalError(getApiErrorMessage(err, "Billing portal unavailable"));
+        setPortalError(toAccountErrorMessage(err, "Billing portal unavailable"));
       }
     })();
 
     void (async () => {
       try {
-        const result = await api.listBillingInvoices();
+        const result = await loadAccountBillingInvoices();
         if (!active) return;
         if (!result.supported) {
           setInvoicesSupported(false);
@@ -77,10 +83,10 @@ export default function DashboardAccountPage() {
           return;
         }
         setInvoicesSupported(true);
-        setInvoices(result.data.invoices ?? []);
+        setInvoices(result.invoices);
       } catch (err) {
         if (!active) return;
-        setInvoiceError(getApiErrorMessage(err, "Failed to load invoices"));
+        setInvoiceError(toAccountErrorMessage(err, "Failed to load invoices"));
       }
     })();
     return () => {
@@ -88,10 +94,7 @@ export default function DashboardAccountPage() {
     };
   }, []);
 
-  const latestInvoice = useMemo(() => {
-    if (!invoices.length) return null;
-    return [...invoices].sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))[0];
-  }, [invoices]);
+  const latestInvoice = useMemo(() => pickLatestInvoice(invoices), [invoices]);
 
   return (
     <section className="space-y-6">
@@ -187,4 +190,3 @@ export default function DashboardAccountPage() {
     </section>
   );
 }
-

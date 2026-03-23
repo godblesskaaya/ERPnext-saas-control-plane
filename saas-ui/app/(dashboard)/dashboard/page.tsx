@@ -3,11 +3,15 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  loadDashboardMetricsSnapshot,
+  loadDashboardServiceHealthSnapshot,
+  type DashboardEndpointState,
+} from "../../../domains/dashboard/application/dashboardUseCases";
 import { dashboardNavSections } from "../../../domains/dashboard/domain/navigation";
-import { api } from "../../../domains/shared/lib/api";
 import type { MetricsSummary } from "../../../domains/shared/lib/types";
 
-type EndpointState = "loading" | "ok" | "unsupported" | "unavailable";
+type EndpointState = "loading" | DashboardEndpointState;
 
 function renderMetric(value: number | undefined, loading: boolean): string {
   if (typeof value === "number") {
@@ -31,44 +35,25 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let active = true;
-    const load = async () => {
-      try {
-        const result = await api.getAdminMetrics();
-        if (!active) return;
-        if (result.supported) {
-          setMetrics(result.data);
-        } else {
-          // AGENT-NOTE: metrics endpoint can be absent on older deployments. Keep the hub usable with graceful fallback.
-          setMetrics(null);
-        }
-      } catch {
-        if (active) {
-          setMetrics(null);
-        }
-      } finally {
-        if (active) {
-          setMetricsLoading(false);
-        }
-      }
+    void (async () => {
+      const [nextMetrics, health] = await Promise.all([
+        loadDashboardMetricsSnapshot(),
+        loadDashboardServiceHealthSnapshot(),
+      ]);
+      if (!active) return;
+      // AGENT-NOTE: metrics endpoint can be absent on older deployments. Keep the hub usable with graceful fallback.
+      setMetrics(nextMetrics);
+      setMetricsLoading(false);
+      setAuthState(health.auth.state);
+      setBillingState(health.billing.state);
+    })().catch(() => {
+      if (!active) return;
+      setMetrics(null);
+      setMetricsLoading(false);
+      setAuthState("unavailable");
+      setBillingState("unavailable");
+    });
 
-      try {
-        const auth = await api.authHealth();
-        if (!active) return;
-        setAuthState(auth.supported ? "ok" : "unsupported");
-      } catch {
-        if (active) setAuthState("unavailable");
-      }
-
-      try {
-        const billing = await api.billingHealth();
-        if (!active) return;
-        setBillingState(billing.supported ? "ok" : "unsupported");
-      } catch {
-        if (active) setBillingState("unavailable");
-      }
-    };
-
-    void load();
     return () => {
       active = false;
     };

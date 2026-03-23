@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { api, getApiErrorMessage } from "../../../../domains/shared/lib/api";
+import {
+  getPlatformOpsErrorMessage,
+  loadPlatformHealthSnapshot,
+  runPlatformMaintenanceAction,
+  type MaintenanceAction,
+} from "../../../../domains/platform-ops/application/platformHealthUseCases";
 import type { Job, Tenant } from "../../../../domains/shared/lib/types";
 
 type ApiHealth = {
@@ -34,42 +39,17 @@ export default function PlatformHealthPage() {
     setLoading(true);
     setHealthError(null);
     try {
-      const response = await fetch("/api/health", { cache: "no-store" });
-      if (response.ok) {
-        const data = (await response.json()) as ApiHealth;
-        setHealth(data);
-      } else {
-        setHealth(null);
+      const snapshot = await loadPlatformHealthSnapshot();
+      setHealth(snapshot.health);
+      setJobs(snapshot.jobs);
+      setTenants(snapshot.tenants);
+      setAuthHealth(snapshot.authHealth);
+      setBillingHealth(snapshot.billingHealth);
+      if (!snapshot.healthAvailable) {
         setHealthError("API health endpoint is not available.");
       }
-
-      const [jobsResult, tenantList, authResult, billingResult] = await Promise.all([
-        api.listAdminJobs(80),
-        api.listTenants(),
-        api.authHealth(),
-        api.billingHealth(),
-      ]);
-
-      if (jobsResult.supported) {
-        setJobs(jobsResult.data ?? []);
-      } else {
-        setJobs([]);
-      }
-      setTenants(tenantList);
-
-      if (authResult.supported) {
-        setAuthHealth(authResult.data.message ?? "ok");
-      } else {
-        setAuthHealth("unsupported");
-      }
-
-      if (billingResult.supported) {
-        setBillingHealth(billingResult.data.message ?? "ok");
-      } else {
-        setBillingHealth("unsupported");
-      }
     } catch (err) {
-      setHealthError(getApiErrorMessage(err, "Failed to load platform health."));
+      setHealthError(getPlatformOpsErrorMessage(err, "Failed to load platform health."));
     } finally {
       setLoading(false);
     }
@@ -79,26 +59,19 @@ export default function PlatformHealthPage() {
     void load();
   }, []);
 
-  const runMaintenance = async (action: "assets" | "tls" | "tls-prime") => {
+  const runMaintenance = async (action: MaintenanceAction) => {
     setMaintenanceBusy(true);
     setMaintenanceError(null);
     setMaintenanceMessage(null);
     try {
-      let result;
-      if (action === "assets") {
-        result = await api.rebuildPlatformAssets();
-      } else if (action === "tls-prime") {
-        result = await api.syncTenantTLS(true);
-      } else {
-        result = await api.syncTenantTLS(false);
-      }
+      const result = await runPlatformMaintenanceAction(action);
       if (result.supported) {
-        setMaintenanceMessage(result.data?.message ?? "Maintenance task queued.");
+        setMaintenanceMessage(result.message);
       } else {
-        setMaintenanceError("Maintenance endpoint is not enabled on this backend.");
+        setMaintenanceError(result.message);
       }
     } catch (err) {
-      setMaintenanceError(getApiErrorMessage(err, "Maintenance action failed."));
+      setMaintenanceError(getPlatformOpsErrorMessage(err, "Maintenance action failed."));
     } finally {
       setMaintenanceBusy(false);
     }

@@ -142,3 +142,30 @@ Verification notes (2026-03-18):
   - `npx --yes tsx --test domains/billing/application/billingUseCases.test.ts domains/onboarding/application/onboardingUseCases.contract.test.ts domains/admin-ops/domain/adminDashboard.test.ts domains/admin-ops/application/adminUseCases.test.ts` ✅ (14 passing)
   - `npx tsc --noEmit` ✅
   - `npm run build` ✅
+
+### Phase 7 continuation (boundary-exception reduction, team batch)
+- Added/expanded bounded contexts and migrated app routes off direct shared API imports:
+  - Dashboard context:
+    - `domains/dashboard/infrastructure/dashboardRepository.ts`
+    - `domains/dashboard/application/dashboardUseCases.ts`
+    - `domains/dashboard/application/dashboardUseCases.test.ts`
+    - migrated routes:
+      - `app/(dashboard)/dashboard/page.tsx`
+      - `app/(dashboard)/dashboard/overview/page.tsx`
+  - Account context:
+    - `domains/account/infrastructure/accountRepository.ts`
+    - `domains/account/application/accountUseCases.ts`
+    - `domains/account/application/accountUseCases.test.ts`
+    - `domains/account/domain/settingsPreferences.ts`
+    - `domains/account/domain/settingsPreferences.test.ts`
+    - migrated routes:
+      - `app/(dashboard)/dashboard/account/page.tsx`
+      - `app/(dashboard)/dashboard/settings/page.tsx`
+  - Platform Ops context:
+    - `domains/platform-ops/infrastructure/platformHealthRepository.ts`
+    - `domains/platform-ops/application/platformHealthUseCases.ts`
+    - `domains/platform-ops/application/platformHealthUseCases.test.ts`
+    - migrated route:
+      - `app/(dashboard)/dashboard/platform-health/page.tsx`
+- Updated boundary allowlist in `scripts/check-import-boundaries.mjs` to remove migrated route exceptions.
+- Result: tracked exceptions reduced from 16 to 12.

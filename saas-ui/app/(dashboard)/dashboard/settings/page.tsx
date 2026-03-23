@@ -2,41 +2,18 @@
 
 import { useEffect, useState } from "react";
 
-import { api, getApiErrorMessage } from "../../../../domains/shared/lib/api";
+import {
+  loadAccountProfile,
+  saveAccountPhone,
+  toAccountErrorMessage,
+} from "../../../../domains/account/application/accountUseCases";
+import {
+  DEFAULT_PREFERENCES,
+  PREFERENCES_STORAGE_KEY,
+  parsePreferences,
+  type NotificationPreferences,
+} from "../../../../domains/account/domain/settingsPreferences";
 import type { UserProfile } from "../../../../domains/shared/lib/types";
-
-type NotificationPreferences = {
-  emailAlerts: boolean;
-  smsAlerts: boolean;
-  billingAlerts: boolean;
-  provisioningAlerts: boolean;
-  supportAlerts: boolean;
-};
-
-const DEFAULT_PREFERENCES: NotificationPreferences = {
-  emailAlerts: true,
-  smsAlerts: true,
-  billingAlerts: true,
-  provisioningAlerts: true,
-  supportAlerts: true,
-};
-const PREFERENCES_STORAGE_KEY = "erp-saas:notification-preferences:v1";
-
-function parsePreferences(raw: string | null): NotificationPreferences {
-  if (!raw) return DEFAULT_PREFERENCES;
-  try {
-    const parsed = JSON.parse(raw) as Partial<NotificationPreferences>;
-    return {
-      emailAlerts: parsed.emailAlerts ?? DEFAULT_PREFERENCES.emailAlerts,
-      smsAlerts: parsed.smsAlerts ?? DEFAULT_PREFERENCES.smsAlerts,
-      billingAlerts: parsed.billingAlerts ?? DEFAULT_PREFERENCES.billingAlerts,
-      provisioningAlerts: parsed.provisioningAlerts ?? DEFAULT_PREFERENCES.provisioningAlerts,
-      supportAlerts: parsed.supportAlerts ?? DEFAULT_PREFERENCES.supportAlerts,
-    };
-  } catch {
-    return DEFAULT_PREFERENCES;
-  }
-}
 
 export default function DashboardSettingsPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -55,14 +32,14 @@ export default function DashboardSettingsPage() {
     let active = true;
     void (async () => {
       try {
-        const current = await api.getCurrentUser();
+        const current = await loadAccountProfile();
         if (!active) return;
         setProfile(current);
         setPhoneInput(current.phone ?? "");
         setError(null);
       } catch (err) {
         if (!active) return;
-        setError(getApiErrorMessage(err, "Failed to load user settings"));
+        setError(toAccountErrorMessage(err, "Failed to load user settings"));
       }
     })();
     return () => {
@@ -88,12 +65,12 @@ export default function DashboardSettingsPage() {
     setPhoneNotice(null);
     setPhoneError(null);
     try {
-      const updated = await api.updateCurrentUser({ phone: phoneInput.trim() || null });
+      const updated = await saveAccountPhone(phoneInput);
       setProfile(updated);
       setPhoneInput(updated.phone ?? "");
       setPhoneNotice("Phone contact updated.");
     } catch (err) {
-      setPhoneError(getApiErrorMessage(err, "Unable to update phone number."));
+      setPhoneError(toAccountErrorMessage(err, "Unable to update phone number."));
     } finally {
       setPhoneBusy(false);
     }
@@ -238,4 +215,3 @@ export default function DashboardSettingsPage() {
     </section>
   );
 }
-

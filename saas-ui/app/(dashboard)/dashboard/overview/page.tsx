@@ -2,34 +2,31 @@
 
 import { useEffect, useState } from "react";
 
+import { loadDashboardServiceHealthSnapshot } from "../../../../domains/dashboard/application/dashboardUseCases";
 import { WorkspaceQueuePage } from "../../../../domains/dashboard/components/WorkspaceQueuePage";
-import { api } from "../../../../domains/shared/lib/api";
 
 export default function DashboardOverviewPage() {
   const [authHealth, setAuthHealth] = useState("checking");
   const [billingHealth, setBillingHealth] = useState("checking");
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const auth = await api.authHealth();
-        if (auth.supported) {
-          setAuthHealth(auth.data.message ?? "ok");
-        } else {
-          setAuthHealth("unsupported");
-        }
-      } catch {
-        setAuthHealth("unavailable");
-      }
-      const billing = await api.billingHealth();
-      if (billing.supported) {
-        setBillingHealth(billing.data.message ?? "ok");
-      } else {
-        setBillingHealth("unsupported");
-      }
+    let active = true;
+    void (async () => {
+      const health = await loadDashboardServiceHealthSnapshot();
+      if (!active) return;
+      setAuthHealth(health.auth.message);
+      setBillingHealth(health.billing.message);
+    })().catch(() => {
+      if (!active) return;
+      setAuthHealth("unavailable");
+      setBillingHealth("unavailable");
+    });
+
+    return () => {
+      active = false;
     };
-    void load();
   }, []);
+
   return (
     <WorkspaceQueuePage
       title="Operations overview"

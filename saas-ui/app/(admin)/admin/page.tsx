@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -51,6 +52,22 @@ type TenantAdminAction = {
   tenant: Tenant;
   phrase: string;
 };
+
+type AdminView = "overview" | "tenants" | "jobs" | "audit" | "support" | "recovery";
+
+const ADMIN_VIEWS: AdminView[] = ["overview", "tenants", "jobs", "audit", "support", "recovery"];
+const ADMIN_VIEW_DETAILS: Record<AdminView, { label: string; description: string }> = {
+  overview: { label: "Overview", description: "Platform health summary and control shortcuts." },
+  tenants: { label: "Tenants", description: "Review status and run tenant lifecycle interventions." },
+  jobs: { label: "Jobs", description: "Inspect worker execution and job logs." },
+  audit: { label: "Audit", description: "Track administrative actions and export records." },
+  support: { label: "Support", description: "Issue short-lived impersonation links for troubleshooting." },
+  recovery: { label: "Recovery", description: "Handle dead-letter jobs and replay failures." },
+};
+
+function isAdminView(value: string | null): value is AdminView {
+  return value !== null && ADMIN_VIEWS.includes(value as AdminView);
+}
 
 function metricCard(label: string, value: number, hint: string, tone: "default" | "good" | "warn" = "default") {
   const toneClass =
@@ -114,6 +131,21 @@ export default function AdminPage() {
   const [metricsSupported, setMetricsSupported] = useState(true);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const lastMetricsKey = useRef<string | null>(null);
+  const searchParams = useSearchParams();
+
+  const currentView = useMemo<AdminView>(() => {
+    const viewParam = searchParams.get("view");
+    return isAdminView(viewParam) ? viewParam : "overview";
+  }, [searchParams]);
+
+  const buildViewHref = useCallback(
+    (view: AdminView) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("view", view);
+      return `/admin?${params.toString()}`;
+    },
+    [searchParams]
+  );
 
   const loadTenants = useCallback(async () => {
     try {
@@ -228,12 +260,34 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-    void loadTenants();
-    void loadDeadLetters();
-    void loadJobs();
-    void loadAuditLog();
-    void loadMetrics();
-  }, [loadAuditLog, loadDeadLetters, loadJobs, loadMetrics, loadTenants]);
+    if (currentView === "overview" || currentView === "tenants") {
+      void loadTenants();
+    }
+  }, [currentView, loadTenants]);
+
+  useEffect(() => {
+    if (currentView === "overview" || currentView === "recovery") {
+      void loadDeadLetters();
+    }
+  }, [currentView, loadDeadLetters]);
+
+  useEffect(() => {
+    if (currentView === "jobs") {
+      void loadJobs();
+    }
+  }, [currentView, loadJobs]);
+
+  useEffect(() => {
+    if (currentView === "audit") {
+      void loadAuditLog();
+    }
+  }, [currentView, loadAuditLog]);
+
+  useEffect(() => {
+    if (currentView === "overview") {
+      void loadMetrics();
+    }
+  }, [currentView, loadMetrics]);
 
   useEffect(() => {
     setTenantPage(1);
@@ -356,16 +410,30 @@ export default function AdminPage() {
             Keep tenant reliability high with fast attention routing for setup delays, failures, and governance tasks.
           </p>
         </div>
-        <div className="flex gap-2">
-          <button className="rounded border border-slate-600 px-3 py-1.5 text-xs hover:bg-slate-800" onClick={() => void loadTenants()}>
-            Refresh tenants
-          </button>
-          <button className="rounded border border-slate-600 px-3 py-1.5 text-xs hover:bg-slate-800" onClick={() => void loadJobs()}>
-            Refresh jobs
-          </button>
+        <p className="rounded-full border border-slate-700 bg-slate-900/60 px-3 py-1 text-xs text-slate-200">
+          View: {ADMIN_VIEW_DETAILS[currentView].label}
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-2">
+        <div className="flex flex-wrap gap-2">
+          {ADMIN_VIEWS.map((view) => (
+            <a
+              key={view}
+              href={buildViewHref(view)}
+              className={`rounded px-3 py-1.5 text-xs transition ${
+                currentView === view
+                  ? "border border-sky-500/60 bg-sky-500/20 text-sky-100"
+                  : "border border-slate-700 bg-slate-950/70 text-slate-300 hover:bg-slate-800"
+              }`}
+            >
+              {ADMIN_VIEW_DETAILS[view].label}
+            </a>
+          ))}
         </div>
       </div>
 
+      {currentView === "overview" ? (
       <div className="rounded-xl border border-slate-700 bg-slate-900/50 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-medium text-white">Attention lane</p>
@@ -392,7 +460,9 @@ export default function AdminPage() {
           </p>
         </div>
       </div>
+      ) : null}
 
+      {currentView === "overview" ? (
       <div className="rounded-xl border border-slate-700 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Platform metrics</h2>
@@ -430,14 +500,53 @@ export default function AdminPage() {
           <p className="text-sm text-slate-300">Loading metrics...</p>
         )}
       </div>
+      ) : null}
 
-      <div className="grid gap-3 md:grid-cols-4">
-        {metricCard("Total tenants", tenantTotal, "All managed customer environments")}
-        {metricCard("Suspended", suspendedCount, "Access paused pending review", suspendedCount ? "warn" : "default")}
-        {metricCard("Provisioning", provisioningCount, "Still onboarding or awaiting payment", provisioningCount ? "warn" : "default")}
-        {metricCard("Failed", failedCount, "Requires immediate operator follow-up", failedCount ? "warn" : "good")}
-      </div>
+      {currentView === "overview" ? (
+        <>
+          <div className="grid gap-3 md:grid-cols-4">
+            {metricCard("Total tenants", tenantTotal, "All managed customer environments")}
+            {metricCard("Suspended", suspendedCount, "Access paused pending review", suspendedCount ? "warn" : "default")}
+            {metricCard("Provisioning", provisioningCount, "Still onboarding or awaiting payment", provisioningCount ? "warn" : "default")}
+            {metricCard("Failed", failedCount, "Requires immediate operator follow-up", failedCount ? "warn" : "good")}
+          </div>
 
+          <div className="rounded-xl border border-slate-700 p-4">
+        <h2 className="text-lg font-semibold">Control lanes</h2>
+        <p className="mt-1 text-xs text-slate-400">Jump directly into focused admin workflows.</p>
+        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {ADMIN_VIEWS.map((view) => {
+            if (view === "overview") {
+              return null;
+            }
+            return (
+              <a
+                key={view}
+                href={buildViewHref(view)}
+                className="rounded border border-slate-700 bg-slate-950/60 p-3 text-left transition hover:border-slate-500 hover:bg-slate-900"
+              >
+                <p className="text-sm font-medium text-white">{ADMIN_VIEW_DETAILS[view].label}</p>
+                <p className="mt-1 text-xs text-slate-300">{ADMIN_VIEW_DETAILS[view].description}</p>
+                <p className="mt-2 text-[11px] text-slate-400">
+                  {view === "tenants"
+                    ? `${tenantTotal} tenant records`
+                    : view === "recovery"
+                      ? `${deadLetters.length} dead-letter jobs`
+                      : view === "jobs"
+                        ? "Inspect execution and logs"
+                        : view === "audit"
+                          ? "Review governance trail"
+                          : "Issue support links"}
+                </p>
+              </a>
+            );
+          })}
+        </div>
+          </div>
+        </>
+      ) : null}
+
+      {currentView === "jobs" ? (
       <div className="rounded-xl border border-slate-700 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Execution monitor</h2>
@@ -512,7 +621,9 @@ export default function AdminPage() {
           <p className="text-sm text-slate-300">No jobs found. Trigger provisioning or maintenance actions to populate this feed.</p>
         )}
       </div>
+      ) : null}
 
+      {currentView === "tenants" ? (
       <div className="rounded-xl border border-slate-700 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Tenant intervention panel</h2>
@@ -667,7 +778,9 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+      ) : null}
 
+      {currentView === "audit" ? (
       <div className="rounded-xl border border-slate-700 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Admin audit log</h2>
@@ -753,7 +866,9 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+      ) : null}
 
+      {currentView === "support" ? (
       <div className="rounded-xl border border-slate-700 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Support impersonation links</h2>
@@ -791,7 +906,9 @@ export default function AdminPage() {
           </div>
         ) : null}
       </div>
+      ) : null}
 
+      {currentView === "recovery" ? (
       <div className="rounded-xl border border-slate-700 p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Recovery queue (dead-letter)</h2>
@@ -850,6 +967,7 @@ export default function AdminPage() {
           <p className="text-sm text-slate-300">No dead-letter jobs.</p>
         )}
       </div>
+      ) : null}
 
       {tenantAction ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">

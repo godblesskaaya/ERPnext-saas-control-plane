@@ -12,18 +12,25 @@ export type AdminNavSection = {
 
 export const adminNavSections: AdminNavSection[] = [
   {
-    title: "Control tower",
-    description: "Platform-wide controls and privileged operations.",
-    items: [{ href: "/admin", label: "Admin console", hint: "Tenants, jobs, audit, impersonation" }],
+    title: "Monolith admin console",
+    description: "Control-plane areas inside /admin for privileged operators.",
+    items: [
+      { href: "/admin?view=overview", label: "Control overview", hint: "Global metrics and intervention lane" },
+      { href: "/admin?view=tenants", label: "Tenant control", hint: "Lifecycle actions, status, and account health" },
+      { href: "/admin?view=jobs", label: "Job execution", hint: "Inspect orchestration runs and logs" },
+      { href: "/admin?view=audit", label: "Audit log", hint: "Compliance history and operator events" },
+      { href: "/admin?view=support", label: "Support tooling", hint: "Impersonation and escalation workflows" },
+      { href: "/admin?view=recovery", label: "Recovery queue", hint: "Dead-letter triage and requeue actions" },
+    ],
   },
   {
     title: "Operational handoff",
-    description: "Jump into user-facing workflows when escalation is needed.",
+    description: "Escalate into dashboard surfaces when user-facing action is required.",
     items: [
-      { href: "/dashboard/overview", label: "User operations", hint: "Tenant lifecycle and queues" },
-      { href: "/dashboard/platform-health", label: "Platform health", hint: "Queues and infrastructure checks" },
-      { href: "/dashboard/audit", label: "Audit & policy", hint: "Compliance trail and exports" },
-      { href: "/dashboard/billing-ops", label: "Billing operations", hint: "Dunning and payment escalations" },
+      { href: "/dashboard/overview", label: "Dashboard: Tenant operations", hint: "Tenant lifecycle and queue handling" },
+      { href: "/dashboard/platform-health", label: "Dashboard: Platform health", hint: "Infrastructure and queue checks" },
+      { href: "/dashboard/audit", label: "Dashboard: Audit & policy", hint: "Compliance trail and export workflows" },
+      { href: "/dashboard/billing-ops", label: "Dashboard: Billing operations", hint: "Dunning and payment escalations" },
     ],
   },
 ];

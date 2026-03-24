@@ -22,10 +22,6 @@ export const ADMIN_VIEW_DETAILS: Record<AdminView, { label: string; description:
 
 const ADMIN_ROUTE_VIEW_ENTRIES = Object.entries(ADMIN_VIEW_ROUTES) as Array<[AdminView, string]>;
 
-export function isAdminView(value: string | null): value is AdminView {
-  return value !== null && ADMIN_VIEWS.includes(value as AdminView);
-}
-
 export function inferAdminViewFromPathname(pathname: string): AdminView | null {
   for (const [view, route] of ADMIN_ROUTE_VIEW_ENTRIES) {
     if (pathname === route || pathname.startsWith(`${route}/`)) {
@@ -34,4 +30,3 @@ export function inferAdminViewFromPathname(pathname: string): AdminView | null {
   }
   return null;
 }
-

@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -30,7 +30,6 @@ import {
   ADMIN_VIEWS,
   type AdminView,
   inferAdminViewFromPathname,
-  isAdminView,
 } from "./adminConsoleConfig";
 
 type UseAdminConsoleControllerArgs = {
@@ -85,19 +84,14 @@ export function useAdminConsoleController({ forcedView }: UseAdminConsoleControl
   const { addNotification } = useNotifications();
   const lastMetricsKey = useRef<string | null>(null);
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   const currentView = useMemo<AdminView>(() => {
     if (forcedView) {
       return forcedView;
     }
     const pathView = inferAdminViewFromPathname(pathname);
-    if (pathView) {
-      return pathView;
-    }
-    const viewParam = searchParams.get("view");
-    return isAdminView(viewParam) ? viewParam : "overview";
-  }, [forcedView, pathname, searchParams]);
+    return pathView ?? "overview";
+  }, [forcedView, pathname]);
 
   const buildViewHref = useCallback((view: AdminView) => ADMIN_VIEW_ROUTES[view], []);
 
@@ -466,4 +460,3 @@ export function useAdminConsoleController({ forcedView }: UseAdminConsoleControl
     requeueDeadLetter,
   };
 }
-

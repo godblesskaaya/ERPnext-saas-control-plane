@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  Alert,
+  Box,
+  Paper,
+  Typography,
+} from "@mui/material";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -114,6 +120,13 @@ function subscriptionStatusClass(status: string): string {
   if (normalized === "cancelled") return "bg-red-100 text-red-700";
   return "bg-slate-100 text-slate-700";
 }
+
+const sectionPaperSx = {
+  p: 3,
+  borderRadius: 4,
+  borderColor: "warning.light",
+  backgroundColor: "background.paper",
+};
 
 export default function TenantDetailPage() {
   const params = useParams<{ id: string }>();
@@ -446,12 +459,16 @@ export default function TenantDetailPage() {
   const isAdmin = currentUser?.role === "admin";
 
   if (!tenant) {
-    return <p>{error ?? "Loading tenant..."}</p>;
+    return (
+      <Typography color={error ? "error" : "text.secondary"}>
+        {error ?? "Loading tenant..."}
+      </Typography>
+    );
   }
 
   return (
-    <section className="space-y-6">
-      <div id="overview" className="rounded-3xl border border-amber-200/70 bg-white/80 p-6 shadow-sm">
+    <Box component="section" sx={{ display: "grid", gap: 3 }}>
+      <Paper id="overview" variant="outlined" sx={sectionPaperSx}>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
           <div>
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -514,7 +531,7 @@ export default function TenantDetailPage() {
             </p>
           </div>
 
-          <aside className="space-y-3 rounded-3xl border border-amber-200/70 bg-white/80 p-4">
+          <aside className="space-y-3 rounded-3xl border border-amber-200/70 bg-white/80 p-4 lg:sticky lg:top-24 lg:self-start">
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Quick actions</p>
             <div className="space-y-2 text-xs text-slate-600">
               <button
@@ -707,9 +724,9 @@ export default function TenantDetailPage() {
             </div>
           </aside>
         </div>
-      </div>
+      </Paper>
 
-      <nav className="flex flex-wrap gap-2 rounded-3xl border border-amber-200/70 bg-white/80 p-3 text-xs text-slate-700">
+      <Paper variant="outlined" sx={{ ...sectionPaperSx, p: 2 }}>
         {[
           ["overview", "Overview"],
           ["subscription", "Subscription"],
@@ -728,9 +745,9 @@ export default function TenantDetailPage() {
             {label}
           </a>
         ))}
-      </nav>
+      </Paper>
 
-      <div id="subscription" className="space-y-2 rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+      <Paper id="subscription" variant="outlined" sx={sectionPaperSx}>
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-slate-900">Subscription details</h2>
           <button
@@ -791,9 +808,9 @@ export default function TenantDetailPage() {
             Loading subscription details...
           </p>
         )}
-      </div>
+      </Paper>
 
-      <div id="jobs" className="space-y-2 rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+      <Paper id="jobs" variant="outlined" sx={sectionPaperSx}>
         <h2 className="text-lg font-semibold text-slate-900">Realtime job progress</h2>
         {liveJobId ? (
           <>
@@ -810,9 +827,9 @@ export default function TenantDetailPage() {
             No active jobs right now. Select a recent operation to open logs.
           </p>
         )}
-      </div>
+      </Paper>
 
-      <div id="backups" className="space-y-2 rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+      <Paper id="backups" variant="outlined" sx={sectionPaperSx}>
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-slate-900">Recovery backups</h2>
           <button
@@ -943,168 +960,9 @@ export default function TenantDetailPage() {
             No backup records yet. Trigger a backup from dashboard when you need a restore point.
           </p>
         )}
-      </div>
+      </Paper>
 
-      <div id="domains" className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-slate-900">Custom domains</h2>
-          <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
-            onClick={() => {
-              void loadDomains();
-            }}
-          >
-            Refresh
-          </button>
-        </div>
-
-        {!domainsSupported ? (
-          <p className="rounded border border-slate-700 bg-slate-900/40 p-3 text-sm text-slate-300">
-            Custom domain management is not available on this backend yet.
-          </p>
-        ) : domainsError ? (
-          <p className="text-sm text-red-400">{domainsError}</p>
-        ) : (
-          <div className="space-y-4">
-            <div className="rounded border border-slate-700 bg-slate-950/60 p-3">
-              <h3 className="text-sm font-semibold text-slate-200">Add a custom domain</h3>
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                <input
-                  className="w-full flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-                  placeholder="example.com"
-                  value={domainInput}
-                  onChange={(event) => setDomainInput(event.target.value)}
-                />
-                <button
-                  className="rounded bg-emerald-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  disabled={addingDomain || !domainInput.trim()}
-                  onClick={async () => {
-                    if (!id) return;
-                    setAddingDomain(true);
-                    setDomainsError(null);
-                    try {
-                      const result = await createTenantDomain(id, domainInput.trim());
-                      if (!result.supported) {
-                        setDomainsSupported(false);
-                        return;
-                      }
-                      setDomainInput("");
-                      await loadDomains();
-                    } catch (err) {
-                      setDomainsError(toTenantDetailErrorMessage(err, "Failed to add domain"));
-                    } finally {
-                      setAddingDomain(false);
-                    }
-                  }}
-                >
-                  {addingDomain ? "Adding..." : "Add"}
-                </button>
-              </div>
-              <p className="mt-2 text-xs text-slate-400">
-                After adding a domain, create a DNS TXT record with the verification token, then mark it verified.
-              </p>
-            </div>
-
-            <div className="overflow-x-auto rounded border border-slate-700">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-900/60">
-                  <tr>
-                    <th className="p-2 text-left">Domain</th>
-                    <th className="p-2 text-left">Status</th>
-                    <th className="p-2 text-left">Verification token</th>
-                    <th className="p-2 text-left">Verified at</th>
-                    <th className="p-2 text-left">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {domains.length === 0 ? (
-                    <tr>
-                      <td className="p-3 text-sm text-slate-400" colSpan={5}>
-                        No custom domains added yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    domains.map((mapping) => (
-                      <tr key={mapping.id} className="border-t border-slate-700">
-                        <td className="p-2 text-xs text-slate-200">{mapping.domain}</td>
-                        <td className="p-2 text-xs">
-                          <span
-                            className={`rounded px-2 py-1 text-xs ${
-                              mapping.status === "verified"
-                                ? "bg-emerald-500/20 text-emerald-300"
-                                : "bg-amber-500/20 text-amber-300"
-                            }`}
-                          >
-                            {mapping.status}
-                          </span>
-                        </td>
-                        <td className="p-2 font-mono text-[11px] text-slate-400">{mapping.verification_token}</td>
-                        <td className="p-2 text-xs text-slate-400">
-                          {formatTimestamp(mapping.verified_at ?? null)}
-                        </td>
-                        <td className="p-2 text-xs">
-                          <div className="flex flex-wrap gap-2">
-                            {mapping.status !== "verified" ? (
-                              <button
-                                className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
-                                disabled={verifyingDomainId === mapping.id}
-                                onClick={async () => {
-                                  if (!id) return;
-                                  setVerifyingDomainId(mapping.id);
-                                  setDomainsError(null);
-                                  try {
-                                    const result = await verifyTenantDomain(id, mapping.id, mapping.verification_token);
-                                    if (!result.supported) {
-                                      setDomainsSupported(false);
-                                      return;
-                                    }
-                                    await loadDomains();
-                                  } catch (err) {
-                                    setDomainsError(toTenantDetailErrorMessage(err, "Failed to verify domain"));
-                                  } finally {
-                                    setVerifyingDomainId(null);
-                                  }
-                                }}
-                              >
-                                {verifyingDomainId === mapping.id ? "Verifying..." : "Mark verified"}
-                              </button>
-                            ) : null}
-                            <button
-                              className="rounded border border-slate-600 px-2 py-1 text-xs text-red-300 hover:bg-slate-800 disabled:opacity-60"
-                              disabled={removingDomainId === mapping.id}
-                              onClick={async () => {
-                                if (!id) return;
-                                setRemovingDomainId(mapping.id);
-                                setDomainsError(null);
-                                try {
-                                  const result = await deleteTenantDomain(id, mapping.id);
-                                  if (!result.supported) {
-                                    setDomainsSupported(false);
-                                    return;
-                                  }
-                                  await loadDomains();
-                                } catch (err) {
-                                  setDomainsError(toTenantDetailErrorMessage(err, "Failed to remove domain"));
-                                } finally {
-                                  setRemovingDomainId(null);
-                                }
-                              }}
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div id="team" className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+      <Paper id="team" variant="outlined" sx={sectionPaperSx}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-slate-900">Team</h2>
           <button
@@ -1269,9 +1127,9 @@ export default function TenantDetailPage() {
             </div>
           </div>
         )}
-      </div>
+      </Paper>
 
-      <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+      <Paper id="domains" variant="outlined" sx={sectionPaperSx}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-slate-900">Custom domains</h2>
           <button
@@ -1421,10 +1279,10 @@ export default function TenantDetailPage() {
             </div>
           </div>
         )}
-      </div>
+      </Paper>
 
       {isAdmin ? (
-        <div id="support" className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+        <Paper id="support" variant="outlined" sx={sectionPaperSx}>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-semibold text-slate-900">Support notes</h2>
             <button
@@ -1622,10 +1480,10 @@ export default function TenantDetailPage() {
               </div>
             </div>
           )}
-        </div>
+        </Paper>
       ) : null}
 
-      <div id="activity" className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+      <Paper id="activity" variant="outlined" sx={sectionPaperSx}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-slate-900">Activity log</h2>
           <button
@@ -1696,9 +1554,9 @@ export default function TenantDetailPage() {
             </button>
           </div>
         </div>
-      </div>
+      </Paper>
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
-    </section>
+      {error ? <Alert severity="error">{error}</Alert> : null}
+    </Box>
   );
 }

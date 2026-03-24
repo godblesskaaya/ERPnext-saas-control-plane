@@ -369,6 +369,15 @@ export function WorkspaceQueuePage({
     suspendedTenants,
     totalTenants,
   ]);
+  const visibleHandoffLinks = useMemo(() => {
+    if (!handoffLinks || handoffLinks.length === 0) {
+      return [];
+    }
+    if (isAdminScope) {
+      return handoffLinks;
+    }
+    return handoffLinks.filter((link) => !link.href.startsWith("/admin"));
+  }, [handoffLinks, isAdminScope]);
 
   const setTenantJob = (tenantId: string, job: Job) => {
     setJobsByTenant((previous) => ({ ...previous, [tenantId]: job }));
@@ -646,7 +655,7 @@ export function WorkspaceQueuePage({
         </Card>
       ) : null}
 
-      {handoffLinks && handoffLinks.length > 0 ? (
+      {visibleHandoffLinks.length > 0 ? (
         <Card variant="outlined" sx={{ borderRadius: 4, borderColor: "rgba(245,158,11,0.35)", bgcolor: "rgba(255,255,255,0.88)" }}>
           <CardContent sx={{ p: 2 }}>
             <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1} alignItems={{ md: "center" }}>
@@ -654,11 +663,19 @@ export function WorkspaceQueuePage({
                 Queue handoff
               </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap">
-            {handoffLinks.map((link) => (
-                <Button key={link.href} component={Link} href={link.href} variant="outlined" color="warning" size="small" sx={{ borderRadius: 999 }}>
-                  {link.label}
-                </Button>
-            ))}
+                {visibleHandoffLinks.map((link) => (
+                  <Button
+                    key={link.href}
+                    component={Link}
+                    href={link.href}
+                    variant="outlined"
+                    color="warning"
+                    size="small"
+                    sx={{ borderRadius: 999 }}
+                  >
+                    {link.label}
+                  </Button>
+                ))}
               </Stack>
             </Stack>
           </CardContent>

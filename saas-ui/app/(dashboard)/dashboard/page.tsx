@@ -214,7 +214,7 @@ export default function DashboardPage() {
 
       <Grid container spacing={2}>
         {visibleSections.map((section) => {
-          const links = section.items.filter((item) => item.href !== "/dashboard");
+          const links = section.items.filter((item) => item.href !== "/dashboard" && !item.href.startsWith("/admin"));
           return (
             <Grid key={section.title} size={{ xs: 12, xl: 6 }}>
               <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 2.5, borderRadius: 4, height: "100%" }}>

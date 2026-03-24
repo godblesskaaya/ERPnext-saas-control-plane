@@ -2,5 +2,5 @@ import { redirect } from "next/navigation";
 
 export default function LegacyDashboardPlatformHealthRedirectPage() {
   // AGENT-NOTE: keep legacy dashboard URLs stable while enforcing admin/user route separation.
-  redirect("/admin/platform-health");
+  redirect("/dashboard/overview");
 }

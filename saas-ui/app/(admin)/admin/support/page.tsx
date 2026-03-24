@@ -66,6 +66,7 @@ export default function DashboardSupportPage() {
 
   return (
     <WorkspaceQueuePage
+      routeScope="admin"
       title="Support workspace queue"
       description="Customer escalations and billing disputes. Track resolution and SLA."
       statusFilter={["failed", "suspended", "suspended_admin", "suspended_billing"]}
@@ -75,9 +76,9 @@ export default function DashboardSupportPage() {
       showStatusFilter={false}
       attentionNote="Assign a clear owner and add support notes for handoffs."
       handoffLinks={[
-        { label: "Incidents", href: "/dashboard/incidents" },
-        { label: "Suspensions", href: "/dashboard/suspensions" },
-        { label: "Billing", href: "/dashboard/billing" },
+        { label: "Incidents", href: "/admin/incidents" },
+        { label: "Suspensions", href: "/admin/suspensions" },
+        { label: "Billing", href: "/admin/billing" },
       ]}
       callout={{
         title: "Support SLA focus",
@@ -156,8 +157,8 @@ export default function DashboardSupportPage() {
       }
       emptyStateTitle="No support escalations"
       emptyStateBody="There are no tenant incidents requiring support follow-up right now."
-      emptyStateActionLabel="Review active tenants"
-      emptyStateActionHref="/dashboard/active"
+      emptyStateActionLabel="Open tenant control"
+      emptyStateActionHref="/admin/control/tenants"
     />
   );
 }

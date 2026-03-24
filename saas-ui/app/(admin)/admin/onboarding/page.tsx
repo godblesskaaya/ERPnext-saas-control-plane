@@ -5,6 +5,7 @@ import { WorkspaceQueuePage } from "../../../../domains/dashboard/components/Wor
 export default function DashboardOnboardingPage() {
   return (
     <WorkspaceQueuePage
+      routeScope="admin"
       title="Payment confirmation"
       description="Confirm mobile money and card payments before provisioning starts."
       statusFilter={["pending_payment"]}
@@ -16,7 +17,7 @@ export default function DashboardOnboardingPage() {
       emptyStateTitle="No pending payment workspaces right now"
       emptyStateBody="All sign-ups have either paid or moved into provisioning."
       emptyStateActionLabel="View provisioning queue"
-      emptyStateActionHref="/dashboard/provisioning"
+      emptyStateActionHref="/admin/provisioning"
     />
   );
 }

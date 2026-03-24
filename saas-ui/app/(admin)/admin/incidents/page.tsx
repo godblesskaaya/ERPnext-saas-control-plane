@@ -5,6 +5,7 @@ import { WorkspaceQueuePage } from "../../../../domains/dashboard/components/Wor
 export default function DashboardIncidentsPage() {
   return (
     <WorkspaceQueuePage
+      routeScope="admin"
       title="Failed & blocked workspaces"
       description="System failures that need operator intervention."
       statusFilter={["failed"]}
@@ -16,7 +17,7 @@ export default function DashboardIncidentsPage() {
       emptyStateTitle="No failed or suspended workspaces"
       emptyStateBody="There are no failed tenants in the incident queue."
       emptyStateActionLabel="Review suspensions"
-      emptyStateActionHref="/dashboard/suspensions"
+      emptyStateActionHref="/admin/suspensions"
     />
   );
 }

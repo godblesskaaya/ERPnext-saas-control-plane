@@ -17,8 +17,8 @@ test("every navigation section declares a mode", () => {
 });
 
 test("infers operations mode from operational routes", () => {
-  assert.equal(inferDashboardNavModeFromRoute("/dashboard/billing"), "operations");
-  assert.equal(inferDashboardNavModeFromRoute("/dashboard/provisioning"), "operations");
+  assert.equal(inferDashboardNavModeFromRoute("/admin/billing"), "operations");
+  assert.equal(inferDashboardNavModeFromRoute("/admin/provisioning"), "operations");
 });
 
 test("infers workspace mode from workspace routes", () => {

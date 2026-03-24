@@ -3,32 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 const TOKEN_COOKIE = "erp_saas_token";
 const ROLE_COOKIE = "erp_saas_role";
 const USER_COOKIE = "erp_saas_user";
-const ADMIN_DASHBOARD_PREFIXES = [
-  "/dashboard/onboarding",
-  "/dashboard/provisioning",
-  "/dashboard/incidents",
-  "/dashboard/suspensions",
-  "/dashboard/activity",
-  "/dashboard/billing-ops",
-  "/dashboard/billing",
-  "/dashboard/support",
-  "/dashboard/support-overview",
-  "/dashboard/audit",
-  "/dashboard/platform-health",
-] as const;
-const ADMIN_DASHBOARD_ROUTE_REDIRECTS: Record<(typeof ADMIN_DASHBOARD_PREFIXES)[number], string> = {
-  "/dashboard/onboarding": "/admin/onboarding",
-  "/dashboard/provisioning": "/admin/provisioning",
-  "/dashboard/incidents": "/admin/incidents",
-  "/dashboard/suspensions": "/admin/suspensions",
-  "/dashboard/activity": "/admin/activity",
-  "/dashboard/billing-ops": "/admin/billing-ops",
-  "/dashboard/billing": "/admin/billing",
-  "/dashboard/support": "/admin/support",
-  "/dashboard/support-overview": "/admin/support-overview",
-  "/dashboard/audit": "/admin/audit",
-  "/dashboard/platform-health": "/admin/platform-health",
-};
 const LEGACY_ADMIN_ROOT_ROUTE_REDIRECTS: Record<string, string> = {
   overview: "/admin/control/overview",
   tenants: "/admin/control/tenants",
@@ -64,21 +38,6 @@ function isProtected(pathname: string): boolean {
 
 function isAdminRoute(pathname: string): boolean {
   return pathname === "/admin" || pathname.startsWith("/admin/");
-}
-
-function isAdminOnlyDashboardRoute(pathname: string): boolean {
-  return ADMIN_DASHBOARD_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
-}
-
-function resolveAdminDashboardRedirect(pathname: string): string | null {
-  for (const prefix of ADMIN_DASHBOARD_PREFIXES) {
-    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
-      const targetPrefix = ADMIN_DASHBOARD_ROUTE_REDIRECTS[prefix];
-      const suffix = pathname.slice(prefix.length);
-      return `${targetPrefix}${suffix}`;
-    }
-  }
-  return null;
 }
 
 function resolveLegacyAdminRootRedirect(request: NextRequest): URL | null {
@@ -203,24 +162,7 @@ export function middleware(request: NextRequest) {
   }
 
   const role = request.cookies.get(ROLE_COOKIE)?.value ?? payload?.role;
-  const adminDashboardRedirect = resolveAdminDashboardRedirect(pathname);
-  if (adminDashboardRedirect) {
-    if (role !== "admin") {
-      return new NextResponse(forbiddenHtml(), {
-        status: 403,
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-          "cache-control": "no-store",
-        },
-      });
-    }
-
-    const destination = new URL(adminDashboardRedirect, request.url);
-    destination.search = request.nextUrl.search;
-    return NextResponse.redirect(destination);
-  }
-
-  if ((isAdminRoute(pathname) || isAdminOnlyDashboardRoute(pathname)) && role !== "admin") {
+  if (isAdminRoute(pathname) && role !== "admin") {
     return new NextResponse(forbiddenHtml(), {
       status: 403,
       headers: {

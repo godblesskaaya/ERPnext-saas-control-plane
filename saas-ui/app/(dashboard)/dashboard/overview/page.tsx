@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { Card, CardContent, Grid, Paper, Typography } from "@mui/material";
+
 import { loadDashboardServiceHealthSnapshot } from "../../../../domains/dashboard/application/dashboardUseCases";
 import { WorkspaceQueuePage } from "../../../../domains/dashboard/components/WorkspaceQueuePage";
 
@@ -29,23 +31,41 @@ export default function DashboardOverviewPage() {
 
   return (
     <WorkspaceQueuePage
+      routeScope="workspace"
       title="Operations overview"
       description="Live operations snapshot for Tanzania: payments, provisioning, and tenant health in one console."
       extraContent={
-        <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-4 text-sm text-slate-700">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Diagnostics</p>
-          <div className="mt-2 grid gap-2 text-xs md:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-              API: <span className="font-semibold">ok</span>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-              Auth: <span className="font-semibold">{authHealth}</span>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-              Billing: <span className="font-semibold">{billingHealth}</span>
-            </div>
-          </div>
-        </div>
+        <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 2, borderRadius: 4 }}>
+          <Typography variant="overline" sx={{ color: "warning.dark", fontWeight: 700, letterSpacing: 0.8 }}>
+            Diagnostics
+          </Typography>
+          <Grid container spacing={1} sx={{ mt: 0.5 }}>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+                  <Typography variant="caption" color="text.secondary">API</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>ok</Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+                  <Typography variant="caption" color="text.secondary">Auth</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{authHealth}</Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ py: 1.25, '&:last-child': { pb: 1.25 } }}>
+                  <Typography variant="caption" color="text.secondary">Billing</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{billingHealth}</Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </Paper>
       }
       showCreate
       showMetrics

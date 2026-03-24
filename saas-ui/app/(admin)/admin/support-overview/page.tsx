@@ -94,16 +94,16 @@ export default function SupportOverviewPage() {
             billing follow-ups.
           </p>
           <div className="mt-4 grid gap-2 text-sm">
-            <Link href="/dashboard/incidents" className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
+            <Link href="/admin/incidents" className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
               Failed provisioning (Incidents)
             </Link>
-            <Link href="/dashboard/suspensions" className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
+            <Link href="/admin/suspensions" className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
               Account suspensions
             </Link>
-            <Link href="/dashboard/billing" className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
+            <Link href="/admin/billing" className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
               Billing follow-ups
             </Link>
-            <Link href="/dashboard/support" className="rounded-2xl border border-amber-200 bg-[#fff7ed] px-4 py-3">
+            <Link href="/admin/support" className="rounded-2xl border border-amber-200 bg-[#fff7ed] px-4 py-3">
               Support queue (all escalations)
             </Link>
           </div>

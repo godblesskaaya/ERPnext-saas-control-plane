@@ -1,6 +1,19 @@
 "use client";
 
+import NextLink from "next/link";
 import { useEffect, useMemo, useState } from "react";
+
+import {
+  Alert,
+  Button,
+  Card,
+  CardContent,
+  Grid,
+  Link,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
 
 import {
   loadAccountBillingInvoices,
@@ -97,96 +110,133 @@ export default function DashboardAccountPage() {
   const latestInvoice = useMemo(() => pickLatestInvoice(invoices), [invoices]);
 
   return (
-    <section className="space-y-6">
-      <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
-        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Account workspace</p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">Account summary</h1>
-        <p className="mt-1 text-sm text-slate-600">
+    <Stack spacing={3}>
+      <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 3, borderRadius: 4 }}>
+        <Typography variant="overline" sx={{ color: "warning.dark", fontWeight: 700, letterSpacing: 0.8 }}>
+          Account workspace
+        </Typography>
+        <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 700 }}>
+          Account summary
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
           Identity, billing, and readiness details for your control-plane account.
-        </p>
-      </div>
+        </Typography>
+      </Paper>
 
-      {profileError ? <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{profileError}</p> : null}
+      {profileError ? <Alert severity="error" variant="outlined">{profileError}</Alert> : null}
 
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 text-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Email</p>
-          <p className="mt-1 font-semibold text-slate-900">{profile?.email ?? "—"}</p>
-        </article>
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 text-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Role</p>
-          <p className="mt-1 font-semibold text-slate-900">{profile?.role ?? "—"}</p>
-        </article>
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 text-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Phone (SMS)</p>
-          <p className="mt-1 font-semibold text-slate-900">{profile?.phone || "Not set"}</p>
-        </article>
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 text-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Email verification</p>
-          <p className="mt-1 font-semibold text-slate-900">{profile?.email_verified ? "Verified" : "Pending"}</p>
-        </article>
-      </div>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+          <Card variant="outlined" sx={{ height: "100%", borderRadius: 3 }}>
+            <CardContent>
+              <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.7 }}>
+                Email
+              </Typography>
+              <Typography variant="subtitle1" sx={{ mt: 0.5, fontWeight: 700 }}>{profile?.email ?? "—"}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+          <Card variant="outlined" sx={{ height: "100%", borderRadius: 3 }}>
+            <CardContent>
+              <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.7 }}>
+                Role
+              </Typography>
+              <Typography variant="subtitle1" sx={{ mt: 0.5, fontWeight: 700 }}>{profile?.role ?? "—"}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+          <Card variant="outlined" sx={{ height: "100%", borderRadius: 3 }}>
+            <CardContent>
+              <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.7 }}>
+                Phone (SMS)
+              </Typography>
+              <Typography variant="subtitle1" sx={{ mt: 0.5, fontWeight: 700 }}>{profile?.phone || "Not set"}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+          <Card variant="outlined" sx={{ height: "100%", borderRadius: 3 }}>
+            <CardContent>
+              <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.7 }}>
+                Email verification
+              </Typography>
+              <Typography variant="subtitle1" sx={{ mt: 0.5, fontWeight: 700 }}>
+                {profile?.email_verified ? "Verified" : "Pending"}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-5">
-          <p className="text-sm font-semibold text-slate-900">Billing workspace</p>
-          <p className="mt-1 text-sm text-slate-600">
-            Continue collections, invoice reviews, and payment follow-up from your billing workspace.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {portalUrl ? (
-              <a
-                href={portalUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-full bg-[#0d6a6a] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0b5a5a]"
-              >
-                Open billing portal
-              </a>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, lg: 6 }}>
+          <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 2.5, borderRadius: 4, height: "100%" }}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Billing workspace
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+              Continue collections, invoice reviews, and payment follow-up from your billing workspace.
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+              {portalUrl ? (
+                <Button component="a" href={portalUrl} target="_blank" rel="noreferrer" variant="contained" color="primary" size="small">
+                  Open billing portal
+                </Button>
+              ) : (
+                <Button component={NextLink} href="/billing" variant="outlined" color="warning" size="small">
+                  Open payment center
+                </Button>
+              )}
+            </Stack>
+            {portalError ? (
+              <Typography variant="caption" color="error" sx={{ display: "block", mt: 1.25 }}>
+                {portalError}
+              </Typography>
+            ) : null}
+          </Paper>
+        </Grid>
+
+        <Grid size={{ xs: 12, lg: 6 }}>
+          <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 2.5, borderRadius: 4, height: "100%" }}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Latest invoice snapshot
+            </Typography>
+            {!invoicesSupported ? (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                Invoice endpoint is not available on this backend deployment.
+              </Typography>
+            ) : latestInvoice ? (
+              <Stack spacing={0.5} sx={{ mt: 1.25 }}>
+                <Typography variant="body2">
+                  Amount due: <strong>{formatMoney(latestInvoice.amount_due, latestInvoice.currency)}</strong>
+                </Typography>
+                <Typography variant="body2">
+                  Status: <strong>{latestInvoice.status ?? "unknown"}</strong>
+                </Typography>
+                <Typography variant="body2">
+                  Created: <strong>{formatTimestamp(latestInvoice.created_at ?? null)}</strong>
+                </Typography>
+                {latestInvoice.hosted_invoice_url ? (
+                  <Link href={latestInvoice.hosted_invoice_url} target="_blank" rel="noreferrer" underline="hover" sx={{ mt: 0.75 }}>
+                    View invoice
+                  </Link>
+                ) : null}
+              </Stack>
             ) : (
-              <a
-                href="/dashboard/billing"
-                className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-amber-300"
-              >
-                Go to billing queue
-              </a>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                No invoice data available yet.
+              </Typography>
             )}
-          </div>
-          {portalError ? <p className="mt-2 text-xs text-red-700">{portalError}</p> : null}
-        </div>
-
-        <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-5">
-          <p className="text-sm font-semibold text-slate-900">Latest invoice snapshot</p>
-          {!invoicesSupported ? (
-            <p className="mt-2 text-sm text-slate-600">Invoice endpoint is not available on this backend deployment.</p>
-          ) : latestInvoice ? (
-            <div className="mt-2 space-y-1 text-sm text-slate-700">
-              <p>
-                Amount due: <span className="font-semibold">{formatMoney(latestInvoice.amount_due, latestInvoice.currency)}</span>
-              </p>
-              <p>
-                Status: <span className="font-semibold">{latestInvoice.status ?? "unknown"}</span>
-              </p>
-              <p>
-                Created: <span className="font-semibold">{formatTimestamp(latestInvoice.created_at ?? null)}</span>
-              </p>
-              {latestInvoice.hosted_invoice_url ? (
-                <a
-                  href={latestInvoice.hosted_invoice_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex rounded-full border border-amber-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-amber-300"
-                >
-                  View invoice
-                </a>
-              ) : null}
-            </div>
-          ) : (
-            <p className="mt-2 text-sm text-slate-600">No invoice data available yet.</p>
-          )}
-          {invoiceError ? <p className="mt-2 text-xs text-red-700">{invoiceError}</p> : null}
-        </div>
-      </div>
-    </section>
+            {invoiceError ? (
+              <Typography variant="caption" color="error" sx={{ display: "block", mt: 1.25 }}>
+                {invoiceError}
+              </Typography>
+            ) : null}
+          </Paper>
+        </Grid>
+      </Grid>
+    </Stack>
   );
 }

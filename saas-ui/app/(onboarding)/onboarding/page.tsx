@@ -735,9 +735,9 @@ export default function OnboardingPage() {
                   </button>
                   <button
                     className="rounded-full border border-amber-200 px-3 py-1.5 text-xs text-slate-700 hover:border-amber-300"
-                    onClick={() => router.push("/dashboard/support")}
+                    onClick={() => router.push("/dashboard/settings")}
                   >
-                    Contact support
+                    Open workspace settings
                   </button>
                   {retryError ? <p className="w-full text-xs text-red-700">{retryError}</p> : null}
                 </div>

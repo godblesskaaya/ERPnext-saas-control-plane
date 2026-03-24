@@ -72,6 +72,7 @@ export default function DashboardProvisioningPage() {
 
   return (
     <WorkspaceQueuePage
+      routeScope="admin"
       title="Provisioning queue"
       description="Deployments, upgrades, and restores still running—resolve blockers fast."
       statusFilter={["pending", "provisioning", "upgrading", "restoring", "pending_deletion"]}
@@ -82,8 +83,8 @@ export default function DashboardProvisioningPage() {
       attentionNote="Work through deployments and upgrades to keep customers live."
       emptyStateTitle="No provisioning workspaces right now"
       emptyStateBody="Deployments and upgrades are clear."
-      emptyStateActionLabel="View active tenants"
-      emptyStateActionHref="/dashboard/active"
+      emptyStateActionLabel="Open tenant control"
+      emptyStateActionHref="/admin/control/tenants"
       extraContent={
         <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
           <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-5">

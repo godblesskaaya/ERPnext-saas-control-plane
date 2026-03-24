@@ -29,6 +29,7 @@ const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed", "deleted", "cancel
 type QueueConfig = {
   title: string;
   description: string;
+  routeScope?: "workspace" | "admin";
   statusFilter?: string[];
   billingFilter?: string[];
   billingFilterMode?: "and" | "or";
@@ -69,6 +70,7 @@ function metricCard(label: string, value: number, hint: string, tone: "default" 
 export function WorkspaceQueuePage({
   title,
   description,
+  routeScope = "workspace",
   statusFilter,
   billingFilter,
   billingFilterMode = "and",
@@ -249,6 +251,115 @@ export function WorkspaceQueuePage({
     (needsAttentionCount === 0
       ? "All clear. No provisioning blockers right now."
       : `${needsAttentionCount} item(s) need attention in your queue.`);
+  const isAdminScope = routeScope === "admin";
+  const billingFollowUpHref = isAdminScope ? "/admin/billing" : "/billing";
+  const billingFollowUpLabel = isAdminScope ? "Go to billing follow-ups" : "Open payment center";
+  const statusOptions = isAdminScope
+    ? [
+        ["all", "All statuses"],
+        ["active", "Active"],
+        ["pending_payment", "Pending payment"],
+        ["pending", "Pending"],
+        ["provisioning", "Provisioning"],
+        ["failed", "Failed"],
+        ["suspended", "Suspended (all)"],
+        ["suspended_admin", "Suspended (admin)"],
+        ["suspended_billing", "Suspended (billing)"],
+        ["upgrading", "Upgrading"],
+        ["restoring", "Restoring"],
+        ["pending_deletion", "Pending deletion"],
+      ]
+    : [
+        ["all", "All statuses"],
+        ["active", "Active"],
+        ["pending_payment", "Pending payment"],
+        ["pending", "Pending"],
+        ["provisioning", "Provisioning"],
+        ["failed", "Failed"],
+        ["suspended", "Suspended"],
+        ["upgrading", "Upgrading"],
+        ["restoring", "Restoring"],
+      ];
+
+  const actionCenterCards = useMemo(() => {
+    if (isAdminScope) {
+      return [
+        {
+          href: "/admin/onboarding",
+          eyebrow: "Payment confirmation",
+          value: pendingPaymentTenants,
+          description: "Sign-ups waiting for payment confirmation.",
+          valueClassName: "text-amber-800",
+          className: "bg-[#fff7ed]",
+        },
+        {
+          href: "/admin/provisioning",
+          eyebrow: "Provisioning queue",
+          value: provisioningQueueTenants,
+          description: "Deployments and upgrades still in progress.",
+        },
+        {
+          href: "/admin/incidents",
+          eyebrow: "System failures",
+          value: failedTenants,
+          description: "Provisioning failures needing operator action.",
+          valueClassName: "text-red-700",
+        },
+        {
+          href: "/admin/suspensions",
+          eyebrow: "Account suspensions",
+          value: suspendedTenants,
+          description: "Admin or billing suspensions to review.",
+        },
+        {
+          href: "/admin/billing",
+          eyebrow: "Billing follow-ups",
+          value: billingQueueCount,
+          description: "Pending payments and failed billing workspaces.",
+          className: "bg-[#f7fbf9]",
+        },
+      ];
+    }
+
+    return [
+      {
+        href: "/billing",
+        eyebrow: "Payments",
+        value: pendingPaymentTenants,
+        description: "Resume checkout and review unpaid invoices.",
+        valueClassName: "text-amber-800",
+        className: "bg-[#fff7ed]",
+      },
+      {
+        href: "/dashboard/registry",
+        eyebrow: "Tenant registry",
+        value: totalTenants,
+        description: "Search all workspaces and open tenant detail.",
+      },
+      {
+        href: "/dashboard/active",
+        eyebrow: "Active workspaces",
+        value: activeTenants,
+        description: "Monitor live customers and continue routine actions.",
+      },
+      {
+        href: "/onboarding",
+        eyebrow: "Onboarding",
+        value: provisioningTenants,
+        description: "Track setup progress for newly created workspaces.",
+      },
+    ];
+  }, [
+    activeTenants,
+    billingQueueCount,
+    failedTenants,
+    isAdminScope,
+    pendingPaymentTenants,
+    provisioningQueueTenants,
+    provisioningTenants,
+    suspendedTenants,
+    totalTenants,
+  ]);
 
   const setTenantJob = (tenantId: string, job: Job) => {
     setJobsByTenant((previous) => ({ ...previous, [tenantId]: job }));
@@ -385,7 +496,7 @@ export function WorkspaceQueuePage({
           </div>
 
           <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
-            <p className="text-sm font-semibold text-slate-900">Ops pulse</p>
+            <p className="text-sm font-semibold text-slate-900">{isAdminScope ? "Ops pulse" : "Workspace pulse"}</p>
             <div className="mt-3 space-y-3 text-sm text-slate-600">
               <div className="rounded-xl border border-amber-200/70 bg-[#fdf7ee] p-3">
                 <p className="text-xs uppercase tracking-wide text-slate-500">Last refresh</p>
@@ -394,13 +505,19 @@ export function WorkspaceQueuePage({
               <div className="rounded-xl border border-amber-200/70 bg-white p-3">
                 <p className="text-xs uppercase tracking-wide text-slate-500">Coverage note</p>
                 <p className="text-sm text-slate-600">
-                  Designed for branch teams running on laptop + phone across Tanzania.
+                  {isAdminScope
+                    ? "Designed for branch teams running on laptop + phone across Tanzania."
+                    : "Designed for customer teams running sales, finance, and stock workflows across Tanzania."}
                 </p>
               </div>
               <div className="rounded-xl border border-amber-200/70 bg-[#f7fbf9] p-3">
                 <p className="text-xs uppercase tracking-wide text-slate-500">Next best action</p>
                 <p className="text-sm text-slate-700">
-                  {needsAttentionCount > 0 ? "Review failed or provisioning workspaces first." : "Audit active tenants or queue new workspaces."}
+                  {needsAttentionCount > 0
+                    ? isAdminScope
+                      ? "Review failed or provisioning workspaces first."
+                      : "Review pending payments and setup blockers first."
+                    : "Audit active tenants or queue new workspaces."}
                 </p>
               </div>
             </div>
@@ -436,7 +553,12 @@ export function WorkspaceQueuePage({
           {metricCard("Total workspaces", totalTenants, "All customer environments under management")}
           {metricCard("Healthy", activeTenants, "Ready for daily sales, stock, and finance activity", "good")}
           {metricCard("In setup", provisioningTenants, "Still being provisioned or awaiting payment checks", "warn")}
-          {metricCard("Needs rescue", failedTenants, "Provisioning failed and requires operator action", failedTenants > 0 ? "warn" : "default")}
+          {metricCard(
+            "Needs follow-up",
+            failedTenants,
+            isAdminScope ? "Provisioning failed and requires operator action" : "Provisioning failed and needs support follow-up",
+            failedTenants > 0 ? "warn" : "default",
+          )}
         </div>
       ) : null}
 
@@ -445,36 +567,26 @@ export function WorkspaceQueuePage({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Action center</p>
-              <p className="text-lg font-semibold text-slate-900">Queues that need attention</p>
+              <p className="text-lg font-semibold text-slate-900">
+                {isAdminScope ? "Queues that need attention" : "Workspace priorities"}
+              </p>
             </div>
-            <span className="text-xs text-slate-500">Inspired by AWS Health dashboards</span>
+            <span className="text-xs text-slate-500">
+              {isAdminScope ? "Inspired by AWS Health dashboards" : "Journey-first workspace routing"}
+            </span>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <Link href="/dashboard/onboarding" className="rounded-2xl border border-amber-200 bg-[#fff7ed] p-4 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Payment confirmation</p>
-              <p className="mt-1 text-2xl font-semibold text-amber-800">{pendingPaymentTenants}</p>
-              <p className="mt-1 text-xs text-slate-600">Sign-ups waiting for payment confirmation.</p>
-            </Link>
-            <Link href="/dashboard/provisioning" className="rounded-2xl border border-amber-200 bg-white p-4 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Provisioning queue</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-800">{provisioningQueueTenants}</p>
-              <p className="mt-1 text-xs text-slate-600">Deployments and upgrades still in progress.</p>
-            </Link>
-            <Link href="/dashboard/incidents" className="rounded-2xl border border-amber-200 bg-white p-4 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-500">System failures</p>
-              <p className="mt-1 text-2xl font-semibold text-red-700">{failedTenants}</p>
-              <p className="mt-1 text-xs text-slate-600">Provisioning failures needing operator action.</p>
-            </Link>
-            <Link href="/dashboard/suspensions" className="rounded-2xl border border-amber-200 bg-white p-4 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Account suspensions</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-800">{suspendedTenants}</p>
-              <p className="mt-1 text-xs text-slate-600">Admin or billing suspensions to review.</p>
-            </Link>
-            <Link href="/dashboard/billing" className="rounded-2xl border border-amber-200 bg-[#f7fbf9] p-4 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Billing follow-ups</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-800">{billingQueueCount}</p>
-              <p className="mt-1 text-xs text-slate-600">Pending payments and failed billing workspaces.</p>
-            </Link>
+            {actionCenterCards.map((card) => (
+              <Link
+                key={card.href}
+                href={card.href}
+                className={`rounded-2xl border border-amber-200 p-4 text-sm ${card.className ?? "bg-white"}`}
+              >
+                <p className="text-xs uppercase tracking-wide text-slate-500">{card.eyebrow}</p>
+                <p className={`mt-1 text-2xl font-semibold ${card.valueClassName ?? "text-slate-800"}`}>{card.value}</p>
+                <p className="mt-1 text-xs text-slate-600">{card.description}</p>
+              </Link>
+            ))}
           </div>
         </div>
       ) : null}
@@ -512,10 +624,10 @@ export function WorkspaceQueuePage({
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Link
-              href="/dashboard/billing"
+              href={billingFollowUpHref}
               className="rounded-full border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-800 hover:border-red-400"
             >
-              Go to billing follow-ups
+              {billingFollowUpLabel}
             </Link>
             <button
               className="rounded-full border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-800 hover:border-red-400"
@@ -564,18 +676,11 @@ export function WorkspaceQueuePage({
                 value={statusFilterValue}
                 onChange={(event) => setStatusFilterValue(event.target.value)}
               >
-                <option value="all">All statuses</option>
-                <option value="active">Active</option>
-                <option value="pending_payment">Pending payment</option>
-                <option value="pending">Pending</option>
-                <option value="provisioning">Provisioning</option>
-                <option value="failed">Failed</option>
-                <option value="suspended">Suspended (all)</option>
-                <option value="suspended_admin">Suspended (admin)</option>
-                <option value="suspended_billing">Suspended (billing)</option>
-                <option value="upgrading">Upgrading</option>
-                <option value="restoring">Restoring</option>
-                <option value="pending_deletion">Pending deletion</option>
+                {statusOptions.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
               </select>
             ) : (
               <div className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-slate-700">

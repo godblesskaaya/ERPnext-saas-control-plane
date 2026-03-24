@@ -12,6 +12,21 @@ function isActiveRoute(pathname: string, item: DashboardNavItem): boolean {
 }
 
 const workspaceSections = getDashboardNavSectionsByMode("workspace");
+const keyWorkspaceRoutes = new Set([
+  "/dashboard/overview",
+  "/dashboard/registry",
+  "/dashboard/active",
+  "/billing",
+  "/dashboard/billing-details",
+  "/dashboard/account",
+  "/dashboard/settings",
+]);
+const keyFeatureWorkspaceSections = workspaceSections
+  .map((section) => ({
+    ...section,
+    items: section.items.filter((item) => keyWorkspaceRoutes.has(item.href)),
+  }))
+  .filter((section) => section.items.length > 0);
 
 export function DashboardNav() {
   const pathname = usePathname();
@@ -46,7 +61,7 @@ export function DashboardNav() {
 
         <Divider />
 
-        {workspaceSections.map((section) => (
+        {keyFeatureWorkspaceSections.map((section) => (
           <Box key={section.title}>
             <Typography variant="caption" sx={{ fontWeight: 700, textTransform: "uppercase", color: "text.secondary" }}>
               {section.title}
@@ -88,4 +103,3 @@ export function DashboardNav() {
     </Paper>
   );
 }
-

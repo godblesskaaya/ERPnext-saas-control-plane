@@ -5,6 +5,7 @@ import { WorkspaceQueuePage } from "../../../../domains/dashboard/components/Wor
 export default function DashboardSuspensionsPage() {
   return (
     <WorkspaceQueuePage
+      routeScope="admin"
       title="Account suspensions"
       description="Admin and billing suspensions requiring review or reactivation."
       statusFilter={["suspended", "suspended_admin", "suspended_billing"]}
@@ -16,7 +17,7 @@ export default function DashboardSuspensionsPage() {
       emptyStateTitle="No suspended workspaces"
       emptyStateBody="There are no suspended tenants waiting for review."
       emptyStateActionLabel="Review billing follow-ups"
-      emptyStateActionHref="/dashboard/billing"
+      emptyStateActionHref="/admin/billing"
     />
   );
 }

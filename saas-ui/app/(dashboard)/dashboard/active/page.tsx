@@ -5,8 +5,9 @@ import { WorkspaceQueuePage } from "../../../../domains/dashboard/components/Wor
 export default function DashboardActivePage() {
   return (
     <WorkspaceQueuePage
+      routeScope="workspace"
       title="Active tenants"
-      description="Monitor live tenants and run routine operations like backups, plan changes, and admin resets."
+      description="Monitor live tenants and run routine operations like backups, plan updates, and workspace health checks."
       statusFilter={["active"]}
       showMetrics
       showAttention={false}
@@ -16,7 +17,7 @@ export default function DashboardActivePage() {
       emptyStateTitle="No active tenants yet"
       emptyStateBody="Once provisioning is complete, live tenants will appear here for routine operations."
       emptyStateActionLabel="Review onboarding queue"
-      emptyStateActionHref="/dashboard/onboarding"
+      emptyStateActionHref="/onboarding"
     />
   );
 }

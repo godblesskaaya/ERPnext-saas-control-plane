@@ -14,7 +14,7 @@ export type DashboardNavSection = {
   items: DashboardNavItem[];
 };
 
-export const defaultDashboardNavMode: DashboardNavMode = "operations";
+export const defaultDashboardNavMode: DashboardNavMode = "workspace";
 
 export const dashboardNavSections: DashboardNavSection[] = [
   {
@@ -22,12 +22,12 @@ export const dashboardNavSections: DashboardNavSection[] = [
     title: "Lifecycle routing",
     description: "Track onboarding, provisioning, incidents, and tenant activity from one flow.",
     items: [
-      { href: "/dashboard", label: "Workflow hub", hint: "Entry point by operational journey" },
-      { href: "/dashboard/onboarding", label: "Payment onboarding", hint: "Awaiting payment confirmations" },
-      { href: "/dashboard/provisioning", label: "Provisioning queue", hint: "Deployments and upgrades in progress" },
-      { href: "/dashboard/incidents", label: "Incidents", hint: "Provisioning failures and rescue queue" },
-      { href: "/dashboard/suspensions", label: "Suspensions", hint: "Admin and billing suspends" },
-      { href: "/dashboard/activity", label: "Jobs timeline", hint: "Recent operational events" },
+      { href: "/admin/control/overview", label: "Workflow hub", hint: "Entry point by operational journey" },
+      { href: "/admin/onboarding", label: "Payment onboarding", hint: "Awaiting payment confirmations" },
+      { href: "/admin/provisioning", label: "Provisioning queue", hint: "Deployments and upgrades in progress" },
+      { href: "/admin/incidents", label: "Incidents", hint: "Provisioning failures and rescue queue" },
+      { href: "/admin/suspensions", label: "Suspensions", hint: "Admin and billing suspends" },
+      { href: "/admin/activity", label: "Jobs timeline", hint: "Recent operational events" },
     ],
   },
   {
@@ -50,8 +50,8 @@ export const dashboardNavSections: DashboardNavSection[] = [
     title: "Billing routing",
     description: "Collections, dunning actions, and invoice visibility.",
     items: [
-      { href: "/dashboard/billing-ops", label: "Dunning operations", hint: "Retry cycles and billing actions" },
-      { href: "/dashboard/billing", label: "Billing follow-ups", hint: "Pending payments and support handoff" },
+      { href: "/admin/billing-ops", label: "Dunning operations", hint: "Retry cycles and billing actions" },
+      { href: "/admin/billing", label: "Billing follow-ups", hint: "Pending payments and support handoff" },
     ],
   },
   {
@@ -68,9 +68,9 @@ export const dashboardNavSections: DashboardNavSection[] = [
     title: "Support routing",
     description: "SLA management, auditability, and escalation readiness.",
     items: [
-      { href: "/dashboard/support-overview", label: "Support overview", hint: "SLA pressure and support load" },
-      { href: "/dashboard/support", label: "Support queue", hint: "Case ownership and notes" },
-      { href: "/dashboard/audit", label: "Audit & policy", hint: "Compliance and operational audit trail" },
+      { href: "/admin/support-overview", label: "Support overview", hint: "SLA pressure and support load" },
+      { href: "/admin/support", label: "Support queue", hint: "Case ownership and notes" },
+      { href: "/admin/audit", label: "Audit & policy", hint: "Compliance and operational audit trail" },
     ],
   },
   {
@@ -86,7 +86,7 @@ export const dashboardNavSections: DashboardNavSection[] = [
     mode: "operations",
     title: "Platform routing",
     description: "Infrastructure health and control-plane readiness.",
-    items: [{ href: "/dashboard/platform-health", label: "Platform health", hint: "Queues, jobs, and infra checks" }],
+    items: [{ href: "/admin/platform-health", label: "Platform health", hint: "Queues, jobs, and infra checks" }],
   },
 ];
 

@@ -34,6 +34,7 @@ export default function DashboardBillingPage() {
   }, []);
   return (
     <WorkspaceQueuePage
+      routeScope="admin"
       title="Billing follow-ups"
       description="Past-due, failed, and suspended billing cases."
       showMetrics
@@ -143,7 +144,7 @@ export default function DashboardBillingPage() {
       emptyStateTitle="No billing follow-ups right now"
       emptyStateBody="All tenants have paid or are in onboarding."
       emptyStateActionLabel="View onboarding payments"
-      emptyStateActionHref="/dashboard/onboarding"
+      emptyStateActionHref="/admin/onboarding"
     />
   );
 }

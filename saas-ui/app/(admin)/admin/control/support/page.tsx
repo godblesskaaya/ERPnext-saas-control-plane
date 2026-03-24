@@ -1,1 +1,5 @@
-export { default } from "../../page";
+import { AdminConsolePage } from "../../page";
+
+export default function AdminControlSupportPage() {
+  return <AdminConsolePage forcedView="support" />;
+}

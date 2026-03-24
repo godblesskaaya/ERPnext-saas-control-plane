@@ -53,7 +53,7 @@ type TenantAdminAction = {
   phrase: string;
 };
 
-type AdminView = "overview" | "tenants" | "jobs" | "audit" | "support" | "recovery";
+export type AdminView = "overview" | "tenants" | "jobs" | "audit" | "support" | "recovery";
 
 const ADMIN_VIEWS: AdminView[] = ["overview", "tenants", "jobs", "audit", "support", "recovery"];
 const ADMIN_VIEW_ROUTES: Record<AdminView, string> = {
@@ -104,7 +104,11 @@ function metricCard(label: string, value: number, hint: string, tone: "default" 
   );
 }
 
-export default function AdminPage() {
+type AdminConsolePageProps = {
+  forcedView?: AdminView;
+};
+
+export function AdminConsolePage({ forcedView }: AdminConsolePageProps) {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [tenantsError, setTenantsError] = useState<string | null>(null);
   const [busyTenantId, setBusyTenantId] = useState<string | null>(null);
@@ -153,13 +157,16 @@ export default function AdminPage() {
   const searchParams = useSearchParams();
 
   const currentView = useMemo<AdminView>(() => {
+    if (forcedView) {
+      return forcedView;
+    }
     const pathView = inferAdminViewFromPathname(pathname);
     if (pathView) {
       return pathView;
     }
     const viewParam = searchParams.get("view");
     return isAdminView(viewParam) ? viewParam : "overview";
-  }, [pathname, searchParams]);
+  }, [forcedView, pathname, searchParams]);
 
   const buildViewHref = useCallback((view: AdminView) => ADMIN_VIEW_ROUTES[view], []);
 
@@ -1044,4 +1051,8 @@ export default function AdminPage() {
       ) : null}
     </section>
   );
+}
+
+export default function AdminPage() {
+  return <AdminConsolePage />;
 }

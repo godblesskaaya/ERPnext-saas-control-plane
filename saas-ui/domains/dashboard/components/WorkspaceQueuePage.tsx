@@ -51,6 +51,15 @@ type QueueConfig = {
   emptyStateActionHref?: string;
 };
 
+type ActionCenterCard = {
+  href: string;
+  eyebrow: string;
+  value: number;
+  description: string;
+  cardBgColor?: string;
+  valueColor?: string;
+};
+
 function metricCard(label: string, value: number, hint: string, tone: "default" | "good" | "warn" = "default") {
   const toneSx =
     tone === "good"
@@ -290,7 +299,7 @@ export function WorkspaceQueuePage({
         ["restoring", "Restoring"],
       ];
 
-  const actionCenterCards = useMemo(() => {
+  const actionCenterCards = useMemo<ActionCenterCard[]>(() => {
     if (isAdminScope) {
       return [
         {
@@ -298,8 +307,8 @@ export function WorkspaceQueuePage({
           eyebrow: "Payment confirmation",
           value: pendingPaymentTenants,
           description: "Sign-ups waiting for payment confirmation.",
-          valueClassName: "text-amber-800",
-          className: "bg-[#fff7ed]",
+          valueColor: "warning.dark",
+          cardBgColor: "#fff7ed",
         },
         {
           href: "/admin/provisioning",
@@ -312,7 +321,7 @@ export function WorkspaceQueuePage({
           eyebrow: "System failures",
           value: failedTenants,
           description: "Provisioning failures needing operator action.",
-          valueClassName: "text-red-700",
+          valueColor: "error.main",
         },
         {
           href: "/admin/suspensions",
@@ -325,7 +334,7 @@ export function WorkspaceQueuePage({
           eyebrow: "Billing follow-ups",
           value: billingQueueCount,
           description: "Pending payments and failed billing workspaces.",
-          className: "bg-[#f7fbf9]",
+          cardBgColor: "#f7fbf9",
         },
       ];
     }
@@ -336,8 +345,8 @@ export function WorkspaceQueuePage({
         eyebrow: "Payments",
         value: pendingPaymentTenants,
         description: "Resume checkout and review unpaid invoices.",
-        valueClassName: "text-amber-800",
-        className: "bg-[#fff7ed]",
+        valueColor: "warning.dark",
+        cardBgColor: "#fff7ed",
       },
       {
         href: "/dashboard/registry",
@@ -582,26 +591,41 @@ export function WorkspaceQueuePage({
       ) : null}
 
       {currentUser && !currentUser.email_verified ? (
-        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-amber-900">Email verification required</p>
-              <p className="text-xs text-amber-800">
-                Verify {currentUser.email} before creating a workspace. Check your inbox for the verification link.
-              </p>
-            </div>
-            <button
-              className="rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:border-amber-400 disabled:opacity-60"
-              disabled={resendBusy}
-              onClick={() => {
-                void resendVerification();
-              }}
-            >
-              {resendBusy ? "Sending..." : "Resend verification"}
-            </button>
-          </div>
-          {verificationNotice ? <p className="mt-2 text-xs text-amber-800">{verificationNotice}</p> : null}
-        </div>
+        <Alert
+          severity="warning"
+          variant="outlined"
+          sx={{ borderRadius: 4, borderColor: "rgba(245,158,11,0.4)", bgcolor: "#fffbeb", px: 2, py: 1.5 }}
+        >
+          <Stack spacing={1.5}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} justifyContent="space-between" alignItems={{ sm: "center" }}>
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "warning.dark" }}>
+                  Email verification required
+                </Typography>
+                <Typography variant="caption" sx={{ color: "warning.dark" }}>
+                  Verify {currentUser.email} before creating a workspace. Check your inbox for the verification link.
+                </Typography>
+              </Box>
+              <Button
+                variant="outlined"
+                color="warning"
+                size="small"
+                sx={{ borderRadius: 999, alignSelf: { xs: "flex-start", sm: "auto" } }}
+                disabled={resendBusy}
+                onClick={() => {
+                  void resendVerification();
+                }}
+              >
+                {resendBusy ? "Sending..." : "Resend verification"}
+              </Button>
+            </Stack>
+            {verificationNotice ? (
+              <Typography variant="caption" sx={{ color: "warning.dark" }}>
+                {verificationNotice}
+              </Typography>
+            ) : null}
+          </Stack>
+        </Alert>
       ) : null}
 
       {showMetrics ? (
@@ -637,11 +661,14 @@ export function WorkspaceQueuePage({
             <Box sx={{ mt: 2, display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
               {actionCenterCards.map((card) => (
                 <Box key={card.href} component={Link} href={card.href} sx={{ textDecoration: "none" }}>
-                  <Card variant="outlined" sx={{ borderRadius: 3, borderColor: "rgba(245,158,11,0.35)", p: 2, bgcolor: card.className ? "#f7fbf9" : "background.paper" }}>
+                  <Card
+                    variant="outlined"
+                    sx={{ borderRadius: 3, borderColor: "rgba(245,158,11,0.35)", p: 2, bgcolor: card.cardBgColor ?? "background.paper" }}
+                  >
                     <Typography variant="caption" sx={{ textTransform: "uppercase", letterSpacing: 0.6 }} color="text.secondary">
                       {card.eyebrow}
                     </Typography>
-                    <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 700, color: card.valueClassName ? "warning.dark" : "text.primary" }}>
+                    <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 700, color: card.valueColor ?? "text.primary" }}>
                       {card.value}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
@@ -787,7 +814,9 @@ export function WorkspaceQueuePage({
       ) : null}
 
       {error ? (
-        <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>
+        <Alert severity="error" variant="outlined" sx={{ borderRadius: 3 }}>
+          {error}
+        </Alert>
       ) : null}
 
       {extraContent}
@@ -864,27 +893,38 @@ export function WorkspaceQueuePage({
         emptyStateActionHref={emptyStateActionHref}
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
-        <span>
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1}
+        justifyContent="space-between"
+        alignItems={{ sm: "center" }}
+      >
+        <Typography variant="caption" color="text.secondary">
           Page {page} of {totalPages} • {total} workspaces
-        </span>
-        <div className="flex gap-2">
-          <button
-            className="rounded-full border border-amber-200 px-3 py-1 text-xs text-slate-700 disabled:opacity-50"
+        </Typography>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant="outlined"
+            color="warning"
+            size="small"
+            sx={{ borderRadius: 999 }}
             disabled={page <= 1}
             onClick={() => setPage((prev) => Math.max(1, prev - 1))}
           >
             Previous
-          </button>
-          <button
-            className="rounded-full border border-amber-200 px-3 py-1 text-xs text-slate-700 disabled:opacity-50"
+          </Button>
+          <Button
+            variant="outlined"
+            color="warning"
+            size="small"
+            sx={{ borderRadius: 999 }}
             disabled={page >= totalPages}
             onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
           >
             Next
-          </button>
-        </div>
-      </div>
+          </Button>
+        </Stack>
+      </Stack>
     </Stack>
   );
 }

@@ -3,7 +3,20 @@
 import {
   Alert,
   Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Link,
   Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
   Typography,
 } from "@mui/material";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -469,87 +482,153 @@ export default function TenantDetailPage() {
   return (
     <Box component="section" sx={{ display: "grid", gap: 3 }}>
       <Paper id="overview" variant="outlined" sx={sectionPaperSx}>
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
-          <div>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Tenant workspace</p>
-                <h1 className="text-3xl font-semibold text-slate-900">{tenant.company_name}</h1>
-                <p className="text-sm text-slate-600">Control-plane operational view for this customer workspace.</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <a
+        <Box
+          sx={{
+            display: "grid",
+            gap: 3,
+            gridTemplateColumns: { xs: "1fr", lg: "minmax(0,1fr) 260px" },
+          }}
+        >
+          <Box>
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing={2}
+              alignItems={{ md: "flex-start" }}
+              justifyContent="space-between"
+            >
+              <Stack spacing={1}>
+                <Typography variant="caption" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, color: "warning.dark" }}>
+                  Tenant workspace
+                </Typography>
+                <Typography component="h1" variant="h4" sx={{ fontWeight: 700 }}>
+                  {tenant.company_name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Control-plane operational view for this customer workspace.
+                </Typography>
+              </Stack>
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                <Button
+                  component="a"
                   href={`https://${tenant.domain}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-full bg-[#0d6a6a] px-4 py-2 text-xs font-semibold text-white"
+                  variant="contained"
+                  size="small"
+                  sx={{ borderRadius: 99, px: 2, py: 1, textTransform: "none", fontWeight: 700, bgcolor: "#0d6a6a" }}
                 >
                   Open workspace
-                </a>
+                </Button>
                 {tenant.status.toLowerCase() === "failed" ? (
-                  <button
-                    className="rounded-full border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:border-amber-400 disabled:opacity-60"
+                  <Button
+                    variant="outlined"
+                    size="small"
                     disabled={retrying}
                     onClick={() => void retryProvisioning()}
+                    sx={{
+                      borderRadius: 99,
+                      textTransform: "none",
+                      fontWeight: 700,
+                      color: "warning.dark",
+                      borderColor: "warning.light",
+                      bgcolor: "warning.50",
+                    }}
                   >
                     {retrying ? "Retrying..." : "Retry provisioning"}
-                  </button>
+                  </Button>
                 ) : null}
-              </div>
-            </div>
+              </Stack>
+            </Stack>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Status</p>
-            <p className="mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold text-slate-700">
-              {tenant.status}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Plan</p>
-            <p className="mt-1 text-sm font-semibold text-slate-900">{tenant.plan ?? "—"}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Primary domain</p>
-            <a
-              href={`https://${tenant.domain}`}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-1 block text-sm font-semibold text-[#0d6a6a] hover:text-[#0b5a5a]"
-            >
-              {tenant.domain}
-            </a>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Payment channel</p>
-            <p className="mt-1 text-sm font-semibold text-slate-900">{tenant.payment_channel ?? "—"}</p>
-          </div>
-            </div>
+            <Box sx={{ mt: 3, display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(4, minmax(0,1fr))" } }}>
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>
+                    Status
+                  </Typography>
+                  <Chip label={tenant.status} size="small" sx={{ mt: 1 }} />
+                </CardContent>
+              </Card>
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>
+                    Plan
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1, fontWeight: 700 }}>
+                    {tenant.plan ?? "—"}
+                  </Typography>
+                </CardContent>
+              </Card>
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>
+                    Primary domain
+                  </Typography>
+                  <Link
+                    href={`https://${tenant.domain}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    underline="hover"
+                    sx={{ mt: 1, display: "inline-block", fontWeight: 700, color: "#0d6a6a" }}
+                  >
+                    {tenant.domain}
+                  </Link>
+                </CardContent>
+              </Card>
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>
+                    Payment channel
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1, fontWeight: 700 }}>
+                    {tenant.payment_channel ?? "—"}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Box>
 
-            <p className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            <Alert severity="warning" sx={{ mt: 3 }}>
               Next step: {nextActionByStatus(tenant.status)}
-            </p>
-          </div>
+            </Alert>
+          </Box>
 
-          <aside className="space-y-3 rounded-3xl border border-amber-200/70 bg-white/80 p-4 lg:sticky lg:top-24 lg:self-start">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Quick actions</p>
-            <div className="space-y-2 text-xs text-slate-600">
-              <button
-                className="w-full rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-amber-200 hover:bg-amber-50"
+          <Paper
+            variant="outlined"
+            component="aside"
+            sx={{
+              p: 2,
+              borderRadius: 4,
+              borderColor: "warning.light",
+              bgcolor: "background.paper",
+              alignSelf: { lg: "start" },
+              position: { lg: "sticky" },
+              top: { lg: 96 },
+            }}
+          >
+            <Typography variant="caption" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, color: "warning.dark" }}>
+              Quick actions
+            </Typography>
+            <Stack spacing={1} sx={{ mt: 1.5 }}>
+              <Button
+                variant="outlined"
+                size="small"
                 onClick={() => navigator.clipboard.writeText(tenant.domain)}
+                sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
               >
                 Copy domain
-              </button>
+              </Button>
               {isAdmin ? (
                 <>
-                  <input
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700"
-                    placeholder="Reason (optional)"
+                  <TextField
                     value={actionReason}
                     onChange={(event) => setActionReason(event.target.value)}
+                    placeholder="Reason (optional)"
+                    size="small"
+                    fullWidth
                   />
-                  <button
-                    className="w-full rounded-full border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:border-red-300 disabled:opacity-60"
+                  <Button
+                    variant="outlined"
+                    color="error"
                     disabled={actionBusy}
                     onClick={async () => {
                       if (!tenant) return;
@@ -570,11 +649,13 @@ export default function TenantDetailPage() {
                         setActionBusy(false);
                       }
                     }}
+                    sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
                   >
                     Suspend tenant
-                  </button>
-                  <button
-                    className="w-full rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 hover:border-emerald-300 disabled:opacity-60"
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="success"
                     disabled={actionBusy}
                     onClick={async () => {
                       if (!tenant) return;
@@ -595,290 +676,336 @@ export default function TenantDetailPage() {
                         setActionBusy(false);
                       }
                     }}
+                    sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
                   >
                     Unsuspend tenant
-                  </button>
+                  </Button>
                 </>
               ) : null}
-              {actionNotice ? (
-                <p className="rounded-2xl border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">
-                  {actionNotice}
-                </p>
-              ) : null}
-              {actionError ? (
-                <p className="rounded-2xl border border-red-200 bg-red-50 p-2 text-xs text-red-700">{actionError}</p>
-              ) : null}
+              {actionNotice ? <Alert severity="success">{actionNotice}</Alert> : null}
+              {actionError ? <Alert severity="error">{actionError}</Alert> : null}
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent operations</p>
-                {tenantSummaryError ? (
-                  <p className="mt-2 text-xs text-red-600">{tenantSummaryError}</p>
-                ) : null}
-                {recentJobsError ? (
-                  <p className="mt-2 text-xs text-red-600">{recentJobsError}</p>
-                ) : !recentJobsSupported ? (
-                  <p className="mt-2 text-xs text-slate-500">Job history not available.</p>
-                ) : recentJobs.length ? (
-                  <div className="mt-2 space-y-2 text-xs text-slate-600">
-                    {recentJobs.map((job) => (
-                      <div key={job.id} className="rounded-xl border border-slate-200 px-2 py-1">
-                        <p className="text-xs font-semibold text-slate-700">{job.type}</p>
-                        <p className="text-[11px] text-slate-500">{formatTimestamp(job.created_at)}</p>
-                        <div className="mt-1 flex items-center justify-between gap-2">
-                          <p className="text-[11px] text-slate-500">
-                            Status: {job.status}
-                            {!TERMINAL_JOB_STATUSES.has((job.status || "").toLowerCase())
-                              ? " · in progress"
-                              : ""}
-                          </p>
-                          <button
-                            className="rounded-full border border-amber-200 px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:border-amber-300"
-                            onClick={() => {
-                              if (!id) return;
-                              router.replace(`/tenants/${id}?job=${job.id}#jobs`);
-                            }}
-                          >
-                            View logs
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs text-slate-500">No recent jobs yet.</p>
-                )}
-              </div>
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, color: "text.secondary" }}>
+                    Recent operations
+                  </Typography>
+                  {tenantSummaryError ? <Alert severity="error" sx={{ mt: 1 }}>{tenantSummaryError}</Alert> : null}
+                  {recentJobsError ? (
+                    <Alert severity="error" sx={{ mt: 1 }}>{recentJobsError}</Alert>
+                  ) : !recentJobsSupported ? (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>Job history not available.</Typography>
+                  ) : recentJobs.length ? (
+                    <Stack spacing={1} sx={{ mt: 1 }}>
+                      {recentJobs.map((job) => (
+                        <Paper key={job.id} variant="outlined" sx={{ p: 1, borderRadius: 2 }}>
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: "text.primary" }}>{job.type}</Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{formatTimestamp(job.created_at)}</Typography>
+                          <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mt: 0.5 }}>
+                            <Typography variant="caption" color="text.secondary">
+                              Status: {job.status}
+                              {!TERMINAL_JOB_STATUSES.has((job.status || "").toLowerCase()) ? " · in progress" : ""}
+                            </Typography>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              sx={{ borderRadius: 99, textTransform: "none", py: 0 }}
+                              onClick={() => {
+                                if (!id) return;
+                                router.replace(`/tenants/${id}?job=${job.id}#jobs`);
+                              }}
+                            >
+                              View logs
+                            </Button>
+                          </Stack>
+                        </Paper>
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>No recent jobs yet.</Typography>
+                  )}
+                </CardContent>
+              </Card>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest backup</p>
-                {tenantSummary?.last_backup ? (
-                  <div className="mt-2 text-xs text-slate-600">
-                    <p className="font-semibold text-slate-700">{formatTimestamp(tenantSummary.last_backup.created_at)}</p>
-                    <p className="text-[11px] text-slate-500">
-                      {tenantSummary.last_backup.file_size_bytes
-                        ? `${tenantSummary.last_backup.file_size_bytes} bytes`
-                        : "Size unknown"}
-                    </p>
-                  </div>
-                ) : sortedBackups.length ? (
-                  <div className="mt-2 text-xs text-slate-600">
-                    <p className="font-semibold text-slate-700">
-                      {formatTimestamp(typeof sortedBackups[0].created_at === "string" ? sortedBackups[0].created_at : null)}
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      {sortedBackups[0].file_size_bytes ? `${sortedBackups[0].file_size_bytes} bytes` : "Size unknown"}
-                    </p>
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs text-slate-500">No backup history yet.</p>
-                )}
-              </div>
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, color: "text.secondary" }}>
+                    Latest backup
+                  </Typography>
+                  {tenantSummary?.last_backup ? (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: "text.primary", display: "block" }}>
+                        {formatTimestamp(tenantSummary.last_backup.created_at)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                        {tenantSummary.last_backup.file_size_bytes ? `${tenantSummary.last_backup.file_size_bytes} bytes` : "Size unknown"}
+                      </Typography>
+                    </Box>
+                  ) : sortedBackups.length ? (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: "text.primary", display: "block" }}>
+                        {formatTimestamp(typeof sortedBackups[0].created_at === "string" ? sortedBackups[0].created_at : null)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                        {sortedBackups[0].file_size_bytes ? `${sortedBackups[0].file_size_bytes} bytes` : "Size unknown"}
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>No backup history yet.</Typography>
+                  )}
+                </CardContent>
+              </Card>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest invoice</p>
-                {tenantSummary?.last_invoice ? (
-                  <div className="mt-2 space-y-1 text-xs text-slate-600">
-                    <p className="font-semibold text-slate-700">
-                      {formatCurrencyAmount(tenantSummary.last_invoice.amount_due, tenantSummary.last_invoice.currency)}
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      Status: {tenantSummary.last_invoice.status || "unknown"}
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      {formatTimestamp(tenantSummary.last_invoice.created_at || undefined)}
-                    </p>
-                    {tenantSummary.last_invoice.hosted_invoice_url ? (
-                      <a
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 hover:text-amber-800"
-                        href={tenantSummary.last_invoice.hosted_invoice_url}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        View invoice
-                      </a>
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs text-slate-500">No invoice data yet.</p>
-                )}
-              </div>
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, color: "text.secondary" }}>
+                    Latest invoice
+                  </Typography>
+                  {tenantSummary?.last_invoice ? (
+                    <Stack spacing={0.5} sx={{ mt: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: "text.primary" }}>
+                        {formatCurrencyAmount(tenantSummary.last_invoice.amount_due, tenantSummary.last_invoice.currency)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Status: {tenantSummary.last_invoice.status || "unknown"}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {formatTimestamp(tenantSummary.last_invoice.created_at || undefined)}
+                      </Typography>
+                      {tenantSummary.last_invoice.hosted_invoice_url ? (
+                        <Link
+                          href={tenantSummary.last_invoice.hosted_invoice_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          underline="hover"
+                          sx={{ fontSize: "0.72rem", fontWeight: 700 }}
+                        >
+                          View invoice
+                        </Link>
+                      ) : null}
+                    </Stack>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>No invoice data yet.</Typography>
+                  )}
+                </CardContent>
+              </Card>
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Latest activity</p>
-                {tenantSummary?.last_audit ? (
-                  <div className="mt-2 text-xs text-slate-600">
-                    <p className="font-semibold text-slate-700">{tenantSummary.last_audit.action}</p>
-                    <p className="text-[11px] text-slate-500">
-                      {formatTimestamp(tenantSummary.last_audit.created_at)}
-                    </p>
-                  </div>
-                ) : auditLog.length ? (
-                  <div className="mt-2 text-xs text-slate-600">
-                    <p className="font-semibold text-slate-700">{auditLog[0].action}</p>
-                    <p className="text-[11px] text-slate-500">{formatTimestamp(auditLog[0].created_at)}</p>
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs text-slate-500">No activity logged yet.</p>
-                )}
-              </div>
-            </div>
-          </aside>
-        </div>
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent sx={{ p: 2 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, color: "text.secondary" }}>
+                    Latest activity
+                  </Typography>
+                  {tenantSummary?.last_audit ? (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: "text.primary", display: "block" }}>{tenantSummary.last_audit.action}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                        {formatTimestamp(tenantSummary.last_audit.created_at)}
+                      </Typography>
+                    </Box>
+                  ) : auditLog.length ? (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: "text.primary", display: "block" }}>{auditLog[0].action}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{formatTimestamp(auditLog[0].created_at)}</Typography>
+                    </Box>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>No activity logged yet.</Typography>
+                  )}
+                </CardContent>
+              </Card>
+            </Stack>
+          </Paper>
+        </Box>
       </Paper>
 
       <Paper variant="outlined" sx={{ ...sectionPaperSx, p: 2 }}>
-        {[
-          ["overview", "Overview"],
-          ["subscription", "Subscription"],
-          ["jobs", "Jobs"],
-          ["backups", "Backups"],
-          ["domains", "Domains"],
-          ["team", "Team"],
-          ["activity", "Activity log"],
-          ["support", "Support notes"],
-        ].map(([id, label]) => (
-          <a
-            key={id}
-            href={`#${id}`}
-            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-amber-200 hover:bg-amber-50"
-          >
-            {label}
-          </a>
-        ))}
+        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+          {[
+            ["overview", "Overview"],
+            ["subscription", "Subscription"],
+            ["jobs", "Jobs"],
+            ["backups", "Backups"],
+            ["domains", "Domains"],
+            ["team", "Team"],
+            ["activity", "Activity log"],
+            ["support", "Support notes"],
+          ].map(([id, label]) => (
+            <Button
+              key={id}
+              component="a"
+              href={`#${id}`}
+              variant="outlined"
+              size="small"
+              sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+            >
+              {label}
+            </Button>
+          ))}
+        </Stack>
       </Paper>
 
       <Paper id="subscription" variant="outlined" sx={sectionPaperSx}>
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-slate-900">Subscription details</h2>
-          <button
-            className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-amber-300"
+        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+          <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>
+            Subscription details
+          </Typography>
+          <Button
+            variant="outlined"
+            size="small"
             onClick={() => {
               void loadSubscription();
             }}
+            sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
           >
             Refresh
-          </button>
-        </div>
+          </Button>
+        </Stack>
 
-        {subscriptionError ? (
-          <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{subscriptionError}</p>
-        ) : null}
+        {subscriptionError ? <Alert severity="error" sx={{ mt: 2 }}>{subscriptionError}</Alert> : null}
 
         {!subscriptionSupported ? (
-          <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <Alert severity="warning" sx={{ mt: 2 }}>
             Subscription endpoint is not available on this backend deployment yet.
-          </p>
+          </Alert>
         ) : subscription ? (
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            <article className="rounded-2xl border border-slate-200 bg-white p-3 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Plan</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">{subscription.plan.display_name}</p>
-              <p className="mt-1 text-xs text-slate-500">Isolation: {subscription.plan.isolation_model}</p>
-            </article>
-            <article className="rounded-2xl border border-slate-200 bg-white p-3 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Status</p>
-              <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${subscriptionStatusClass(subscription.status)}`}>
-                {subscription.status}
-              </span>
-              <p className="mt-1 text-xs text-slate-500">Provider: {subscription.payment_provider ?? "—"}</p>
-            </article>
-            <article className="rounded-2xl border border-slate-200 bg-white p-3 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Billing period</p>
-              <p className="mt-1 text-xs text-slate-700">
-                {formatTimestamp(subscription.current_period_start)} → {formatTimestamp(subscription.current_period_end)}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">Next renewal: {formatTimestamp(subscription.current_period_end)}</p>
-            </article>
-            <article className="rounded-2xl border border-slate-200 bg-white p-3 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Selected app</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">{subscription.selected_app ?? "—"}</p>
-              <p className="mt-1 text-xs text-slate-500">Support: {subscription.plan.support_channel}</p>
-            </article>
-            <article className="rounded-2xl border border-slate-200 bg-white p-3 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Trial ends</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">{formatTimestamp(subscription.trial_ends_at)}</p>
-            </article>
-            <article className="rounded-2xl border border-slate-200 bg-white p-3 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Cancelled at</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">{formatTimestamp(subscription.cancelled_at)}</p>
-            </article>
-          </div>
+          <Box sx={{ mt: 2, display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0,1fr))", lg: "repeat(3, minmax(0,1fr))" } }}>
+            <Card variant="outlined" sx={{ borderRadius: 3 }}>
+              <CardContent sx={{ p: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>Plan</Typography>
+                <Typography variant="body2" sx={{ mt: 1, fontWeight: 700 }}>{subscription.plan.display_name}</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                  Isolation: {subscription.plan.isolation_model}
+                </Typography>
+              </CardContent>
+            </Card>
+            <Card variant="outlined" sx={{ borderRadius: 3 }}>
+              <CardContent sx={{ p: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>Status</Typography>
+                <Chip label={subscription.status} size="small" sx={{ mt: 1 }} />
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                  Provider: {subscription.payment_provider ?? "—"}
+                </Typography>
+              </CardContent>
+            </Card>
+            <Card variant="outlined" sx={{ borderRadius: 3 }}>
+              <CardContent sx={{ p: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>
+                  Billing period
+                </Typography>
+                <Typography variant="caption" sx={{ mt: 1, display: "block", color: "text.primary" }}>
+                  {formatTimestamp(subscription.current_period_start)} → {formatTimestamp(subscription.current_period_end)}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                  Next renewal: {formatTimestamp(subscription.current_period_end)}
+                </Typography>
+              </CardContent>
+            </Card>
+            <Card variant="outlined" sx={{ borderRadius: 3 }}>
+              <CardContent sx={{ p: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>Selected app</Typography>
+                <Typography variant="body2" sx={{ mt: 1, fontWeight: 700 }}>{subscription.selected_app ?? "—"}</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                  Support: {subscription.plan.support_channel}
+                </Typography>
+              </CardContent>
+            </Card>
+            <Card variant="outlined" sx={{ borderRadius: 3 }}>
+              <CardContent sx={{ p: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>Trial ends</Typography>
+                <Typography variant="body2" sx={{ mt: 1, fontWeight: 700 }}>{formatTimestamp(subscription.trial_ends_at)}</Typography>
+              </CardContent>
+            </Card>
+            <Card variant="outlined" sx={{ borderRadius: 3 }}>
+              <CardContent sx={{ p: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>Cancelled at</Typography>
+                <Typography variant="body2" sx={{ mt: 1, fontWeight: 700 }}>{formatTimestamp(subscription.cancelled_at)}</Typography>
+              </CardContent>
+            </Card>
+          </Box>
         ) : (
-          <p className="rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+          <Alert severity="info" sx={{ mt: 2 }}>
             Loading subscription details...
-          </p>
+          </Alert>
         )}
       </Paper>
 
       <Paper id="jobs" variant="outlined" sx={sectionPaperSx}>
-        <h2 className="text-lg font-semibold text-slate-900">Realtime job progress</h2>
+        <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>
+          Realtime job progress
+        </Typography>
         {liveJobId ? (
           <>
             {!jobId && activeRecentJob ? (
-              <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                Auto-following latest active job: <span className="font-semibold">{activeRecentJob.type}</span> (
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                Auto-following latest active job: <Box component="span" sx={{ fontWeight: 700 }}>{activeRecentJob.type}</Box> (
                 {activeRecentJob.status})
-              </p>
+              </Alert>
             ) : null}
             <JobLogPanel jobId={liveJobId} />
           </>
         ) : (
-          <p className="rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+          <Alert severity="info" sx={{ mt: 2 }}>
             No active jobs right now. Select a recent operation to open logs.
-          </p>
+          </Alert>
         )}
       </Paper>
 
       <Paper id="backups" variant="outlined" sx={sectionPaperSx}>
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-slate-900">Recovery backups</h2>
-          <button
-            className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-amber-300"
+        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+          <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>
+            Recovery backups
+          </Typography>
+          <Button
+            variant="outlined"
+            size="small"
             onClick={() => {
               void loadBackups();
             }}
+            sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
           >
             Refresh
-          </button>
-        </div>
+          </Button>
+        </Stack>
 
         {!backupsSupported ? (
-          <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <Alert severity="warning" sx={{ mt: 2 }}>
             Backup history endpoint is not available on this backend yet.
-          </p>
+          </Alert>
         ) : sortedBackups.length ? (
           <>
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-slate-600">
-                  <tr>
-                    <th className="p-2 text-left">Created</th>
-                    <th className="p-2 text-left">Backup file</th>
-                    <th className="p-2 text-left">Size</th>
-                    <th className="p-2 text-left">Expires</th>
-                    <th className="p-2 text-left">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <TableContainer component={Paper} variant="outlined" sx={{ mt: 2, borderRadius: 3 }}>
+              <Table size="small">
+                <TableHead sx={{ backgroundColor: "grey.50" }}>
+                  <TableRow>
+                    <TableCell>Created</TableCell>
+                    <TableCell>Backup file</TableCell>
+                    <TableCell>Size</TableCell>
+                    <TableCell>Expires</TableCell>
+                    <TableCell>Action</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {sortedBackups.map((entry, index) => {
                     const link = resolveBackupDownload(entry);
                     return (
-                      <tr key={`${entry.id ?? entry.job_id ?? "backup"}-${index}`} className="border-t border-slate-200">
-                        <td className="p-2">{formatTimestamp(typeof entry.created_at === "string" ? entry.created_at : null)}</td>
-                        <td className="p-2">
+                      <TableRow key={`${entry.id ?? entry.job_id ?? "backup"}-${index}`}>
+                        <TableCell>{formatTimestamp(typeof entry.created_at === "string" ? entry.created_at : null)}</TableCell>
+                        <TableCell>
                           {link ? (
-                            <a href={link} target="_blank" rel="noreferrer" className="text-[#0d6a6a] hover:text-[#0b5a5a]">
+                            <Link href={link} target="_blank" rel="noreferrer" underline="hover" sx={{ color: "#0d6a6a" }}>
                               {String(entry.file_path ?? "Download backup")}
-                            </a>
+                            </Link>
                           ) : (
-                            <span className="text-slate-400">{String(entry.file_path ?? "Unavailable")}</span>
+                            <Typography variant="body2" color="text.disabled">
+                              {String(entry.file_path ?? "Unavailable")}
+                            </Typography>
                           )}
-                        </td>
-                        <td className="p-2">{typeof entry.file_size_bytes === "number" ? `${entry.file_size_bytes} bytes` : "—"}</td>
-                        <td className="p-2">{formatTimestamp(typeof entry.expires_at === "string" ? entry.expires_at : null)}</td>
-                        <td className="p-2">
-                          <button
-                            className="rounded-full border border-amber-200 px-3 py-1 text-xs text-slate-700 hover:border-amber-300 disabled:opacity-60"
+                        </TableCell>
+                        <TableCell>{typeof entry.file_size_bytes === "number" ? `${entry.file_size_bytes} bytes` : "—"}</TableCell>
+                        <TableCell>{formatTimestamp(typeof entry.expires_at === "string" ? entry.expires_at : null)}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outlined"
+                            size="small"
                             disabled={!entry.id || restoreBusy}
                             onClick={() => {
                               setRestoreTarget(entry);
@@ -886,33 +1013,37 @@ export default function TenantDetailPage() {
                               setRestoreError(null);
                               setRestoreNotice(null);
                             }}
+                            sx={{ borderRadius: 99, textTransform: "none" }}
                           >
                             Restore
-                          </button>
-                        </td>
-                      </tr>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </TableContainer>
 
             {restoreTarget ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                <p className="font-semibold text-slate-900">Confirm restore</p>
-                <p className="mt-1 text-xs text-slate-700">
+              <Alert severity="warning" sx={{ mt: 2 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.primary" }}>
+                  Confirm restore
+                </Typography>
+                <Typography variant="caption" sx={{ mt: 1, display: "block", color: "text.secondary" }}>
                   Restoring will overwrite the current tenant database with the selected backup. Type{" "}
-                  <span className="font-semibold">RESTORE</span> to continue.
-                </p>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <input
-                    className="rounded-xl border border-amber-200 bg-white px-3 py-1.5 text-xs text-slate-700"
+                  <Box component="span" sx={{ fontWeight: 700 }}>RESTORE</Box> to continue.
+                </Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 2 }}>
+                  <TextField
                     value={restoreConfirm}
                     onChange={(event) => setRestoreConfirm(event.target.value)}
                     placeholder="RESTORE"
+                    size="small"
                   />
-                  <button
-                    className="rounded-full bg-[#0d6a6a] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                  <Button
+                    variant="contained"
+                    size="small"
                     disabled={restoreConfirm.trim() !== "RESTORE" || restoreBusy || !restoreTarget.id || !tenant}
                     onClick={async () => {
                       if (!tenant || !restoreTarget.id) return;
@@ -937,129 +1068,144 @@ export default function TenantDetailPage() {
                         setRestoreBusy(false);
                       }
                     }}
+                    sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700, bgcolor: "#0d6a6a" }}
                   >
                     {restoreBusy ? "Queuing..." : "Confirm restore"}
-                  </button>
-                  <button
-                    className="rounded-full border border-amber-200 px-3 py-1.5 text-xs text-slate-700 hover:border-amber-300"
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
                     onClick={() => {
                       setRestoreTarget(null);
                       setRestoreConfirm("");
                     }}
+                    sx={{ borderRadius: 99, textTransform: "none" }}
                   >
                     Cancel
-                  </button>
-                </div>
-                {restoreError ? <p className="mt-2 text-xs text-red-700">{restoreError}</p> : null}
-                {restoreNotice ? <p className="mt-2 text-xs text-emerald-800">{restoreNotice}</p> : null}
-              </div>
+                  </Button>
+                </Stack>
+                {restoreError ? <Alert severity="error" sx={{ mt: 1 }}>{restoreError}</Alert> : null}
+                {restoreNotice ? <Alert severity="success" sx={{ mt: 1 }}>{restoreNotice}</Alert> : null}
+              </Alert>
             ) : null}
           </>
         ) : (
-          <p className="rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+          <Alert severity="info" sx={{ mt: 2 }}>
             No backup records yet. Trigger a backup from dashboard when you need a restore point.
-          </p>
+          </Alert>
         )}
       </Paper>
 
       <Paper id="team" variant="outlined" sx={sectionPaperSx}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-slate-900">Team</h2>
-          <button
-            className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-amber-300"
+        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+          <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>
+            Team
+          </Typography>
+          <Button
+            variant="outlined"
+            size="small"
             onClick={() => {
               void loadMembers();
             }}
+            sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
           >
             Refresh
-          </button>
-        </div>
+          </Button>
+        </Stack>
 
         {!membersSupported ? (
-          <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <Alert severity="warning">
             Team management is not available on this backend yet.
-          </p>
+          </Alert>
         ) : membersError ? (
-          <p className="text-sm text-red-600">{membersError}</p>
+          <Alert severity="error">{membersError}</Alert>
         ) : (
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <h3 className="text-sm font-semibold text-slate-900">Invite teammate</h3>
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                <input
-                  className="w-full flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
-                  placeholder="Email address"
-                  value={inviteEmail}
-                  onChange={(event) => setInviteEmail(event.target.value)}
-                />
-                <select
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
-                  value={inviteRole}
-                  onChange={(event) => setInviteRole(event.target.value)}
-                >
-                  {memberRoles.map((role) => (
-                    <option key={role} value={role}>
-                      {role}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-60"
-                  disabled={inviting || !inviteEmail.trim()}
-                  onClick={async () => {
-                    if (!id) return;
-                    setInviting(true);
-                    setMembersError(null);
-                    try {
-                      const result = await inviteTenantMember(id, {
-                        email: inviteEmail.trim(),
-                        role: inviteRole,
-                      });
-                      if (!result.supported) {
-                        setMembersError("Team invitation endpoint is not available on this backend.");
-                        return;
+          <Stack spacing={2}>
+            <Card variant="outlined" sx={{ borderRadius: 3 }}>
+              <CardContent>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Invite teammate</Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 1 }}>
+                  <TextField
+                    placeholder="Email address"
+                    value={inviteEmail}
+                    onChange={(event) => setInviteEmail(event.target.value)}
+                    size="small"
+                    fullWidth
+                  />
+                  <TextField
+                    select
+                    size="small"
+                    value={inviteRole}
+                    onChange={(event) => setInviteRole(event.target.value)}
+                    SelectProps={{ native: true }}
+                  >
+                    {memberRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </TextField>
+                  <Button
+                    variant="outlined"
+                    color="success"
+                    disabled={inviting || !inviteEmail.trim()}
+                    onClick={async () => {
+                      if (!id) return;
+                      setInviting(true);
+                      setMembersError(null);
+                      try {
+                        const result = await inviteTenantMember(id, {
+                          email: inviteEmail.trim(),
+                          role: inviteRole,
+                        });
+                        if (!result.supported) {
+                          setMembersError("Team invitation endpoint is not available on this backend.");
+                          return;
+                        }
+                        setInviteEmail("");
+                        await loadMembers();
+                      } catch (err) {
+                        setMembersError(toTenantDetailErrorMessage(err, "Failed to invite member"));
+                      } finally {
+                        setInviting(false);
                       }
-                      setInviteEmail("");
-                      await loadMembers();
-                    } catch (err) {
-                      setMembersError(toTenantDetailErrorMessage(err, "Failed to invite member"));
-                    } finally {
-                      setInviting(false);
-                    }
-                  }}
-                >
-                  Invite
-                </button>
-              </div>
-            </div>
+                    }}
+                    sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+                  >
+                    Invite
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
 
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-slate-600">
-                  <tr>
-                    <th className="p-2 text-left">Email</th>
-                    <th className="p-2 text-left">Role</th>
-                    <th className="p-2 text-left">Joined</th>
-                    <th className="p-2 text-left">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 3 }}>
+              <Table size="small">
+                <TableHead sx={{ backgroundColor: "grey.50" }}>
+                  <TableRow>
+                    <TableCell>Email</TableCell>
+                    <TableCell>Role</TableCell>
+                    <TableCell>Joined</TableCell>
+                    <TableCell>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {members.length === 0 ? (
-                    <tr>
-                      <td className="p-3 text-sm text-slate-500" colSpan={4}>
-                        No team members yet.
-                      </td>
-                    </tr>
+                    <TableRow>
+                      <TableCell colSpan={4}>
+                        <Typography variant="body2" color="text.secondary">No team members yet.</Typography>
+                      </TableCell>
+                    </TableRow>
                   ) : (
                     members.map((member) => (
-                      <tr key={member.id} className="border-t border-slate-200">
-                        <td className="p-2 text-xs text-slate-700">{member.user_email || member.user_id}</td>
-                        <td className="p-2 text-xs">
+                      <TableRow key={member.id}>
+                        <TableCell>{member.user_email || member.user_id}</TableCell>
+                        <TableCell>
                           {member.role === "owner" ? (
-                            <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">owner</span>
+                            <Chip label="owner" size="small" variant="outlined" />
                           ) : (
-                            <select
-                              className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700"
+                            <TextField
+                              select
+                              size="small"
                               value={member.role}
                               onChange={async (event) => {
                                 if (!id) return;
@@ -1080,22 +1226,25 @@ export default function TenantDetailPage() {
                                 }
                               }}
                               disabled={updatingMemberId === member.id}
+                              SelectProps={{ native: true }}
                             >
                               {memberRoles.map((role) => (
                                 <option key={role} value={role}>
                                   {role}
                                 </option>
                               ))}
-                            </select>
+                            </TextField>
                           )}
-                        </td>
-                        <td className="p-2 text-xs text-slate-500">{formatTimestamp(member.created_at)}</td>
-                        <td className="p-2 text-xs">
+                        </TableCell>
+                        <TableCell>{formatTimestamp(member.created_at)}</TableCell>
+                        <TableCell>
                           {member.role === "owner" ? (
-                            <span className="text-slate-500">Owner</span>
+                            <Typography variant="caption" color="text.secondary">Owner</Typography>
                           ) : (
-                            <button
-                              className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:border-red-300 disabled:opacity-60"
+                            <Button
+                              variant="outlined"
+                              color="error"
+                              size="small"
                               disabled={removingMemberId === member.id}
                               onClick={async () => {
                                 if (!id) return;
@@ -1114,117 +1263,127 @@ export default function TenantDetailPage() {
                                   setRemovingMemberId(null);
                                 }
                               }}
+                              sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
                             >
                               Remove
-                            </button>
+                            </Button>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Stack>
         )}
       </Paper>
 
       <Paper id="domains" variant="outlined" sx={sectionPaperSx}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-slate-900">Custom domains</h2>
-          <button
-            className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-amber-300"
+        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+          <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>
+            Custom domains
+          </Typography>
+          <Button
+            variant="outlined"
+            size="small"
             onClick={() => {
               void loadDomains();
             }}
+            sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
           >
             Refresh
-          </button>
-        </div>
-        <p className="mb-3 text-xs text-slate-600">
-          Add a branded domain. Point a CNAME record at <span className="font-semibold text-slate-900">{tenant.domain}</span>, then verify
+          </Button>
+        </Stack>
+        <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: "block" }}>
+          Add a branded domain. Point a CNAME record at <Box component="span" sx={{ fontWeight: 700, color: "text.primary" }}>{tenant.domain}</Box>, then verify
           once DNS has propagated.
-        </p>
+        </Typography>
 
         {!domainsSupported ? (
-          <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <Alert severity="warning">
             Custom domain management is not available on this backend yet.
-          </p>
+          </Alert>
         ) : domainsError ? (
-          <p className="text-sm text-red-600">{domainsError}</p>
+          <Alert severity="error">{domainsError}</Alert>
         ) : (
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <h3 className="text-sm font-semibold text-slate-900">Add custom domain</h3>
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                <input
-                  className="w-full flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
-                  placeholder="e.g. erp.example.com"
-                  value={domainInput}
-                  onChange={(event) => setDomainInput(event.target.value)}
-                />
-                <button
-                  className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-60"
-                  disabled={addingDomain || !domainInput.trim()}
-                  onClick={async () => {
-                    if (!id) return;
-                    setAddingDomain(true);
-                    setDomainsError(null);
-                    try {
-                      const result = await createTenantDomain(id, domainInput.trim());
-                      if (!result.supported) {
-                        setDomainsError("Custom domain endpoint is not available on this backend.");
-                        return;
+          <Stack spacing={2}>
+            <Card variant="outlined" sx={{ borderRadius: 3 }}>
+              <CardContent>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Add custom domain</Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 1 }}>
+                  <TextField
+                    placeholder="e.g. erp.example.com"
+                    value={domainInput}
+                    onChange={(event) => setDomainInput(event.target.value)}
+                    size="small"
+                    fullWidth
+                  />
+                  <Button
+                    variant="outlined"
+                    color="success"
+                    disabled={addingDomain || !domainInput.trim()}
+                    onClick={async () => {
+                      if (!id) return;
+                      setAddingDomain(true);
+                      setDomainsError(null);
+                      try {
+                        const result = await createTenantDomain(id, domainInput.trim());
+                        if (!result.supported) {
+                          setDomainsError("Custom domain endpoint is not available on this backend.");
+                          return;
+                        }
+                        setDomainInput("");
+                        await loadDomains();
+                      } catch (err) {
+                        setDomainsError(toTenantDetailErrorMessage(err, "Failed to add domain"));
+                      } finally {
+                        setAddingDomain(false);
                       }
-                      setDomainInput("");
-                      await loadDomains();
-                    } catch (err) {
-                      setDomainsError(toTenantDetailErrorMessage(err, "Failed to add domain"));
-                    } finally {
-                      setAddingDomain(false);
-                    }
-                  }}
-                >
-                  {addingDomain ? "Adding..." : "Add domain"}
-                </button>
-              </div>
-            </div>
+                    }}
+                    sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+                  >
+                    {addingDomain ? "Adding..." : "Add domain"}
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
 
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-slate-600">
-                  <tr>
-                    <th className="p-2 text-left">Domain</th>
-                    <th className="p-2 text-left">Status</th>
-                    <th className="p-2 text-left">Added</th>
-                    <th className="p-2 text-left">Verified</th>
-                    <th className="p-2 text-left">Token</th>
-                    <th className="p-2 text-left">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 3 }}>
+              <Table size="small">
+                <TableHead sx={{ backgroundColor: "grey.50" }}>
+                  <TableRow>
+                    <TableCell>Domain</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Added</TableCell>
+                    <TableCell>Verified</TableCell>
+                    <TableCell>Token</TableCell>
+                    <TableCell>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {domains.length === 0 ? (
-                    <tr>
-                      <td className="p-3 text-sm text-slate-500" colSpan={6}>
-                        No custom domains added yet.
-                      </td>
-                    </tr>
+                    <TableRow>
+                      <TableCell colSpan={6}>
+                        <Typography variant="body2" color="text.secondary">No custom domains added yet.</Typography>
+                      </TableCell>
+                    </TableRow>
                   ) : (
                     domains.map((domain) => (
-                      <tr key={domain.id} className="border-t border-slate-200">
-                        <td className="p-2 text-xs text-slate-700">{domain.domain}</td>
-                        <td className="p-2 text-xs">
-                          <span className={`rounded-full px-2 py-1 text-xs ${domainStatusClass(domain.status)}`}>
-                            {domain.status}
-                          </span>
-                        </td>
-                        <td className="p-2 text-xs text-slate-500">{formatTimestamp(domain.created_at)}</td>
-                        <td className="p-2 text-xs text-slate-500">{formatTimestamp(domain.verified_at)}</td>
-                        <td className="p-2 text-xs text-slate-500">{domain.verification_token}</td>
-                        <td className="p-2 text-xs">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 hover:border-emerald-300 disabled:opacity-60"
+                      <TableRow key={domain.id}>
+                        <TableCell>{domain.domain}</TableCell>
+                        <TableCell>
+                          <Chip label={domain.status} size="small" variant="outlined" />
+                        </TableCell>
+                        <TableCell>{formatTimestamp(domain.created_at)}</TableCell>
+                        <TableCell>{formatTimestamp(domain.verified_at)}</TableCell>
+                        <TableCell>{domain.verification_token}</TableCell>
+                        <TableCell>
+                          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                            <Button
+                              variant="outlined"
+                              color="success"
+                              size="small"
                               disabled={domain.status === "verified" || verifyingDomainId === domain.id}
                               onClick={async () => {
                                 if (!id) return;
@@ -1243,11 +1402,14 @@ export default function TenantDetailPage() {
                                   setVerifyingDomainId(null);
                                 }
                               }}
+                              sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
                             >
                               {verifyingDomainId === domain.id ? "Verifying..." : "Verify"}
-                            </button>
-                            <button
-                              className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:border-red-300 disabled:opacity-60"
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              color="error"
+                              size="small"
                               disabled={removingDomainId === domain.id}
                               onClick={async () => {
                                 if (!id) return;
@@ -1266,107 +1428,115 @@ export default function TenantDetailPage() {
                                   setRemovingDomainId(null);
                                 }
                               }}
+                              sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
                             >
                               {removingDomainId === domain.id ? "Removing..." : "Remove"}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                            </Button>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Stack>
         )}
       </Paper>
 
       {isAdmin ? (
         <Paper id="support" variant="outlined" sx={sectionPaperSx}>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold text-slate-900">Support notes</h2>
-            <button
-              className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-amber-300"
+          <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+            <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>Support notes</Typography>
+            <Button
+              variant="outlined"
+              size="small"
               onClick={() => {
                 void loadSupportNotes();
               }}
+              sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
             >
               Refresh
-            </button>
-          </div>
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-            <span>Filter:</span>
+            </Button>
+          </Stack>
+          <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap" sx={{ mb: 2 }}>
+            <Typography variant="caption" color="text.secondary">Filter:</Typography>
             {["all", "open", "monitoring", "resolved", "due_soon", "breached"].map((option) => (
-              <button
+              <Button
                 key={option}
-                className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                  supportNoteFilter === option
-                    ? "border-emerald-300 bg-emerald-100 text-emerald-800"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-amber-200 hover:bg-amber-50"
-                }`}
+                variant={supportNoteFilter === option ? "contained" : "outlined"}
+                color={supportNoteFilter === option ? "success" : "inherit"}
+                size="small"
                 onClick={() => setSupportNoteFilter(option)}
+                sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
               >
                 {option.replace("_", " ")}
-              </button>
+              </Button>
             ))}
-          </div>
-          <p className="mb-3 text-xs text-slate-500">
+          </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: "block" }}>
             Internal notes are visible to platform admins only. Use them to track incidents, billing context, or key follow-ups.
-          </p>
+          </Typography>
 
           {!supportNotesSupported ? (
-            <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <Alert severity="warning">
               Support notes are not available on this backend yet.
-            </p>
+            </Alert>
           ) : supportNotesError ? (
-            <p className="text-sm text-red-600">{supportNotesError}</p>
+            <Alert severity="error">{supportNotesError}</Alert>
           ) : (
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <h3 className="text-sm font-semibold text-slate-900">Add support note</h3>
-                <div className="mt-2 flex flex-col gap-2">
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <select
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+            <Stack spacing={2}>
+              <Card variant="outlined" sx={{ borderRadius: 3 }}>
+                <CardContent>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Add support note</Typography>
+                  <Stack spacing={1} sx={{ mt: 1 }}>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                    <TextField
+                      select
+                      size="small"
                       value={supportNoteCategory}
                       onChange={(event) => setSupportNoteCategory(event.target.value)}
+                      SelectProps={{ native: true }}
                     >
                       <option value="note">Note</option>
                       <option value="incident">Incident</option>
                       <option value="follow_up">Follow-up</option>
                       <option value="billing">Billing</option>
-                    </select>
-                    <select
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                    </TextField>
+                    <TextField
+                      select
+                      size="small"
                       value={supportNoteStatus}
                       onChange={(event) => setSupportNoteStatus(event.target.value)}
+                      SelectProps={{ native: true }}
                     >
                       {["open", "monitoring", "resolved"].map((option) => (
                         <option key={option} value={option}>
                           {option}
                         </option>
                       ))}
-                    </select>
-                    <input
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                    </TextField>
+                    <TextField
+                      size="small"
                       placeholder="Owner name"
                       value={supportNoteOwner}
                       onChange={(event) => setSupportNoteOwner(event.target.value)}
                     />
-                    <input
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                    <TextField
+                      size="small"
                       placeholder="Contact (phone/WhatsApp/email)"
                       value={supportNoteContact}
                       onChange={(event) => setSupportNoteContact(event.target.value)}
                     />
-                    <input
-                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                    <TextField
+                      size="small"
                       type="datetime-local"
                       value={supportNoteDueAt}
                       onChange={(event) => setSupportNoteDueAt(event.target.value)}
                     />
-                    <button
-                      className="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-60"
+                    <Button
+                      variant="outlined"
+                      color="success"
                       disabled={savingSupportNote || !supportNoteText.trim()}
                       onClick={async () => {
                         if (!id) return;
@@ -1391,66 +1561,75 @@ export default function TenantDetailPage() {
                           setSavingSupportNote(false);
                         }
                       }}
+                      sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
                     >
                       {savingSupportNote ? "Saving..." : "Save note"}
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                    <span>Filter notes:</span>
+                    </Button>
+                    </Stack>
+                  <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+                    <Typography variant="caption" color="text.secondary">Filter notes:</Typography>
                     {["all", "open", "monitoring", "resolved", "due_soon", "breached"].map((option) => (
-                      <button
+                      <Button
                         key={option}
-                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                          supportNoteFilter === option
-                            ? "border-emerald-300 bg-emerald-100 text-emerald-800"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-amber-200 hover:bg-amber-50"
-                        }`}
+                        variant={supportNoteFilter === option ? "contained" : "outlined"}
+                        color={supportNoteFilter === option ? "success" : "inherit"}
+                        size="small"
                         onClick={() => setSupportNoteFilter(option)}
+                        sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
                       >
                         {option.replace("_", " ")}
-                      </button>
+                      </Button>
                     ))}
-                  </div>
-                  <textarea
-                    className="min-h-[90px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                  </Stack>
+                  <TextField
+                    multiline
+                    minRows={4}
+                    fullWidth
                     placeholder="Record the support context, decisions, and next steps."
                     value={supportNoteText}
                     onChange={(event) => setSupportNoteText(event.target.value)}
                   />
-                </div>
-              </div>
+                  </Stack>
+                </CardContent>
+              </Card>
 
-              <div className="space-y-3">
+              <Stack spacing={1.5}>
                 {supportNotes.length === 0 ? (
-                  <p className="rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+                  <Alert severity="info">
                     No support notes yet.
-                  </p>
+                  </Alert>
                 ) : (
                   filteredSupportNotes.map((note) => (
-                    <div key={note.id} className="rounded-2xl border border-slate-200 bg-white p-3 text-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">{note.category}</span>
-                        <span className="text-xs text-slate-500">{formatTimestamp(note.created_at)}</span>
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                        <span>Status: {note.status ?? "open"}</span>
-                        <span className="rounded-full border border-slate-200 px-2 py-0.5">
-                          SLA: {getSlaState(note).replace("_", " ")}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-slate-700">{note.note}</p>
-                      <p className="mt-2 text-xs text-slate-500">
+                    <Card key={note.id} variant="outlined" sx={{ borderRadius: 3 }}>
+                      <CardContent sx={{ p: 2 }}>
+                      <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }} justifyContent="space-between">
+                        <Chip label={note.category} size="small" variant="outlined" />
+                        <Typography variant="caption" color="text.secondary">{formatTimestamp(note.created_at)}</Typography>
+                      </Stack>
+                      <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+                        <Typography variant="caption" color="text.secondary">Status: {note.status ?? "open"}</Typography>
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          label={
+                            `SLA: ${getSlaState(note).replace("_", " ")}`
+                          }
+                        />
+                      </Stack>
+                      <Typography variant="body2" sx={{ mt: 1.5, color: "text.primary" }}>{note.note}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
                         Owner: {note.owner_name || "—"} {note.owner_contact ? `• ${note.owner_contact}` : ""}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
                         SLA due: {note.sla_due_at ? formatTimestamp(note.sla_due_at) : "—"}
-                      </p>
-                      <p className="mt-2 text-xs text-slate-500">
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
                         {note.author_email || note.author_role || "admin"} • {note.author_role}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                        <button
-                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-amber-200 hover:bg-amber-50 disabled:opacity-60"
+                      </Typography>
+                      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+                        <Button
+                          variant="outlined"
+                          size="small"
                           disabled={savingSupportNote}
                           onClick={async () => {
                             if (!note.id) return;
@@ -1470,90 +1649,98 @@ export default function TenantDetailPage() {
                               setSavingSupportNote(false);
                             }
                           }}
+                          sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
                         >
                           {note.status === "resolved" ? "Reopen" : "Mark resolved"}
-                        </button>
-                      </div>
-                    </div>
+                        </Button>
+                      </Stack>
+                      </CardContent>
+                    </Card>
                   ))
                 )}
-              </div>
-            </div>
+              </Stack>
+            </Stack>
           )}
         </Paper>
       ) : null}
 
       <Paper id="activity" variant="outlined" sx={sectionPaperSx}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-slate-900">Activity log</h2>
-          <button
-            className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-amber-300"
+        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+          <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>
+            Activity log
+          </Typography>
+          <Button
+            variant="outlined"
+            size="small"
             onClick={() => {
               void loadAuditLog();
             }}
+            sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
           >
             Refresh
-          </button>
-        </div>
+          </Button>
+        </Stack>
 
         {!auditSupported ? (
-          <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <Alert severity="warning">
             Activity log endpoint is not available on this backend yet.
-          </p>
+          </Alert>
         ) : auditError ? (
-          <p className="text-sm text-red-600">{auditError}</p>
+          <Alert severity="error">{auditError}</Alert>
         ) : auditLog.length ? (
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-slate-600">
-                <tr>
-                  <th className="p-2 text-left">Time</th>
-                  <th className="p-2 text-left">Actor</th>
-                  <th className="p-2 text-left">Action</th>
-                  <th className="p-2 text-left">IP</th>
-                </tr>
-              </thead>
-              <tbody>
+          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 3 }}>
+            <Table size="small">
+              <TableHead sx={{ backgroundColor: "grey.50" }}>
+                <TableRow>
+                  <TableCell>Time</TableCell>
+                  <TableCell>Actor</TableCell>
+                  <TableCell>Action</TableCell>
+                  <TableCell>IP</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {auditLog.map((entry) => (
-                  <tr key={entry.id} className="border-t border-slate-200">
-                    <td className="p-2 text-xs text-slate-700">{formatTimestamp(entry.created_at)}</td>
-                    <td className="p-2 text-xs text-slate-700">
-                      {entry.actor_email || entry.actor_id || entry.actor_role}
-                    </td>
-                    <td className="p-2 text-xs">{entry.action}</td>
-                    <td className="p-2 text-xs text-slate-500">{entry.ip_address || "—"}</td>
-                  </tr>
+                  <TableRow key={entry.id}>
+                    <TableCell>{formatTimestamp(entry.created_at)}</TableCell>
+                    <TableCell>{entry.actor_email || entry.actor_id || entry.actor_role}</TableCell>
+                    <TableCell>{entry.action}</TableCell>
+                    <TableCell>{entry.ip_address || "—"}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableContainer>
         ) : (
-          <p className="rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+          <Alert severity="info">
             No activity recorded yet.
-          </p>
+          </Alert>
         )}
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-          <span>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }} justifyContent="space-between" sx={{ mt: 2 }}>
+          <Typography variant="caption" color="text.secondary">
             Page {auditPage} of {auditTotalPages} • {auditTotal} events
-          </span>
-          <div className="flex gap-2">
-            <button
-              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-amber-200 hover:bg-amber-50 disabled:opacity-60"
+          </Typography>
+          <Stack direction="row" spacing={1}>
+            <Button
+              variant="outlined"
+              size="small"
               disabled={auditPage <= 1}
               onClick={() => setAuditPage((prev) => Math.max(1, prev - 1))}
+              sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
             >
               Previous
-            </button>
-            <button
-              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-amber-200 hover:bg-amber-50 disabled:opacity-60"
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
               disabled={auditPage >= auditTotalPages}
               onClick={() => setAuditPage((prev) => Math.min(auditTotalPages, prev + 1))}
+              sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
             >
               Next
-            </button>
-          </div>
-        </div>
+            </Button>
+          </Stack>
+        </Stack>
       </Paper>
 
       {error ? <Alert severity="error">{error}</Alert> : null}

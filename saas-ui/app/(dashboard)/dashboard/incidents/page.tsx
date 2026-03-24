@@ -1,22 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { WorkspaceQueuePage } from "../../../../domains/dashboard/components/WorkspaceQueuePage";
-
-export default function DashboardIncidentsPage() {
-  return (
-    <WorkspaceQueuePage
-      title="Failed & blocked workspaces"
-      description="System failures that need operator intervention."
-      statusFilter={["failed"]}
-      showMetrics
-      showAttention
-      showBillingAlert
-      showStatusFilter={false}
-      attentionNote="Resolve provisioning failures quickly to restore access for affected customers."
-      emptyStateTitle="No failed or suspended workspaces"
-      emptyStateBody="There are no failed tenants in the incident queue."
-      emptyStateActionLabel="Review suspensions"
-      emptyStateActionHref="/dashboard/suspensions"
-    />
-  );
+export default function LegacyDashboardIncidentsRedirectPage() {
+  // AGENT-NOTE: keep legacy dashboard URLs stable while enforcing admin/user route separation.
+  redirect("/admin/incidents");
 }

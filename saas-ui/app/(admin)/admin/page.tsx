@@ -17,41 +17,20 @@ import {
   toAdminErrorMessage,
 } from "../../../domains/admin-ops/application/adminUseCases";
 import {
-  buildTenantActionPhrase,
   deriveAdminMetricAlertKey,
   deriveAdminMetricAlerts,
   deriveAdminTenantCounts,
 } from "../../../domains/admin-ops/domain/adminDashboard";
-import { JobLogPanel } from "../../../domains/shared/components/JobLogPanel";
 import { useNotifications } from "../../../domains/shared/components/NotificationsProvider";
 import type { AuditLogEntry, DeadLetterJob, Job, MetricsSummary, Tenant } from "../../../domains/shared/lib/types";
-
-function statusBadgeClass(status: string): string {
-  const normalized = status.toLowerCase();
-  if (normalized === "active") return "bg-emerald-500/20 text-emerald-300";
-  if (
-    ["provisioning", "pending", "deleting", "upgrading", "restoring", "pending_deletion"].includes(normalized)
-  ) {
-    return "bg-amber-500/20 text-amber-300";
-  }
-  if (normalized === "failed") return "bg-red-500/20 text-red-300";
-  if (normalized === "deleted") return "bg-slate-500/20 text-slate-300";
-  if (["suspended", "suspended_admin", "suspended_billing"].includes(normalized)) return "bg-orange-500/20 text-orange-300";
-  return "bg-sky-500/20 text-sky-300";
-}
-
-function formatDate(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
-
-type TenantAdminAction = {
-  type: "suspend" | "unsuspend";
-  tenant: Tenant;
-  phrase: string;
-};
+import { AdminAuditView } from "./_components/AdminAuditView";
+import { AdminJobsView } from "./_components/AdminJobsView";
+import { AdminOverviewView } from "./_components/AdminOverviewView";
+import { AdminRecoveryView } from "./_components/AdminRecoveryView";
+import { AdminSupportView } from "./_components/AdminSupportView";
+import { AdminTenantsView } from "./_components/AdminTenantsView";
+import { TenantActionModal } from "./_components/TenantActionModal";
+import type { AdminControlLaneLink, TenantAdminAction } from "./_components/adminConsoleTypes";
 
 export type AdminView = "overview" | "tenants" | "jobs" | "audit" | "support" | "recovery";
 
@@ -85,23 +64,6 @@ function inferAdminViewFromPathname(pathname: string): AdminView | null {
     }
   }
   return null;
-}
-
-function metricCard(label: string, value: number, hint: string, tone: "default" | "good" | "warn" = "default") {
-  const toneClass =
-    tone === "good"
-      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-      : tone === "warn"
-      ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
-      : "border-slate-700 bg-slate-900/70 text-slate-100";
-
-  return (
-    <article className={`rounded-lg border p-3 ${toneClass}`}>
-      <p className="text-xs uppercase tracking-wide opacity-80">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
-      <p className="mt-1 text-xs opacity-80">{hint}</p>
-    </article>
-  );
 }
 
 type AdminConsolePageProps = {
@@ -323,6 +285,32 @@ export function AdminConsolePage({ forcedView }: AdminConsolePageProps) {
 
   const tenantTotalPages = Math.max(1, Math.ceil(tenantTotal / tenantLimit));
   const auditTotalPages = Math.max(1, Math.ceil(auditTotal / auditLimit));
+  const controlLaneLinks = useMemo<AdminControlLaneLink[]>(
+    () =>
+      ADMIN_VIEWS.filter((view) => view !== "overview").map((view) => ({
+        href: buildViewHref(view),
+        label: ADMIN_VIEW_DETAILS[view].label,
+        description: ADMIN_VIEW_DETAILS[view].description,
+        hint:
+          view === "tenants"
+            ? `${tenantTotal} tenant records`
+            : view === "recovery"
+            ? `${deadLetters.length} dead-letter jobs`
+            : view === "jobs"
+            ? "Inspect execution and logs"
+            : view === "audit"
+            ? "Review governance trail"
+            : "Issue support links",
+      })),
+    [buildViewHref, deadLetters.length, tenantTotal]
+  );
+
+  const openTenantAction = useCallback((nextAction: TenantAdminAction) => {
+    setTenantAction(nextAction);
+    setTenantActionInput("");
+    setTenantActionReason("");
+    setTenantsError(null);
+  }, []);
 
   const requeueDeadLetter = async (jobId: string) => {
     setRequeueJobId(jobId);
@@ -457,598 +445,130 @@ export function AdminConsolePage({ forcedView }: AdminConsolePageProps) {
       </div>
 
       {currentView === "overview" ? (
-      <div className="rounded-xl border border-slate-700 bg-slate-900/50 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-medium text-white">Attention lane</p>
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs ${
-              failedCount || suspendedCount || deadLetters.length ? "bg-amber-500/20 text-amber-200" : "bg-emerald-500/20 text-emerald-200"
-            }`}
-          >
-            {failedCount || suspendedCount || deadLetters.length ? "Intervention recommended" : "Platform healthy"}
-          </span>
-        </div>
-        <div className="mt-3 grid gap-2 text-xs md:grid-cols-4">
-          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
-            Active tenants: <span className="font-semibold text-emerald-200">{activeCount}</span>
-          </p>
-          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
-            Setup queue: <span className="font-semibold text-amber-200">{provisioningCount}</span>
-          </p>
-          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
-            Failed: <span className="font-semibold text-red-200">{failedCount}</span>
-          </p>
-          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
-            Dead letters: <span className="font-semibold text-orange-200">{deadLetters.length}</span>
-          </p>
-        </div>
-      </div>
-      ) : null}
-
-      {currentView === "overview" ? (
-      <div className="rounded-xl border border-slate-700 p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Platform metrics</h2>
-          <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
-            onClick={() => {
-              void loadMetrics();
-            }}
-          >
-            Refresh
-          </button>
-        </div>
-
-        {!metricsSupported ? (
-          <p className="text-sm text-slate-300">Metrics endpoint is not available on this backend.</p>
-        ) : metricsError ? (
-          <p className="text-sm text-red-400">{metricsError}</p>
-        ) : metrics ? (
-          <div className="grid gap-3 md:grid-cols-3">
-            {metricCard("Total tenants", metrics.total_tenants, "All customer environments")}
-            {metricCard("Active tenants", metrics.active_tenants, "Currently operational", "good")}
-            {metricCard("Provisioning queue", metrics.provisioning_tenants, "Pending + provisioning", "warn")}
-            {metricCard("Pending payment", metrics.pending_payment_tenants, "Awaiting payment confirmation", "warn")}
-            {metricCard("Failed tenants", metrics.failed_tenants, "Needs operator action", metrics.failed_tenants ? "warn" : "default")}
-            {metricCard("Dead-letter jobs", metrics.dead_letter_count, "Recovery queue depth", metrics.dead_letter_count ? "warn" : "default")}
-            {metricCard("Jobs 24h", metrics.jobs_last_24h, "Activity in the last 24h")}
-            {metricCard(
-              "Provisioning success (7d)",
-              metrics.provisioning_success_rate_7d,
-              "Percent succeeded",
-              metrics.provisioning_success_rate_7d < 95 ? "warn" : "good"
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-slate-300">Loading metrics...</p>
-        )}
-      </div>
-      ) : null}
-
-      {currentView === "overview" ? (
-        <>
-          <div className="grid gap-3 md:grid-cols-4">
-            {metricCard("Total tenants", tenantTotal, "All managed customer environments")}
-            {metricCard("Suspended", suspendedCount, "Access paused pending review", suspendedCount ? "warn" : "default")}
-            {metricCard("Provisioning", provisioningCount, "Still onboarding or awaiting payment", provisioningCount ? "warn" : "default")}
-            {metricCard("Failed", failedCount, "Requires immediate operator follow-up", failedCount ? "warn" : "good")}
-          </div>
-
-          <div className="rounded-xl border border-slate-700 p-4">
-        <h2 className="text-lg font-semibold">Control lanes</h2>
-        <p className="mt-1 text-xs text-slate-400">Jump directly into focused admin workflows.</p>
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {ADMIN_VIEWS.map((view) => {
-            if (view === "overview") {
-              return null;
-            }
-            return (
-              <a
-                key={view}
-                href={buildViewHref(view)}
-                className="rounded border border-slate-700 bg-slate-950/60 p-3 text-left transition hover:border-slate-500 hover:bg-slate-900"
-              >
-                <p className="text-sm font-medium text-white">{ADMIN_VIEW_DETAILS[view].label}</p>
-                <p className="mt-1 text-xs text-slate-300">{ADMIN_VIEW_DETAILS[view].description}</p>
-                <p className="mt-2 text-[11px] text-slate-400">
-                  {view === "tenants"
-                    ? `${tenantTotal} tenant records`
-                    : view === "recovery"
-                      ? `${deadLetters.length} dead-letter jobs`
-                      : view === "jobs"
-                        ? "Inspect execution and logs"
-                        : view === "audit"
-                          ? "Review governance trail"
-                          : "Issue support links"}
-                </p>
-              </a>
-            );
-          })}
-        </div>
-          </div>
-        </>
+        <AdminOverviewView
+          activeCount={activeCount}
+          failedCount={failedCount}
+          suspendedCount={suspendedCount}
+          provisioningCount={provisioningCount}
+          tenantTotal={tenantTotal}
+          deadLettersCount={deadLetters.length}
+          metricsSupported={metricsSupported}
+          metricsError={metricsError}
+          metrics={metrics}
+          onRefreshMetrics={() => {
+            void loadMetrics();
+          }}
+          controlLaneLinks={controlLaneLinks}
+        />
       ) : null}
 
       {currentView === "jobs" ? (
-      <div className="rounded-xl border border-slate-700 p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Execution monitor</h2>
-          <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
-            onClick={() => {
-              void loadJobs();
-            }}
-          >
-            Refresh
-          </button>
-        </div>
-
-        {!jobsSupported ? (
-          <p className="text-sm text-slate-300">Admin jobs endpoint is not available on this backend.</p>
-        ) : jobsError ? (
-          <p className="text-sm text-red-400">{jobsError}</p>
-        ) : jobs.length ? (
-          <div className="space-y-3">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
-                  <tr>
-                    <th className="p-2">Job ID</th>
-                    <th className="p-2">Tenant ID</th>
-                    <th className="p-2">Flow</th>
-                    <th className="p-2">Health</th>
-                    <th className="p-2">Created</th>
-                    <th className="p-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {jobs.map((job) => (
-                    <tr key={job.id} className="border-t border-slate-700">
-                      <td className="p-2 font-mono text-xs">{job.id}</td>
-                      <td className="p-2 font-mono text-xs">{job.tenant_id}</td>
-                      <td className="p-2 text-xs">{job.type}</td>
-                      <td className="p-2 text-xs">{job.status}</td>
-                      <td className="p-2 text-xs text-slate-300">{formatDate(job.created_at)}</td>
-                      <td className="p-2 text-right">
-                        <button
-                          className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
-                          onClick={() => {
-                            void loadJobLogs(job.id);
-                          }}
-                        >
-                          Inspect logs
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {selectedJob ? (
-              <div className="space-y-2">
-                <p className="text-xs text-slate-300">
-                  Showing logs for job <span className="font-mono">{selectedJob.id}</span>
-                </p>
-                {selectedJobSupported ? (
-                  <JobLogPanel jobId={selectedJob.id} logs={selectedJob.logs} status={selectedJob.status} />
-                ) : (
-                  <pre className="max-h-72 overflow-auto rounded border border-slate-700 bg-slate-950 p-3 text-xs">
-                    {selectedJob.logs || "No logs available."}
-                  </pre>
-                )}
-              </div>
-            ) : null}
-          </div>
-        ) : (
-          <p className="text-sm text-slate-300">No jobs found. Trigger provisioning or maintenance actions to populate this feed.</p>
-        )}
-      </div>
+        <AdminJobsView
+          jobsSupported={jobsSupported}
+          jobsError={jobsError}
+          jobs={jobs}
+          selectedJob={selectedJob}
+          selectedJobSupported={selectedJobSupported}
+          onRefreshJobs={() => {
+            void loadJobs();
+          }}
+          onInspectJobLogs={(jobId) => {
+            void loadJobLogs(jobId);
+          }}
+        />
       ) : null}
 
       {currentView === "tenants" ? (
-      <div className="rounded-xl border border-slate-700 p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Tenant intervention panel</h2>
-          <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
-            onClick={() => {
-              void loadTenants();
-            }}
-          >
-            Refresh
-          </button>
-        </div>
-
-        {tenantsError ? <p className="mb-2 text-sm text-red-400">{tenantsError}</p> : null}
-
-        <div className="mb-3 grid gap-2 md:grid-cols-[1.2fr_1fr_1fr]">
-          <input
-            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
-            placeholder="Search by company, subdomain, or domain"
-            value={tenantSearch}
-            onChange={(event) => setTenantSearch(event.target.value)}
-          />
-          <select
-            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
-            value={tenantStatusFilter}
-            onChange={(event) => setTenantStatusFilter(event.target.value)}
-          >
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="pending_payment">Pending payment</option>
-            <option value="pending">Pending</option>
-            <option value="provisioning">Provisioning</option>
-            <option value="failed">Failed</option>
-            <option value="suspended">Suspended (all)</option>
-            <option value="suspended_admin">Suspended (admin)</option>
-            <option value="suspended_billing">Suspended (billing)</option>
-          </select>
-          <select
-            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
-            value={tenantPlanFilter}
-            onChange={(event) => setTenantPlanFilter(event.target.value)}
-          >
-            <option value="all">All plans</option>
-            <option value="starter">Starter</option>
-            <option value="business">Business</option>
-            <option value="enterprise">Enterprise</option>
-          </select>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
-              <tr>
-                <th className="p-2">Company</th>
-                <th className="p-2">Plan/focus</th>
-                <th className="p-2">Health</th>
-                <th className="p-2">Provider</th>
-                <th className="p-2">Created</th>
-                <th className="p-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tenants.map((tenant) => (
-                <tr key={tenant.id} className="border-t border-slate-700/80">
-                  <td className="space-y-1 p-2">
-                    <p className="font-medium text-white">{tenant.company_name}</p>
-                    <p className="text-xs text-slate-300">{tenant.domain}</p>
-                    <p className="font-mono text-[11px] text-slate-500">{tenant.id}</p>
-                  </td>
-                  <td className="p-2 text-xs text-slate-200">
-                    <p>{tenant.plan}</p>
-                    <p className="text-slate-400">{tenant.chosen_app || "auto"}</p>
-                  </td>
-                  <td className="p-2">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(tenant.status)}`}>
-                      {tenant.status}
-                    </span>
-                  </td>
-                  <td className="p-2 text-xs text-slate-300">{tenant.payment_provider || "n/a"}</td>
-                  <td className="p-2 text-xs text-slate-300">{formatDate(tenant.created_at)}</td>
-                  <td className="p-2">
-                    <div className="flex flex-wrap gap-2">
-                      <a href={`/tenants/${tenant.id}`} className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800">
-                        Details
-                      </a>
-                      {["suspended", "suspended_admin", "suspended_billing"].includes(tenant.status.toLowerCase()) ? (
-                        <button
-                          type="button"
-                          disabled={busyTenantId === tenant.id}
-                          className="rounded bg-emerald-700 px-2 py-1 text-xs hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
-                          onClick={() => {
-                            setTenantAction({
-                              type: "unsuspend",
-                              tenant,
-                              phrase: buildTenantActionPhrase(tenant.subdomain),
-                            });
-                            setTenantActionInput("");
-                            setTenantActionReason("");
-                            setTenantsError(null);
-                          }}
-                        >
-                          {busyTenantId === tenant.id ? "Reactivating..." : "Unsuspend"}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={busyTenantId === tenant.id}
-                          className="rounded bg-amber-700 px-2 py-1 text-xs hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
-                          onClick={() => {
-                            setTenantAction({
-                              type: "suspend",
-                              tenant,
-                              phrase: buildTenantActionPhrase(tenant.subdomain),
-                            });
-                            setTenantActionInput("");
-                            setTenantActionReason("");
-                            setTenantsError(null);
-                          }}
-                        >
-                          {busyTenantId === tenant.id ? "Suspending..." : "Suspend"}
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {!tenants.length && !tenantsError ? <p className="mt-3 text-sm text-slate-300">No tenants found.</p> : null}
-
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-          <span>
-            Page {tenantPage} of {tenantTotalPages} • {tenantTotal} tenants
-          </span>
-          <div className="flex gap-2">
-            <button
-              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
-              disabled={tenantPage <= 1}
-              onClick={() => setTenantPage((prev) => Math.max(1, prev - 1))}
-            >
-              Previous
-            </button>
-            <button
-              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
-              disabled={tenantPage >= tenantTotalPages}
-              onClick={() => setTenantPage((prev) => Math.min(tenantTotalPages, prev + 1))}
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      </div>
+        <AdminTenantsView
+          tenantsError={tenantsError}
+          onRefreshTenants={() => {
+            void loadTenants();
+          }}
+          tenantSearch={tenantSearch}
+          onTenantSearchChange={setTenantSearch}
+          tenantStatusFilter={tenantStatusFilter}
+          onTenantStatusFilterChange={setTenantStatusFilter}
+          tenantPlanFilter={tenantPlanFilter}
+          onTenantPlanFilterChange={setTenantPlanFilter}
+          tenants={tenants}
+          busyTenantId={busyTenantId}
+          onOpenTenantAction={openTenantAction}
+          tenantPage={tenantPage}
+          tenantTotalPages={tenantTotalPages}
+          tenantTotal={tenantTotal}
+          onPreviousPage={() => setTenantPage((prev) => Math.max(1, prev - 1))}
+          onNextPage={() => setTenantPage((prev) => Math.min(tenantTotalPages, prev + 1))}
+        />
       ) : null}
 
       {currentView === "audit" ? (
-      <div className="rounded-xl border border-slate-700 p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Admin audit log</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
-              onClick={() => {
-                void exportAudit();
-              }}
-              disabled={auditExportBusy}
-            >
-              {auditExportBusy ? "Exporting..." : "Export CSV"}
-            </button>
-            <button
-              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
-              onClick={() => {
-                void loadAuditLog();
-              }}
-            >
-              Refresh
-            </button>
-          </div>
-        </div>
-        {auditExportError ? <p className="mb-3 text-sm text-red-400">{auditExportError}</p> : null}
-
-        {!auditSupported ? (
-          <p className="text-sm text-slate-300">Audit log endpoint is not available on this backend.</p>
-        ) : auditError ? (
-          <p className="text-sm text-red-400">{auditError}</p>
-        ) : auditLog.length ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
-                <tr>
-                  <th className="p-2">Time</th>
-                  <th className="p-2">Actor</th>
-                  <th className="p-2">Action</th>
-                  <th className="p-2">Resource</th>
-                  <th className="p-2">IP</th>
-                </tr>
-              </thead>
-              <tbody>
-                {auditLog.map((entry) => (
-                  <tr key={entry.id} className="border-t border-slate-700">
-                    <td className="p-2 text-xs text-slate-300">{formatDate(entry.created_at)}</td>
-                    <td className="p-2 text-xs text-slate-300">
-                      {entry.actor_email || entry.actor_id || entry.actor_role}
-                    </td>
-                    <td className="p-2 text-xs">{entry.action}</td>
-                    <td className="p-2 text-xs text-slate-300">
-                      {entry.resource}
-                      {entry.resource_id ? ` (${entry.resource_id.slice(0, 6)}...)` : ""}
-                    </td>
-                    <td className="p-2 text-xs text-slate-400">{entry.ip_address || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-sm text-slate-300">No audit entries yet.</p>
-        )}
-
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-          <span>
-            Page {auditPage} of {auditTotalPages} • {auditTotal} events
-          </span>
-          <div className="flex gap-2">
-            <button
-              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
-              disabled={auditPage <= 1}
-              onClick={() => setAuditPage((prev) => Math.max(1, prev - 1))}
-            >
-              Previous
-            </button>
-            <button
-              className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
-              disabled={auditPage >= auditTotalPages}
-              onClick={() => setAuditPage((prev) => Math.min(auditTotalPages, prev + 1))}
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      </div>
+        <AdminAuditView
+          auditExportBusy={auditExportBusy}
+          auditExportError={auditExportError}
+          onExportAudit={() => {
+            void exportAudit();
+          }}
+          onRefreshAudit={() => {
+            void loadAuditLog();
+          }}
+          auditSupported={auditSupported}
+          auditError={auditError}
+          auditLog={auditLog}
+          auditPage={auditPage}
+          auditTotalPages={auditTotalPages}
+          auditTotal={auditTotal}
+          onPreviousPage={() => setAuditPage((prev) => Math.max(1, prev - 1))}
+          onNextPage={() => setAuditPage((prev) => Math.min(auditTotalPages, prev + 1))}
+        />
       ) : null}
 
       {currentView === "support" ? (
-      <div className="rounded-xl border border-slate-700 p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Support impersonation links</h2>
-          <p className="text-xs text-slate-400">Short-lived, audited access for guided troubleshooting.</p>
-        </div>
-        <div className="grid gap-2 md:grid-cols-[1.2fr_1.8fr_auto]">
-          <input
-            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
-            placeholder="target-user@example.com"
-            value={impersonationEmail}
-            onChange={(event) => setImpersonationEmail(event.target.value)}
-          />
-          <input
-            className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
-            placeholder="Reason for support access"
-            value={impersonationReason}
-            onChange={(event) => setImpersonationReason(event.target.value)}
-          />
-          <button
-            className="rounded border border-slate-600 px-3 py-2 text-xs hover:bg-slate-800 disabled:opacity-60"
-            onClick={() => {
-              void issueImpersonationLink();
-            }}
-            disabled={impersonationBusy}
-          >
-            {impersonationBusy ? "Issuing..." : "Issue link"}
-          </button>
-        </div>
-        {impersonationError ? <p className="mt-2 text-sm text-red-400">{impersonationError}</p> : null}
-        {impersonationLink ? (
-          <div className="mt-3 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100">
-            <p className="font-semibold">Impersonation link ready</p>
-            <p className="mt-1 break-all">{impersonationLink}</p>
-            {impersonationToken ? <p className="mt-1 break-all text-amber-200">Token: {impersonationToken}</p> : null}
-          </div>
-        ) : null}
-      </div>
+        <AdminSupportView
+          impersonationEmail={impersonationEmail}
+          onImpersonationEmailChange={setImpersonationEmail}
+          impersonationReason={impersonationReason}
+          onImpersonationReasonChange={setImpersonationReason}
+          impersonationBusy={impersonationBusy}
+          onIssueImpersonationLink={() => {
+            void issueImpersonationLink();
+          }}
+          impersonationError={impersonationError}
+          impersonationLink={impersonationLink}
+          impersonationToken={impersonationToken}
+        />
       ) : null}
 
       {currentView === "recovery" ? (
-      <div className="rounded-xl border border-slate-700 p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Recovery queue (dead-letter)</h2>
-          <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
-            onClick={() => {
-              void loadDeadLetters();
-            }}
-          >
-            Refresh
-          </button>
-        </div>
-
-        {!deadLetterSupported ? (
-          <p className="text-sm text-slate-300">Dead-letter endpoint is not available on this backend.</p>
-        ) : deadLetterError ? (
-          <p className="text-sm text-red-400">{deadLetterError}</p>
-        ) : deadLetters.length ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
-                <tr>
-                  <th className="p-2">ID</th>
-                  <th className="p-2">Worker function</th>
-                  <th className="p-2">Queued</th>
-                  <th className="p-2">Args</th>
-                  <th className="p-2">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {deadLetters.map((job) => (
-                  <tr key={job.id} className="border-t border-slate-700">
-                    <td className="p-2 font-mono text-xs">{job.id}</td>
-                    <td className="p-2 text-xs">{job.func_name}</td>
-                    <td className="p-2 text-xs text-slate-300">{formatDate(job.enqueued_at)}</td>
-                    <td className="p-2 text-xs text-slate-300">
-                      <code>{JSON.stringify(job.args).slice(0, 120)}</code>
-                    </td>
-                    <td className="p-2 text-xs">
-                      <button
-                        className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
-                        disabled={requeueJobId === job.id}
-                        onClick={() => {
-                          void requeueDeadLetter(job.id);
-                        }}
-                      >
-                        {requeueJobId === job.id ? "Requeueing..." : "Requeue"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-sm text-slate-300">No dead-letter jobs.</p>
-        )}
-      </div>
+        <AdminRecoveryView
+          deadLetterSupported={deadLetterSupported}
+          deadLetterError={deadLetterError}
+          deadLetters={deadLetters}
+          requeueJobId={requeueJobId}
+          onRefreshDeadLetters={() => {
+            void loadDeadLetters();
+          }}
+          onRequeueDeadLetter={(jobId) => {
+            void requeueDeadLetter(jobId);
+          }}
+        />
       ) : null}
 
-      {tenantAction ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-white">
-              {tenantAction.type === "suspend" ? "Suspend tenant" : "Unsuspend tenant"}
-            </h3>
-            <p className="mt-2 text-sm text-slate-300">
-              To confirm, type <span className="font-mono text-sky-200">{tenantAction.phrase}</span>.
-            </p>
-            <p className="mt-1 text-xs text-slate-400">{tenantAction.tenant.company_name}</p>
-
-            <input
-              className="mt-4 w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-              value={tenantActionInput}
-              onChange={(event) => setTenantActionInput(event.target.value)}
-              placeholder={tenantAction.phrase}
-            />
-            <textarea
-              className="mt-3 w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
-              rows={2}
-              value={tenantActionReason}
-              onChange={(event) => setTenantActionReason(event.target.value)}
-              placeholder="Optional: document the reason for this action"
-            />
-
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                className="rounded border border-slate-600 px-3 py-1.5 text-xs hover:bg-slate-800"
-                onClick={() => {
-                  setTenantAction(null);
-                  setTenantActionInput("");
-                  setTenantActionReason("");
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="rounded bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-500 disabled:opacity-60"
-                disabled={busyTenantId === tenantAction.tenant.id || tenantActionInput !== tenantAction.phrase}
-                onClick={() => {
-                  void submitTenantAction();
-                }}
-              >
-                {busyTenantId === tenantAction.tenant.id
-                  ? tenantAction.type === "suspend"
-                    ? "Suspending..."
-                    : "Reactivating..."
-                  : tenantAction.type === "suspend"
-                    ? "Confirm suspend"
-                    : "Confirm unsuspend"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <TenantActionModal
+        tenantAction={tenantAction}
+        tenantActionInput={tenantActionInput}
+        onTenantActionInputChange={setTenantActionInput}
+        tenantActionReason={tenantActionReason}
+        onTenantActionReasonChange={setTenantActionReason}
+        busyTenantId={busyTenantId}
+        onCancel={() => {
+          setTenantAction(null);
+          setTenantActionInput("");
+          setTenantActionReason("");
+        }}
+        onConfirm={() => {
+          void submitTenantAction();
+        }}
+      />
     </section>
   );
 }

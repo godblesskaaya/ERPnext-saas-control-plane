@@ -29,6 +29,14 @@ const ADMIN_DASHBOARD_ROUTE_REDIRECTS: Record<(typeof ADMIN_DASHBOARD_PREFIXES)[
   "/dashboard/audit": "/admin/audit",
   "/dashboard/platform-health": "/admin/platform-health",
 };
+const LEGACY_ADMIN_ROOT_ROUTE_REDIRECTS: Record<string, string> = {
+  overview: "/admin/control/overview",
+  tenants: "/admin/control/tenants",
+  jobs: "/admin/control/jobs",
+  audit: "/admin/control/audit",
+  support: "/admin/control/support",
+  recovery: "/admin/control/recovery",
+};
 
 type JwtPayload = {
   exp?: number;
@@ -71,6 +79,30 @@ function resolveAdminDashboardRedirect(pathname: string): string | null {
     }
   }
   return null;
+}
+
+function resolveLegacyAdminRootRedirect(request: NextRequest): URL | null {
+  const { pathname, searchParams } = request.nextUrl;
+  if (pathname !== "/admin") {
+    return null;
+  }
+
+  const hasViewParam = searchParams.has("view");
+  const viewParam = searchParams.get("view");
+  const targetPath =
+    (viewParam && LEGACY_ADMIN_ROOT_ROUTE_REDIRECTS[viewParam]) || LEGACY_ADMIN_ROOT_ROUTE_REDIRECTS.overview;
+
+  const destination = new URL(targetPath, request.url);
+  for (const [key, value] of searchParams.entries()) {
+    if (key === "view") continue;
+    destination.searchParams.append(key, value);
+  }
+
+  if (!hasViewParam && pathname === targetPath) {
+    return null;
+  }
+
+  return destination;
 }
 
 function isPublicAuthRoute(pathname: string): boolean {
@@ -196,6 +228,11 @@ export function middleware(request: NextRequest) {
         "cache-control": "no-store",
       },
     });
+  }
+
+  const legacyAdminRootRedirect = resolveLegacyAdminRootRedirect(request);
+  if (legacyAdminRootRedirect) {
+    return NextResponse.redirect(legacyAdminRootRedirect);
   }
 
   return NextResponse.next();

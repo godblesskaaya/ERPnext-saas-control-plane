@@ -1,9 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
+import type { SelectChangeEvent } from "@mui/material/Select";
 
 import type { TenantCreatePayload, TenantCreateResponse } from "../../shared/lib/types";
-import { BUSINESS_APP_OPTIONS, PlanSelector } from "../../onboarding/components/PlanSelector";
+import { BUSINESS_APP_OPTIONS, PLAN_OPTIONS } from "../../onboarding/components/PlanSelector";
 import { createWorkspaceTenant, toWorkspaceQueueErrorMessage } from "../../tenant-ops/application/workspaceQueueUseCases";
 
 type Props = {
@@ -89,131 +105,163 @@ export function TenantCreateForm({ onCreated, canCreate = true, verificationNoti
   const selectedBusinessApp = BUSINESS_APP_OPTIONS.find((option) => option.id === chosenApp);
 
   return (
-    <form
-      id="create-tenant"
-      onSubmit={submit}
-      className="space-y-5 rounded-3xl border border-amber-200/70 bg-white/80 p-6 shadow-sm"
-    >
-      <div className="space-y-1">
-        <h2 className="text-xl font-semibold text-slate-900">Launch a workspace your team can use today</h2>
-        <p className="text-sm text-slate-600">
-          Reserve tenant identity, choose operating level, and continue to payment when needed.
-        </p>
-      </div>
+    <Card component="form" id="create-tenant" onSubmit={submit} variant="outlined">
+      <CardContent sx={{ p: { xs: 2.5, md: 3 }, "&:last-child": { pb: { xs: 2.5, md: 3 } } }}>
+        <Stack spacing={2.5}>
+          <Box>
+            <Typography variant="h6" fontWeight={700} color="text.primary">
+              Launch a workspace your team can use today
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Reserve tenant identity, choose operating level, and continue to payment when needed.
+            </Typography>
+          </Box>
 
-      {!canCreate ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-          <p className="font-semibold">Email verification required</p>
-          <p className="mt-1">Please verify your email before creating a workspace.</p>
-          {verificationNotice ? <p className="mt-2 text-amber-900">{verificationNotice}</p> : null}
-          {onResendVerification ? (
-            <button
-              type="button"
-              className="mt-2 rounded-full border border-amber-300 bg-white px-3 py-1 text-xs font-semibold text-amber-800 hover:border-amber-400"
-              onClick={() => void onResendVerification()}
+          {!canCreate ? (
+            <Alert
+              severity="warning"
+              action={
+                onResendVerification ? (
+                  <Button size="small" color="warning" onClick={() => void onResendVerification()}>
+                    Resend verification email
+                  </Button>
+                ) : undefined
+              }
             >
-              Resend verification email
-            </button>
+              <Typography variant="subtitle2">Email verification required</Typography>
+              <Typography variant="body2">Please verify your email before creating a workspace.</Typography>
+              {verificationNotice ? <Typography variant="body2">{verificationNotice}</Typography> : null}
+            </Alert>
           ) : null}
-        </div>
-      ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-2">
-          <label className="text-sm text-slate-600" htmlFor="subdomain-input">
-            Subdomain
-          </label>
-          <input
-            id="subdomain-input"
-            className="w-full rounded-xl border border-amber-200 bg-white p-2.5 text-slate-900 shadow-sm focus:border-amber-300 focus:outline-none"
-            placeholder="mlimani"
-            value={subdomain}
-            onChange={(e) => setSubdomain(normalizeSubdomain(e.target.value))}
-            required
-          />
-          <p className="text-xs text-slate-500">Tenant URL preview: {domainPreview}</p>
-        </div>
+          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" } }}>
+            <Box>
+              <TextField
+                id="subdomain-input"
+                label="Subdomain"
+                placeholder="mlimani"
+                value={subdomain}
+                onChange={(event) => setSubdomain(normalizeSubdomain(event.target.value))}
+                required
+                fullWidth
+              />
+              <Typography variant="caption" color="text.secondary">
+                Tenant URL preview: {domainPreview}
+              </Typography>
+            </Box>
 
-        <div className="space-y-2">
-          <label className="text-sm text-slate-600" htmlFor="company-input">
-            Company name
-          </label>
-          <input
-            id="company-input"
-            className="w-full rounded-xl border border-amber-200 bg-white p-2.5 text-slate-900 shadow-sm focus:border-amber-300 focus:outline-none"
-            placeholder="Mlimani Traders Ltd"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            required
-          />
-          <p className="text-xs text-slate-500">Shown in tenant records, billing, and internal ops reporting.</p>
-        </div>
-      </div>
+            <Box>
+              <TextField
+                id="company-input"
+                label="Company name"
+                placeholder="Mlimani Traders Ltd"
+                value={companyName}
+                onChange={(event) => setCompanyName(event.target.value)}
+                required
+                fullWidth
+              />
+              <Typography variant="caption" color="text.secondary">
+                Shown in tenant records, billing, and internal ops reporting.
+              </Typography>
+            </Box>
+          </Box>
 
-      <PlanSelector value={plan} onChange={setPlan} chosenApp={chosenApp} onChosenAppChange={setChosenApp} />
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] p-3 text-xs text-slate-600">
-          <p className="font-semibold text-slate-900">Request preview</p>
-          <p className="mt-1">Plan: {plan}</p>
-          {plan.toLowerCase() === "business" ? (
-            <p>
-              Chosen app: <span className="text-[#0d6a6a]">{selectedBusinessApp?.label ?? chosenApp}</span>
-            </p>
-          ) : (
-            <p>Chosen app: auto-managed by selected plan</p>
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-amber-200/70 bg-white p-3 text-xs text-slate-600">
-          <p className="font-semibold text-slate-900">What happens next</p>
-          <ul className="mt-1 space-y-1 leading-relaxed">
-            <li>• Payment step appears only when required by your backend flow.</li>
-            <li>• Provisioning status updates live after request submission.</li>
-            <li>• Designed for teams coordinating from laptop + phone across Tanzania.</li>
-          </ul>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          disabled={busy || !canCreate}
-          type="submit"
-          className="rounded-full bg-[#0d6a6a] px-5 py-2 font-semibold text-white hover:bg-[#0b5a5a] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {busy ? "Submitting workspace..." : "Create workspace"}
-        </button>
-        <span className="text-xs text-slate-500">Duplicate-submit protection is active.</span>
-      </div>
-
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
-
-      {created ? (
-        <div className="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm">
-          <p className="font-semibold text-emerald-900">Workspace request accepted</p>
-          <p>
-            <span className="text-slate-600">Domain:</span> {created.tenant.domain}
-          </p>
-          <p>
-            <span className="text-slate-600">Status:</span> {created.tenant.status}
-          </p>
-          {plan.toLowerCase() === "business" ? (
-            <p className="text-xs text-emerald-700">Business focus: {selectedBusinessApp?.label ?? chosenApp}</p>
-          ) : null}
-          {created.checkout_url ? (
-            <a
-              className="inline-flex rounded-full bg-emerald-700 px-3 py-1.5 font-medium text-white hover:bg-emerald-600"
-              href={created.checkout_url}
-              target="_blank"
-              rel="noreferrer"
+          <FormControl fullWidth>
+            <InputLabel id="plan-select-label">Choose rollout level</InputLabel>
+            <Select
+              labelId="plan-select-label"
+              label="Choose rollout level"
+              value={plan}
+              onChange={(event: SelectChangeEvent) => setPlan(event.target.value)}
             >
-              Continue to payment
-            </a>
-          ) : (
-            <p className="text-emerald-700">Checkout link not returned. Contact support if payment is expected.</p>
-          )}
-        </div>
-      ) : null}
-    </form>
+              {PLAN_OPTIONS.map((option) => (
+                <MenuItem key={option.id} value={option.id}>
+                  {option.label} — {option.price}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {plan.toLowerCase() === "business" ? (
+            <FormControl fullWidth>
+              <InputLabel id="business-app-select-label">Business focus area</InputLabel>
+              <Select
+                labelId="business-app-select-label"
+                label="Business focus area"
+                value={chosenApp}
+                onChange={(event: SelectChangeEvent) => setChosenApp(event.target.value)}
+              >
+                {BUSINESS_APP_OPTIONS.map((option) => (
+                  <MenuItem key={option.id} value={option.id}>
+                    {option.label} ({option.profile})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          ) : null}
+
+          <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" } }}>
+            <Paper variant="outlined" sx={{ p: 1.5, bgcolor: "#fdf7ee" }}>
+              <Typography variant="subtitle2" fontWeight={700}>
+                Request preview
+              </Typography>
+              <Typography variant="body2">Plan: {plan}</Typography>
+              {plan.toLowerCase() === "business" ? (
+                <Typography variant="body2">Chosen app: {selectedBusinessApp?.label ?? chosenApp}</Typography>
+              ) : (
+                <Typography variant="body2">Chosen app: auto-managed by selected plan</Typography>
+              )}
+            </Paper>
+
+            <Paper variant="outlined" sx={{ p: 1.5 }}>
+              <Typography variant="subtitle2" fontWeight={700}>
+                What happens next
+              </Typography>
+              <Typography variant="body2">• Payment step appears only when required by your backend flow.</Typography>
+              <Typography variant="body2">• Provisioning status updates live after request submission.</Typography>
+              <Typography variant="body2">
+                • Designed for teams coordinating from laptop + phone across Tanzania.
+              </Typography>
+            </Paper>
+          </Box>
+
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }}>
+            <Button disabled={busy || !canCreate} type="submit" variant="contained">
+              {busy ? "Submitting workspace..." : "Create workspace"}
+            </Button>
+            <Typography variant="caption" color="text.secondary">
+              Duplicate-submit protection is active.
+            </Typography>
+          </Stack>
+
+          {error ? <Alert severity="error">{error}</Alert> : null}
+
+          {created ? (
+            <Alert
+              severity="success"
+              action={
+                created.checkout_url ? (
+                  <Button color="success" href={created.checkout_url} target="_blank" rel="noreferrer">
+                    Continue to payment
+                  </Button>
+                ) : undefined
+              }
+            >
+              <Typography variant="subtitle2">Workspace request accepted</Typography>
+              <Typography variant="body2">Domain: {created.tenant.domain}</Typography>
+              <Typography variant="body2">Status: {created.tenant.status}</Typography>
+              {plan.toLowerCase() === "business" ? (
+                <Typography variant="body2">Business focus: {selectedBusinessApp?.label ?? chosenApp}</Typography>
+              ) : null}
+              {!created.checkout_url ? (
+                <Typography variant="body2">
+                  Checkout link not returned. Contact support if payment is expected.
+                </Typography>
+              ) : null}
+            </Alert>
+          ) : null}
+        </Stack>
+      </CardContent>
+    </Card>
   );
 }

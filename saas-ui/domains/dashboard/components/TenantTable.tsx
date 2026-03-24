@@ -1,6 +1,31 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from "@mui/material";
 
 import type { Job, ResetAdminPasswordResult, Tenant } from "../../shared/lib/types";
 import { JobLogPanel } from "../../shared/components/JobLogPanel";
@@ -31,18 +56,18 @@ type ConfirmAction = {
   phrase: string;
 };
 
-function statusBadgeClass(status: string): string {
+function statusChipStyles(status: string): { color: "default" | "error" | "success" | "warning"; sx?: Record<string, string> } {
   const normalized = status.toLowerCase();
-  if (normalized === "active") return "bg-emerald-100 text-emerald-800";
-  if (
-    ["provisioning", "pending", "deleting", "upgrading", "restoring", "pending_deletion"].includes(normalized)
-  ) {
-    return "bg-amber-100 text-amber-800";
+  if (normalized === "active") return { color: "success" };
+  if (["provisioning", "pending", "deleting", "upgrading", "restoring", "pending_deletion"].includes(normalized)) {
+    return { color: "warning" };
   }
-  if (normalized === "failed") return "bg-red-100 text-red-700";
-  if (normalized === "deleted") return "bg-slate-100 text-slate-500";
-  if (["suspended", "suspended_admin", "suspended_billing"].includes(normalized)) return "bg-orange-100 text-orange-800";
-  return "bg-sky-100 text-sky-800";
+  if (normalized === "failed") return { color: "error" };
+  if (normalized === "deleted") return { color: "default" };
+  if (["suspended", "suspended_admin", "suspended_billing"].includes(normalized)) {
+    return { color: "warning", sx: { bgcolor: "#ffedd5", color: "#9a3412" } };
+  }
+  return { color: "default", sx: { bgcolor: "#e0f2fe", color: "#0369a1" } };
 }
 
 function statusHint(status: string): string {
@@ -61,22 +86,20 @@ function statusHint(status: string): string {
   return "Status under review";
 }
 
-function rowTone(status: string): string {
+function rowTone(status: string): string | undefined {
   const normalized = status.toLowerCase();
-  if (normalized === "failed") return "bg-red-50";
-  if (
-    ["pending", "pending_payment", "provisioning", "upgrading", "restoring", "pending_deletion"].includes(normalized)
-  ) {
-    return "bg-amber-50/60";
+  if (normalized === "failed") return "rgba(254, 242, 242, 1)";
+  if (["pending", "pending_payment", "provisioning", "upgrading", "restoring", "pending_deletion"].includes(normalized)) {
+    return "rgba(255, 251, 235, 0.65)";
   }
-  return "";
+  return undefined;
 }
 
-function planBadgeClass(plan: string): string {
+function planChipStyle(plan: string): Record<string, string> {
   const normalized = plan.toLowerCase();
-  if (normalized === "enterprise") return "bg-slate-200 text-slate-700";
-  if (normalized === "business") return "bg-[#0d6a6a]/15 text-[#0d6a6a]";
-  return "bg-amber-100 text-amber-800";
+  if (normalized === "enterprise") return { bgcolor: "#e2e8f0", color: "#334155" };
+  if (normalized === "business") return { bgcolor: "rgba(13,106,106,0.15)", color: "#0d6a6a" };
+  return { bgcolor: "#fef3c7", color: "#92400e" };
 }
 
 function formatDate(value?: string | null): string {
@@ -129,6 +152,7 @@ export function TenantTable({
   const [planAppChoice, setPlanAppChoice] = useState(BUSINESS_APP_OPTIONS[0]?.id ?? "crm");
   const [planError, setPlanError] = useState<string | null>(null);
   const [planBusy, setPlanBusy] = useState(false);
+
   const failedCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "failed").length, [tenants]);
   const setupCount = useMemo(
     () =>
@@ -237,50 +261,66 @@ export function TenantTable({
     const actionHref = emptyStateActionHref ?? "#create-tenant";
 
     return (
-      <div className="rounded-3xl border border-dashed border-amber-200 bg-white/80 p-8 text-center">
-        <p className="text-3xl">📦</p>
-        <p className="mt-2 text-lg font-semibold text-slate-900">{title}</p>
-        <p className="mt-1 text-sm text-slate-600">{body}</p>
-        {actionHref ? (
-          <a
-            href={actionHref}
-            className="mt-4 inline-flex rounded-full bg-[#0d6a6a] px-4 py-2 font-medium text-white hover:bg-[#0b5a5a]"
-          >
-            {actionLabel}
-          </a>
-        ) : null}
-      </div>
+      <Card variant="outlined" sx={{ borderStyle: "dashed", borderColor: "warning.light", textAlign: "center", py: 4, px: 2 }}>
+        <CardContent sx={{ display: "grid", gap: 1 }}>
+          <Typography sx={{ fontSize: "2rem" }}>📦</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            {title}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {body}
+          </Typography>
+          {actionHref ? (
+            <Box sx={{ mt: 2 }}>
+              <Button component="a" href={actionHref} variant="contained" sx={{ borderRadius: 999, bgcolor: "#0d6a6a", "&:hover": { bgcolor: "#0b5a5a" } }}>
+                {actionLabel}
+              </Button>
+            </Box>
+          ) : null}
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <Box sx={{ display: "grid", gap: 2 }}>
       {filterLabel ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <Alert severity="warning" sx={{ borderRadius: 2 }}>
           {filterLabel}
-        </div>
+        </Alert>
       ) : null}
+
       {showPaymentChannel ? (
-        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(channelCounts).map(([channel, count]) => (
-              <span key={channel} className="rounded-full border border-slate-200 px-2 py-1 text-xs">
-                {channel.replace(/_/g, " ")}: <span className="font-semibold">{count}</span>
-              </span>
-            ))}
-          </div>
-        </div>
+        <Card variant="outlined">
+          <CardContent sx={{ py: "10px !important" }}>
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+              {Object.entries(channelCounts).map(([channel, count]) => (
+                <Chip key={channel} size="small" variant="outlined" label={`${channel.replace(/_/g, " ")}: ${count}`} />
+              ))}
+            </Box>
+          </CardContent>
+        </Card>
       ) : null}
+
       {passwordResult ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm">
-          <p className="font-semibold text-emerald-900">Administrator password reset complete</p>
-          <p>Tenant: {passwordResult.domain}</p>
-          <p>User: {passwordResult.administrator_user}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <code className="rounded bg-black/10 px-2 py-1 text-emerald-900">{passwordResult.admin_password}</code>
-            <button
-              type="button"
-              className="rounded border border-emerald-300 px-2 py-1 text-xs text-emerald-900 hover:bg-emerald-100"
+        <Alert
+          severity="success"
+          sx={{
+            alignItems: "flex-start",
+            "& .MuiAlert-message": { width: "100%" },
+          }}
+        >
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+            Administrator password reset complete
+          </Typography>
+          <Typography variant="body2">Tenant: {passwordResult.domain}</Typography>
+          <Typography variant="body2">User: {passwordResult.administrator_user}</Typography>
+          <Box sx={{ mt: 1, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
+            <Chip label={passwordResult.admin_password} size="small" sx={{ fontFamily: "monospace" }} />
+            <Button
+              size="small"
+              variant="outlined"
+              color="success"
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(passwordResult.admin_password);
@@ -291,97 +331,128 @@ export function TenantTable({
               }}
             >
               Copy
-            </button>
-            {copyState === "copied" ? <span className="text-xs text-emerald-700">Copied</span> : null}
-            {copyState === "error" ? <span className="text-xs text-red-600">Copy failed</span> : null}
-          </div>
-          <p className="mt-1 text-xs text-emerald-700">Auto-dismisses in {remainingSeconds}s.</p>
-        </div>
+            </Button>
+            {copyState === "copied" ? <Typography variant="caption">Copied</Typography> : null}
+            {copyState === "error" ? (
+              <Typography variant="caption" color="error">
+                Copy failed
+              </Typography>
+            ) : null}
+          </Box>
+          <Typography variant="caption" sx={{ mt: 0.5, display: "block" }}>
+            Auto-dismisses in {remainingSeconds}s.
+          </Typography>
+        </Alert>
       ) : null}
 
-      <div className="grid gap-2 text-xs md:grid-cols-3">
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-900">
-          Live environments: <span className="font-semibold">{liveCount}</span>
-        </div>
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
-          In setup flow: <span className="font-semibold">{setupCount}</span>
-        </div>
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-red-700">
-          Need intervention: <span className="font-semibold">{failedCount}</span>
-        </div>
-      </div>
+      <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" } }}>
+        <Card variant="outlined" sx={{ bgcolor: "#ecfdf5", borderColor: "#86efac" }}>
+          <CardContent sx={{ py: "10px !important" }}>
+            <Typography variant="body2" color="#065f46">
+              Live environments: <Box component="span" sx={{ fontWeight: 700 }}>{liveCount}</Box>
+            </Typography>
+          </CardContent>
+        </Card>
+        <Card variant="outlined" sx={{ bgcolor: "#fffbeb", borderColor: "#fcd34d" }}>
+          <CardContent sx={{ py: "10px !important" }}>
+            <Typography variant="body2" color="#92400e">
+              In setup flow: <Box component="span" sx={{ fontWeight: 700 }}>{setupCount}</Box>
+            </Typography>
+          </CardContent>
+        </Card>
+        <Card variant="outlined" sx={{ bgcolor: "#fef2f2", borderColor: "#fca5a5" }}>
+          <CardContent sx={{ py: "10px !important" }}>
+            <Typography variant="body2" color="#b91c1c">
+              Need intervention: <Box component="span" sx={{ fontWeight: 700 }}>{failedCount}</Box>
+            </Typography>
+          </CardContent>
+        </Card>
+      </Box>
 
-      <div className="overflow-x-auto rounded-3xl border border-amber-200/70 bg-white/90">
-        <table className="min-w-full text-sm">
-          <thead className="bg-[#fff7ed] text-left text-xs uppercase tracking-wide text-slate-600">
-            <tr>
-              <th className="p-2.5">Workspace</th>
-              <th className="p-2.5">Package / focus</th>
-              <th className="p-2.5">Health</th>
-              <th className="p-2.5">Billing</th>
-              {showPaymentChannel ? <th className="p-2.5">Channel</th> : null}
-              <th className="p-2.5">Created</th>
-              <th className="p-2.5">Quick actions</th>
-            </tr>
-          </thead>
-          <tbody>
+      <TableContainer component={Card} variant="outlined" sx={{ borderRadius: 3 }}>
+        <Table size="small" sx={{ minWidth: 960 }}>
+          <TableHead>
+            <TableRow sx={{ bgcolor: "#fff7ed" }}>
+              <TableCell sx={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6 }}>Workspace</TableCell>
+              <TableCell sx={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6 }}>Package / focus</TableCell>
+              <TableCell sx={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6 }}>Health</TableCell>
+              <TableCell sx={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6 }}>Billing</TableCell>
+              {showPaymentChannel ? <TableCell sx={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6 }}>Channel</TableCell> : null}
+              <TableCell sx={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6 }}>Created</TableCell>
+              <TableCell sx={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6 }}>Quick actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
             {tenants.map((tenant) => {
               const job = jobsByTenant[tenant.id];
               const plan = getPlanMeta(tenant.plan);
               const confirmationPhrase = tenant.subdomain.toUpperCase();
+              const statusStyle = statusChipStyles(tenant.status);
 
               return (
                 <Fragment key={tenant.id}>
-                  <tr className={`border-t border-amber-200/60 align-top ${rowTone(tenant.status)}`}>
-                    <td className="space-y-1 p-2.5">
-                      <p className="font-medium text-slate-900">{tenant.company_name}</p>
-                      <p className="text-xs text-slate-500">{tenant.subdomain}</p>
-                      <a
+                  <TableRow hover sx={{ verticalAlign: "top", bgcolor: rowTone(tenant.status) }}>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{tenant.company_name}</Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {tenant.subdomain}
+                      </Typography>
+                      <Button
+                        component="a"
                         href={`https://${tenant.domain}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-xs text-[#0d6a6a] hover:text-[#0b5a5a]"
+                        size="small"
+                        sx={{ textTransform: "none", p: 0, minWidth: 0, mt: 0.5 }}
                       >
                         {tenant.domain}
-                      </a>
-                    </td>
-                    <td className="p-2.5">
-                      <div className="space-y-1">
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${planBadgeClass(tenant.plan)}`}>
-                          {plan?.label ?? tenant.plan}
-                        </span>
-                        <p className="text-xs text-slate-500">
-                          Focus: <span className="text-slate-900">{tenant.chosen_app || "auto"}</span>
-                        </p>
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: "grid", gap: 0.5 }}>
+                        <Chip size="small" label={plan?.label ?? tenant.plan} sx={{ width: "fit-content", ...planChipStyle(tenant.plan) }} />
+                        <Typography variant="caption" color="text.secondary">
+                          Focus: <Box component="span" sx={{ color: "text.primary" }}>{tenant.chosen_app || "auto"}</Box>
+                        </Typography>
                         {tenant.payment_provider ? (
-                          <p className="text-xs text-slate-500">Provider: {tenant.payment_provider}</p>
+                          <Typography variant="caption" color="text.secondary">Provider: {tenant.payment_provider}</Typography>
                         ) : null}
-                      </div>
-                    </td>
-                    <td className="p-2.5">
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(tenant.status)}`}>
-                        {tenant.status}
-                      </span>
-                      <p className="mt-1 text-xs text-slate-500">{statusHint(tenant.status)}</p>
-                      {job ? <p className="mt-1 text-xs text-slate-500">Job: {job.status}</p> : null}
-                    </td>
-                    <td className="p-2.5 text-xs text-slate-600">{getBillingLabel(tenant)}</td>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Chip size="small" label={tenant.status} color={statusStyle.color} sx={statusStyle.sx} />
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: "block" }}>
+                        {statusHint(tenant.status)}
+                      </Typography>
+                      {job ? (
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
+                          Job: {job.status}
+                        </Typography>
+                      ) : null}
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption" color="text.secondary">{getBillingLabel(tenant)}</Typography>
+                    </TableCell>
                     {showPaymentChannel ? (
-                      <td className="p-2.5 text-xs text-slate-600">
-                        {tenant.payment_channel ? tenant.payment_channel.replace(/_/g, " ") : "—"}
-                      </td>
+                      <TableCell>
+                        <Typography variant="caption" color="text.secondary">
+                          {tenant.payment_channel ? tenant.payment_channel.replace(/_/g, " ") : "—"}
+                        </Typography>
+                      </TableCell>
                     ) : null}
-                    <td className="p-2.5 text-xs text-slate-600">{formatDate(tenant.created_at)}</td>
-                    <td className="p-2.5">
-                      <div className="flex flex-wrap gap-1.5">
-                        <a
-                          href={`/tenants/${tenant.id}`}
-                          className="rounded-full border border-amber-200 px-2 py-1 text-xs text-slate-700 hover:border-amber-300"
-                        >
+                    <TableCell>
+                      <Typography variant="caption" color="text.secondary">{formatDate(tenant.created_at)}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                        <Button component={Link} href={`/tenants/${tenant.id}`} size="small" variant="outlined" sx={{ borderRadius: 999 }}>
                           Details
-                        </a>
-                        <button
-                          className="rounded-full bg-slate-900 px-2 py-1 text-xs text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="inherit"
+                          sx={{ borderRadius: 999, bgcolor: "#0f172a", color: "#fff", "&:hover": { bgcolor: "#1e293b" } }}
                           disabled={busyTenantId === tenant.id}
                           onClick={async () => {
                             setBusyTenantId(tenant.id);
@@ -393,9 +464,12 @@ export function TenantTable({
                           }}
                         >
                           Backup now
-                        </button>
-                        <button
-                          className="rounded-full bg-amber-500 px-2 py-1 text-xs text-white hover:bg-amber-400"
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="warning"
+                          sx={{ borderRadius: 999 }}
                           onClick={() => {
                             setConfirmAction({ type: "reset", tenant, phrase: confirmationPhrase });
                             setConfirmInput("");
@@ -404,10 +478,12 @@ export function TenantTable({
                           }}
                         >
                           Reset admin login
-                        </button>
+                        </Button>
                         {onUpdatePlan ? (
-                          <button
-                            className="rounded-full border border-amber-200 px-2 py-1 text-xs text-slate-700 hover:border-amber-300"
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            sx={{ borderRadius: 999 }}
                             onClick={() => {
                               setPlanActionTenant(tenant);
                               setPlanChoice(tenant.plan);
@@ -415,10 +491,13 @@ export function TenantTable({
                             }}
                           >
                             Change plan
-                          </button>
+                          </Button>
                         ) : null}
-                        <button
-                          className="rounded-full bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-500"
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="error"
+                          sx={{ borderRadius: 999 }}
                           onClick={() => {
                             setConfirmAction({ type: "delete", tenant, phrase: confirmationPhrase });
                             setConfirmInput("");
@@ -426,33 +505,37 @@ export function TenantTable({
                           }}
                         >
                           Delete workspace
-                        </button>
+                        </Button>
                         {tenant.status.toLowerCase() === "failed" && onRetryProvisioning ? (
-                          <button
-                            className="rounded-full border border-amber-200 px-2 py-1 text-xs text-slate-700 hover:border-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            sx={{ borderRadius: 999 }}
                             disabled={retryingTenantId === tenant.id}
                             onClick={() => {
                               void onRetryProvisioning(tenant.id);
                             }}
                           >
                             {retryingTenantId === tenant.id ? "Retrying..." : "Retry provisioning"}
-                          </button>
+                          </Button>
                         ) : null}
                         {job ? (
-                          <button
-                            className="rounded-full border border-amber-200 px-2 py-1 text-xs text-slate-700 hover:border-amber-300"
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            sx={{ borderRadius: 999 }}
                             onClick={() => setExpandedTenantId((current) => (current === tenant.id ? null : tenant.id))}
                           >
                             {expandedTenantId === tenant.id ? "Hide logs" : "Show logs"}
-                          </button>
+                          </Button>
                         ) : null}
-                      </div>
-                    </td>
-                  </tr>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
 
                   {job && expandedTenantId === tenant.id ? (
-                    <tr className="border-t border-amber-200/60 bg-[#fffaf4]">
-                      <td className="p-3" colSpan={6}>
+                    <TableRow sx={{ bgcolor: "#fffaf4" }}>
+                      <TableCell colSpan={showPaymentChannel ? 7 : 6} sx={{ py: 2 }}>
                         <JobLogPanel
                           jobId={job.id}
                           logs={job.logs}
@@ -461,120 +544,125 @@ export function TenantTable({
                             onJobUpdate?.(nextJob);
                           }}
                         />
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ) : null}
                 </Fragment>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-      {confirmAction ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md space-y-3 rounded-2xl border border-amber-200 bg-white p-4 text-sm">
-            <h3 className="text-base font-semibold text-slate-900">
-              {confirmAction.type === "delete" ? "Confirm workspace deletion" : "Confirm admin password reset"}
-            </h3>
-            <p className="text-slate-600">
-              Tenant: <strong>{confirmAction.tenant.company_name}</strong>
-            </p>
-            <p className="text-slate-600">
-              Type <code className="rounded bg-black/10 px-1">{confirmAction.phrase}</code> to continue.
-            </p>
-            <input
-              className="w-full rounded-xl border border-amber-200 bg-white p-2"
-              value={confirmInput}
-              onChange={(event) => setConfirmInput(event.target.value.toUpperCase())}
-              placeholder="Type confirmation text"
+      <Dialog open={Boolean(confirmAction)} onClose={isSubmitting ? undefined : closeConfirm} fullWidth maxWidth="sm">
+        <DialogTitle>{confirmAction?.type === "delete" ? "Confirm workspace deletion" : "Confirm admin password reset"}</DialogTitle>
+        <DialogContent sx={{ display: "grid", gap: 2, pt: 1 }}>
+          {confirmAction ? (
+            <>
+              <Typography variant="body2" color="text.secondary">
+                Tenant: <Box component="span" sx={{ color: "text.primary", fontWeight: 700 }}>{confirmAction.tenant.company_name}</Box>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Type <Chip label={confirmAction.phrase} size="small" sx={{ fontFamily: "monospace" }} /> to continue.
+              </Typography>
+            </>
+          ) : null}
+          <TextField
+            value={confirmInput}
+            onChange={(event) => setConfirmInput(event.target.value.toUpperCase())}
+            placeholder="Type confirmation text"
+            fullWidth
+            size="small"
+          />
+          {confirmAction?.type === "reset" ? (
+            <TextField
+              type="password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              placeholder="Optional: set a specific new password"
+              fullWidth
+              size="small"
             />
-            {confirmAction.type === "reset" ? (
-              <input
-                type="password"
-                className="w-full rounded-xl border border-amber-200 bg-white p-2"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                placeholder="Optional: set a specific new password"
-              />
-            ) : null}
-            {confirmError ? <p className="text-red-600">{confirmError}</p> : null}
-            <div className="flex justify-end gap-2">
-              <button
-                className="rounded-full border border-amber-200 px-3 py-1.5 text-slate-700"
-                disabled={isSubmitting}
-                onClick={closeConfirm}
-              >
-                Cancel
-              </button>
-              <button
-                className="rounded-full bg-red-600 px-3 py-1.5 text-white disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isSubmitting || confirmInput !== confirmAction.phrase}
-                onClick={() => {
-                  void handleConfirm();
-                }}
-              >
-                {isSubmitting ? "Processing..." : "Confirm"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+          ) : null}
+          {confirmError ? (
+            <Typography variant="body2" color="error">
+              {confirmError}
+            </Typography>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={isSubmitting} onClick={closeConfirm}>
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            disabled={isSubmitting || confirmInput !== confirmAction?.phrase}
+            onClick={() => {
+              void handleConfirm();
+            }}
+          >
+            {isSubmitting ? "Processing..." : "Confirm"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      {planActionTenant ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md space-y-3 rounded-2xl border border-amber-200 bg-white p-4 text-sm">
-            <h3 className="text-base font-semibold text-slate-900">Change plan</h3>
-            <p className="text-slate-600">
-              Tenant: <strong>{planActionTenant.company_name}</strong>
-            </p>
-            <div>
-              <label className="mb-1 block text-xs text-slate-500">Plan</label>
-              <select
-                className="w-full rounded-xl border border-amber-200 bg-white p-2 text-sm"
-                value={planChoice}
-                onChange={(event) => setPlanChoice(event.target.value)}
+      <Dialog open={Boolean(planActionTenant)} onClose={planBusy ? undefined : closePlanModal} fullWidth maxWidth="sm">
+        <DialogTitle>Change plan</DialogTitle>
+        <DialogContent sx={{ display: "grid", gap: 2, pt: 1 }}>
+          {planActionTenant ? (
+            <Typography variant="body2" color="text.secondary">
+              Tenant: <Box component="span" sx={{ color: "text.primary", fontWeight: 700 }}>{planActionTenant.company_name}</Box>
+            </Typography>
+          ) : null}
+          <FormControl fullWidth size="small">
+            <InputLabel id="tenant-plan-label">Plan</InputLabel>
+            <Select
+              labelId="tenant-plan-label"
+              label="Plan"
+              value={planChoice}
+              onChange={(event) => setPlanChoice(event.target.value)}
+            >
+              <MenuItem value="starter">Starter</MenuItem>
+              <MenuItem value="business">Business</MenuItem>
+              <MenuItem value="enterprise">Enterprise</MenuItem>
+            </Select>
+          </FormControl>
+          {planChoice === "business" ? (
+            <FormControl fullWidth size="small">
+              <InputLabel id="tenant-plan-focus-label">Business focus</InputLabel>
+              <Select
+                labelId="tenant-plan-focus-label"
+                label="Business focus"
+                value={planAppChoice}
+                onChange={(event) => setPlanAppChoice(event.target.value)}
               >
-                <option value="starter">Starter</option>
-                <option value="business">Business</option>
-                <option value="enterprise">Enterprise</option>
-              </select>
-            </div>
-            {planChoice === "business" ? (
-              <div>
-                <label className="mb-1 block text-xs text-slate-500">Business focus</label>
-                <select
-                  className="w-full rounded-xl border border-amber-200 bg-white p-2 text-sm"
-                  value={planAppChoice}
-                  onChange={(event) => setPlanAppChoice(event.target.value)}
-                >
-                  {BUSINESS_APP_OPTIONS.map((option: { id: string; label: string }) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
-            {planError ? <p className="text-red-600">{planError}</p> : null}
-            <div className="flex justify-end gap-2">
-              <button
-                className="rounded-full border border-amber-200 px-3 py-1.5 text-slate-700"
-                onClick={closePlanModal}
-              >
-                Cancel
-              </button>
-              <button
-                className="rounded-full bg-[#0d6a6a] px-3 py-1.5 text-white disabled:opacity-60"
-                disabled={planBusy || updatingTenantId === planActionTenant.id}
-                onClick={() => void submitPlanUpdate()}
-              >
-                {planBusy || updatingTenantId === planActionTenant.id ? "Updating..." : "Confirm change"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </div>
+                {BUSINESS_APP_OPTIONS.map((option: { id: string; label: string }) => (
+                  <MenuItem key={option.id} value={option.id}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          ) : null}
+          {planError ? (
+            <Typography variant="body2" color="error">
+              {planError}
+            </Typography>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closePlanModal}>Cancel</Button>
+          <Button
+            variant="contained"
+            sx={{ bgcolor: "#0d6a6a", "&:hover": { bgcolor: "#0b5a5a" } }}
+            disabled={planBusy || (planActionTenant ? updatingTenantId === planActionTenant.id : false)}
+            onClick={() => void submitPlanUpdate()}
+          >
+            {planBusy || (planActionTenant ? updatingTenantId === planActionTenant.id : false) ? "Updating..." : "Confirm change"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 }

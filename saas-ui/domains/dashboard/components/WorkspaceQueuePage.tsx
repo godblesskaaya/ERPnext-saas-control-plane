@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Alert, Box, Button, Card, CardContent, Chip, MenuItem, Stack, TextField, Typography } from "@mui/material";
 
 import { TenantCreateForm } from "./TenantCreateForm";
 import { TenantTable } from "./TenantTable";
@@ -51,19 +52,27 @@ type QueueConfig = {
 };
 
 function metricCard(label: string, value: number, hint: string, tone: "default" | "good" | "warn" = "default") {
-  const toneClass =
+  const toneSx =
     tone === "good"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+      ? { borderColor: "#a7f3d0", bgcolor: "#ecfdf5", color: "#065f46" }
       : tone === "warn"
-      ? "border-amber-200 bg-amber-50 text-amber-900"
-      : "border-slate-200 bg-white text-slate-900";
+      ? { borderColor: "#fcd34d", bgcolor: "#fffbeb", color: "#92400e" }
+      : { borderColor: "divider", bgcolor: "background.paper", color: "text.primary" };
 
   return (
-    <article className={`rounded-2xl border p-4 ${toneClass}`}>
-      <p className="text-xs uppercase tracking-wide opacity-80">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
-      <p className="mt-1 text-xs opacity-80">{hint}</p>
-    </article>
+    <Card variant="outlined" sx={{ borderRadius: 3, ...toneSx }}>
+      <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+        <Typography variant="caption" sx={{ textTransform: "uppercase", letterSpacing: 0.7, opacity: 0.85 }}>
+          {label}
+        </Typography>
+        <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 700 }}>
+          {value}
+        </Typography>
+        <Typography variant="caption" sx={{ mt: 0.5, display: "block", opacity: 0.85 }}>
+          {hint}
+        </Typography>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -443,86 +452,124 @@ export function WorkspaceQueuePage({
   };
 
   return (
-    <section className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-amber-200/70 bg-white/80 p-6 shadow-sm">
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Operations</p>
-          <h1 className="text-3xl font-semibold text-slate-900">{title}</h1>
-          <p className="text-sm text-slate-600">{description}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {showCreate ? (
-            <a href="#create-tenant" className="rounded-full bg-[#0d6a6a] px-4 py-2 text-xs font-semibold text-white">
-              New workspace
-            </a>
-          ) : null}
-          <button
-            className="rounded-full border border-amber-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-amber-300 disabled:opacity-60"
-            onClick={() => {
-              void load();
-            }}
-            disabled={loading}
-          >
-            {loading ? "Refreshing..." : "Refresh data"}
-          </button>
-        </div>
-      </div>
+    <Stack spacing={4}>
+      <Card
+        variant="outlined"
+        sx={{ borderRadius: 4, borderColor: "rgba(245,158,11,0.35)", bgcolor: "rgba(255,255,255,0.88)", boxShadow: 1 }}
+      >
+        <CardContent sx={{ p: 3 }}>
+          <Stack direction={{ xs: "column", md: "row" }} spacing={2} justifyContent="space-between" alignItems={{ md: "center" }}>
+            <Box>
+              <Typography variant="overline" sx={{ fontWeight: 700, color: "warning.dark", letterSpacing: 0.8 }}>
+                Operations
+              </Typography>
+              <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                {title}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {description}
+              </Typography>
+            </Box>
+            <Stack direction="row" spacing={1} flexWrap="wrap">
+              {showCreate ? (
+                <Button component="a" href="#create-tenant" variant="contained" size="small" sx={{ borderRadius: 999 }}>
+                  New workspace
+                </Button>
+              ) : null}
+              <Button
+                variant="outlined"
+                color="warning"
+                size="small"
+                sx={{ borderRadius: 999 }}
+                onClick={() => {
+                  void load();
+                }}
+                disabled={loading}
+              >
+                {loading ? "Refreshing..." : "Refresh data"}
+              </Button>
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
 
       {showAttention ? (
-        <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-          <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-slate-900">Attention queue</p>
-              <span
-                className={`rounded-full px-3 py-1 text-xs ${
-                  needsAttentionCount ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"
-                }`}
-              >
-                {needsAttentionCount ? `${needsAttentionCount} item(s) need review` : "No blockers right now"}
-              </span>
-            </div>
-            <p className="mt-2 text-sm text-slate-600">{attentionSummary}</p>
-            <div className="mt-4 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
-              <p className="rounded-xl border border-amber-200/70 bg-[#fff7ed] px-3 py-2">
-                Failed workspaces: <span className="font-semibold text-amber-800">{failedTenants}</span>
-              </p>
-              <p className="rounded-xl border border-amber-200/70 bg-[#fff7ed] px-3 py-2">
-                Provisioning queue: <span className="font-semibold text-amber-800">{provisioningTenants}</span>
-              </p>
-              <p className="rounded-xl border border-amber-200/70 bg-[#f7fbf9] px-3 py-2">
-                Live jobs: <span className="font-semibold text-[#0d6a6a]">{activeJobs}</span>
-              </p>
-            </div>
-          </div>
+        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1.2fr 1fr" } }}>
+          <Card variant="outlined" sx={{ borderRadius: 4, borderColor: "rgba(245,158,11,0.35)", bgcolor: "rgba(255,255,255,0.88)" }}>
+            <CardContent sx={{ p: 3 }}>
+              <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center" flexWrap="wrap">
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  Attention queue
+                </Typography>
+                <Chip
+                  size="small"
+                  color={needsAttentionCount ? "warning" : "success"}
+                  label={needsAttentionCount ? `${needsAttentionCount} item(s) need review` : "No blockers right now"}
+                />
+              </Stack>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                {attentionSummary}
+              </Typography>
+              <Box sx={{ mt: 2, display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" } }}>
+                <Box sx={{ border: "1px solid", borderColor: "rgba(245,158,11,0.35)", bgcolor: "#fff7ed", borderRadius: 2, px: 1.5, py: 1 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    Failed workspaces: <Box component="span" sx={{ fontWeight: 700, color: "warning.dark" }}>{failedTenants}</Box>
+                  </Typography>
+                </Box>
+                <Box sx={{ border: "1px solid", borderColor: "rgba(245,158,11,0.35)", bgcolor: "#fff7ed", borderRadius: 2, px: 1.5, py: 1 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    Provisioning queue: <Box component="span" sx={{ fontWeight: 700, color: "warning.dark" }}>{provisioningTenants}</Box>
+                  </Typography>
+                </Box>
+                <Box sx={{ border: "1px solid", borderColor: "rgba(245,158,11,0.35)", bgcolor: "#f7fbf9", borderRadius: 2, px: 1.5, py: 1 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    Live jobs: <Box component="span" sx={{ fontWeight: 700, color: "primary.main" }}>{activeJobs}</Box>
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
 
-          <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
-            <p className="text-sm font-semibold text-slate-900">{isAdminScope ? "Ops pulse" : "Workspace pulse"}</p>
-            <div className="mt-3 space-y-3 text-sm text-slate-600">
-              <div className="rounded-xl border border-amber-200/70 bg-[#fdf7ee] p-3">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Last refresh</p>
-                <p className="text-sm font-semibold text-slate-900">{lastUpdatedLabel}</p>
-              </div>
-              <div className="rounded-xl border border-amber-200/70 bg-white p-3">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Coverage note</p>
-                <p className="text-sm text-slate-600">
+          <Card variant="outlined" sx={{ borderRadius: 4, borderColor: "rgba(245,158,11,0.35)", bgcolor: "rgba(255,255,255,0.88)" }}>
+            <CardContent sx={{ p: 3 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                {isAdminScope ? "Ops pulse" : "Workspace pulse"}
+              </Typography>
+              <Stack spacing={1.25} sx={{ mt: 1.5 }}>
+                <Box sx={{ border: "1px solid", borderColor: "rgba(245,158,11,0.35)", bgcolor: "#fdf7ee", borderRadius: 2, p: 1.5 }}>
+                  <Typography variant="caption" sx={{ textTransform: "uppercase", letterSpacing: 0.6 }} color="text.secondary">
+                    Last refresh
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    {lastUpdatedLabel}
+                  </Typography>
+                </Box>
+                <Box sx={{ border: "1px solid", borderColor: "rgba(245,158,11,0.35)", bgcolor: "background.paper", borderRadius: 2, p: 1.5 }}>
+                  <Typography variant="caption" sx={{ textTransform: "uppercase", letterSpacing: 0.6 }} color="text.secondary">
+                    Coverage note
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
                   {isAdminScope
                     ? "Designed for branch teams running on laptop + phone across Tanzania."
                     : "Designed for customer teams running sales, finance, and stock workflows across Tanzania."}
-                </p>
-              </div>
-              <div className="rounded-xl border border-amber-200/70 bg-[#f7fbf9] p-3">
-                <p className="text-xs uppercase tracking-wide text-slate-500">Next best action</p>
-                <p className="text-sm text-slate-700">
+                  </Typography>
+                </Box>
+                <Box sx={{ border: "1px solid", borderColor: "rgba(245,158,11,0.35)", bgcolor: "#f7fbf9", borderRadius: 2, p: 1.5 }}>
+                  <Typography variant="caption" sx={{ textTransform: "uppercase", letterSpacing: 0.6 }} color="text.secondary">
+                    Next best action
+                  </Typography>
+                  <Typography variant="body2" color="text.primary">
                   {needsAttentionCount > 0
                     ? isAdminScope
                       ? "Review failed or provisioning workspaces first."
                       : "Review pending payments and setup blockers first."
                     : "Audit active tenants or queue new workspaces."}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+                  </Typography>
+                </Box>
+              </Stack>
+            </CardContent>
+          </Card>
+        </Box>
       ) : null}
 
       {currentUser && !currentUser.email_verified ? (
@@ -549,7 +596,7 @@ export function WorkspaceQueuePage({
       ) : null}
 
       {showMetrics ? (
-        <div className="grid gap-3 md:grid-cols-4">
+        <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(4, minmax(0, 1fr))" } }}>
           {metricCard("Total workspaces", totalTenants, "All customer environments under management")}
           {metricCard("Healthy", activeTenants, "Ready for daily sales, stock, and finance activity", "good")}
           {metricCard("In setup", provisioningTenants, "Still being provisioned or awaiting payment checks", "warn")}
@@ -559,140 +606,149 @@ export function WorkspaceQueuePage({
             isAdminScope ? "Provisioning failed and requires operator action" : "Provisioning failed and needs support follow-up",
             failedTenants > 0 ? "warn" : "default",
           )}
-        </div>
+        </Box>
       ) : null}
 
       {showActionCenter ? (
-        <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Action center</p>
-              <p className="text-lg font-semibold text-slate-900">
+        <Card variant="outlined" sx={{ borderRadius: 4, borderColor: "rgba(245,158,11,0.35)", bgcolor: "rgba(255,255,255,0.88)" }}>
+          <CardContent sx={{ p: 2.5 }}>
+            <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1} alignItems={{ md: "center" }}>
+              <Box>
+                <Typography variant="overline" sx={{ fontWeight: 700, color: "warning.dark", letterSpacing: 0.7 }}>
+                  Action center
+                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
                 {isAdminScope ? "Queues that need attention" : "Workspace priorities"}
-              </p>
-            </div>
-            <span className="text-xs text-slate-500">
-              {isAdminScope ? "Inspired by AWS Health dashboards" : "Journey-first workspace routing"}
-            </span>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {actionCenterCards.map((card) => (
-              <Link
-                key={card.href}
-                href={card.href}
-                className={`rounded-2xl border border-amber-200 p-4 text-sm ${card.className ?? "bg-white"}`}
-              >
-                <p className="text-xs uppercase tracking-wide text-slate-500">{card.eyebrow}</p>
-                <p className={`mt-1 text-2xl font-semibold ${card.valueClassName ?? "text-slate-800"}`}>{card.value}</p>
-                <p className="mt-1 text-xs text-slate-600">{card.description}</p>
-              </Link>
-            ))}
-          </div>
-        </div>
+                </Typography>
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                {isAdminScope ? "Inspired by AWS Health dashboards" : "Journey-first workspace routing"}
+              </Typography>
+            </Stack>
+            <Box sx={{ mt: 2, display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" } }}>
+              {actionCenterCards.map((card) => (
+                <Box key={card.href} component={Link} href={card.href} sx={{ textDecoration: "none" }}>
+                  <Card variant="outlined" sx={{ borderRadius: 3, borderColor: "rgba(245,158,11,0.35)", p: 2, bgcolor: card.className ? "#f7fbf9" : "background.paper" }}>
+                    <Typography variant="caption" sx={{ textTransform: "uppercase", letterSpacing: 0.6 }} color="text.secondary">
+                      {card.eyebrow}
+                    </Typography>
+                    <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 700, color: card.valueClassName ? "warning.dark" : "text.primary" }}>
+                      {card.value}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {card.description}
+                    </Typography>
+                  </Card>
+                </Box>
+              ))}
+            </Box>
+          </CardContent>
+        </Card>
       ) : null}
 
       {handoffLinks && handoffLinks.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-3xl border border-amber-200/70 bg-white/80 p-4 text-sm text-slate-600">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Queue handoff</p>
-          <div className="flex flex-wrap items-center gap-2">
+        <Card variant="outlined" sx={{ borderRadius: 4, borderColor: "rgba(245,158,11,0.35)", bgcolor: "rgba(255,255,255,0.88)" }}>
+          <CardContent sx={{ p: 2 }}>
+            <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1} alignItems={{ md: "center" }}>
+              <Typography variant="overline" sx={{ fontWeight: 700, color: "warning.dark", letterSpacing: 0.7 }}>
+                Queue handoff
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap">
             {handoffLinks.map((link) => (
-              <Link key={link.href} href={link.href} className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-amber-300">
-                {link.label}
-              </Link>
+                <Button key={link.href} component={Link} href={link.href} variant="outlined" color="warning" size="small" sx={{ borderRadius: 999 }}>
+                  {link.label}
+                </Button>
             ))}
-          </div>
-        </div>
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
       ) : null}
 
       {callout ? (
-        <div
-          className={`rounded-3xl border p-5 ${
-            callout.tone === "warn" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-amber-200/70 bg-white/80 text-slate-700"
-          }`}
+        <Alert
+          severity={callout.tone === "warn" ? "warning" : "info"}
+          variant="outlined"
+          sx={{
+            borderRadius: 4,
+            borderColor: "rgba(245,158,11,0.35)",
+            bgcolor: callout.tone === "warn" ? "#fffbeb" : "rgba(255,255,255,0.88)",
+          }}
         >
-          <p className="text-sm font-semibold">{callout.title}</p>
-          <p className="mt-2 text-sm">{callout.body}</p>
-        </div>
+          <Typography variant="subtitle2">{callout.title}</Typography>
+          <Typography variant="body2" sx={{ mt: 0.75 }}>
+            {callout.body}
+          </Typography>
+        </Alert>
       ) : null}
 
       {showBillingAlert && billingQueueCount > 0 ? (
-        <div className="rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          <p className="font-semibold">Billing follow-up needed</p>
-          <p className="mt-1">
+        <Alert severity="error" variant="outlined" sx={{ borderRadius: 4 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+            Billing follow-up needed
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 0.5 }}>
             {billingQueueCount} workspace(s) need payment attention (pending, suspended, or unpaid). Direct them to
             settle invoices so provisioning and upgrades can resume.
-          </p>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Link
-              href={billingFollowUpHref}
-              className="rounded-full border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-800 hover:border-red-400"
-            >
+          </Typography>
+          <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1.5 }}>
+            <Button component={Link} href={billingFollowUpHref} variant="outlined" color="error" size="small" sx={{ borderRadius: 999 }}>
               {billingFollowUpLabel}
-            </Link>
-            <button
-              className="rounded-full border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-800 hover:border-red-400"
-              onClick={() => void loadBillingPortal()}
-            >
+            </Button>
+            <Button variant="outlined" color="error" size="small" sx={{ borderRadius: 999 }} onClick={() => void loadBillingPortal()}>
               Open ERPNext billing workspace
-            </button>
+            </Button>
             {billingPortalUrl ? (
-              <a
-                href={billingPortalUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-full bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500"
-              >
+              <Button component="a" href={billingPortalUrl} target="_blank" rel="noreferrer" variant="contained" color="error" size="small" sx={{ borderRadius: 999 }}>
                 Continue in ERPNext
-              </a>
+              </Button>
             ) : null}
-          </div>
-          {billingPortalError ? <p className="mt-2 text-xs text-red-700">{billingPortalError}</p> : null}
-        </div>
+          </Stack>
+          {billingPortalError ? <Typography variant="caption" color="error" sx={{ mt: 1, display: "block" }}>{billingPortalError}</Typography> : null}
+        </Alert>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-[1.4fr_1fr]">
-        <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Filter workspaces</p>
-          <div className="mt-3 grid gap-3 md:grid-cols-3">
-            <input
-              className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900"
-              placeholder="Search by company, subdomain, or domain"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <select
-              className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900"
-              value={planFilter}
-              onChange={(event) => setPlanFilter(event.target.value)}
-            >
-              <option value="all">All plans</option>
-              <option value="starter">Starter</option>
-              <option value="business">Business</option>
-              <option value="enterprise">Enterprise</option>
-            </select>
-            {showStatusFilter ? (
-              <select
-                className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-slate-900"
-                value={statusFilterValue}
-                onChange={(event) => setStatusFilterValue(event.target.value)}
-              >
-                {statusOptions.map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm text-slate-700">
-                {statusFilter?.length
-                  ? `Queue: ${statusFilter.map((status) => status.replace("_", " ")).join(", ")}`
-                  : "All statuses"}
-              </div>
-            )}
-          </div>
-        </div>
-        <div />
-      </div>
+      <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "1.4fr 1fr" } }}>
+        <Card variant="outlined" sx={{ borderRadius: 4, borderColor: "rgba(245,158,11,0.35)", bgcolor: "rgba(255,255,255,0.88)" }}>
+          <CardContent sx={{ p: 2 }}>
+            <Typography variant="overline" sx={{ fontWeight: 700, color: "warning.dark", letterSpacing: 0.7 }}>
+              Filter workspaces
+            </Typography>
+            <Box sx={{ mt: 1.5, display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" } }}>
+              <TextField
+                size="small"
+                placeholder="Search by company, subdomain, or domain"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <TextField size="small" select value={planFilter} onChange={(event) => setPlanFilter(event.target.value)}>
+                <MenuItem value="all">All plans</MenuItem>
+                <MenuItem value="starter">Starter</MenuItem>
+                <MenuItem value="business">Business</MenuItem>
+                <MenuItem value="enterprise">Enterprise</MenuItem>
+              </TextField>
+              {showStatusFilter ? (
+                <TextField size="small" select value={statusFilterValue} onChange={(event) => setStatusFilterValue(event.target.value)}>
+                  {statusOptions.map(([value, label]) => (
+                    <MenuItem key={value} value={value}>
+                      {label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              ) : (
+                <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, px: 1.5, py: 1.25 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    {statusFilter?.length
+                      ? `Queue: ${statusFilter.map((status) => status.replace("_", " ")).join(", ")}`
+                      : "All statuses"}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </CardContent>
+        </Card>
+        <Box />
+      </Box>
 
       {showCreate ? (
         <TenantCreateForm
@@ -812,6 +868,6 @@ export function WorkspaceQueuePage({
           </button>
         </div>
       </div>
-    </section>
+    </Stack>
   );
 }

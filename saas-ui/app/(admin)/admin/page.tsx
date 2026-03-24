@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -56,6 +56,15 @@ type TenantAdminAction = {
 type AdminView = "overview" | "tenants" | "jobs" | "audit" | "support" | "recovery";
 
 const ADMIN_VIEWS: AdminView[] = ["overview", "tenants", "jobs", "audit", "support", "recovery"];
+const ADMIN_VIEW_ROUTES: Record<AdminView, string> = {
+  overview: "/admin/control/overview",
+  tenants: "/admin/control/tenants",
+  jobs: "/admin/control/jobs",
+  audit: "/admin/control/audit",
+  support: "/admin/control/support",
+  recovery: "/admin/control/recovery",
+};
+const ADMIN_ROUTE_VIEW_ENTRIES = Object.entries(ADMIN_VIEW_ROUTES) as Array<[AdminView, string]>;
 const ADMIN_VIEW_DETAILS: Record<AdminView, { label: string; description: string }> = {
   overview: { label: "Overview", description: "Platform health summary and control shortcuts." },
   tenants: { label: "Tenants", description: "Review status and run tenant lifecycle interventions." },
@@ -67,6 +76,15 @@ const ADMIN_VIEW_DETAILS: Record<AdminView, { label: string; description: string
 
 function isAdminView(value: string | null): value is AdminView {
   return value !== null && ADMIN_VIEWS.includes(value as AdminView);
+}
+
+function inferAdminViewFromPathname(pathname: string): AdminView | null {
+  for (const [view, route] of ADMIN_ROUTE_VIEW_ENTRIES) {
+    if (pathname === route || pathname.startsWith(`${route}/`)) {
+      return view;
+    }
+  }
+  return null;
 }
 
 function metricCard(label: string, value: number, hint: string, tone: "default" | "good" | "warn" = "default") {
@@ -131,21 +149,19 @@ export default function AdminPage() {
   const [metricsSupported, setMetricsSupported] = useState(true);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const lastMetricsKey = useRef<string | null>(null);
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const currentView = useMemo<AdminView>(() => {
+    const pathView = inferAdminViewFromPathname(pathname);
+    if (pathView) {
+      return pathView;
+    }
     const viewParam = searchParams.get("view");
     return isAdminView(viewParam) ? viewParam : "overview";
-  }, [searchParams]);
+  }, [pathname, searchParams]);
 
-  const buildViewHref = useCallback(
-    (view: AdminView) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("view", view);
-      return `/admin?${params.toString()}`;
-    },
-    [searchParams]
-  );
+  const buildViewHref = useCallback((view: AdminView) => ADMIN_VIEW_ROUTES[view], []);
 
   const loadTenants = useCallback(async () => {
     try {

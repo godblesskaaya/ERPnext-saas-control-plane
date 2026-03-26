@@ -46,6 +46,20 @@ export const dashboardNavSections: DashboardNavSection[] = [
     ],
   },
   {
+    mode: "workspace",
+    title: "Customer journey queues",
+    description: "Follow queue-specific customer flows without switching to admin routes.",
+    items: [
+      { href: "/dashboard/onboarding", label: "Onboarding queue", hint: "Payment onboarding and activation readiness" },
+      { href: "/dashboard/provisioning", label: "Provisioning queue", hint: "Deployments and pending upgrades" },
+      { href: "/dashboard/incidents", label: "Incidents queue", hint: "Provisioning failures and rescue actions" },
+      { href: "/dashboard/suspensions", label: "Suspensions queue", hint: "Workspace and billing suspension status" },
+      { href: "/dashboard/support", label: "Support queue", hint: "Customer support handoff and resolution tracking" },
+      { href: "/dashboard/billing-ops", label: "Billing operations", hint: "Collections and dunning follow-ups" },
+      { href: "/dashboard/billing-details", label: "Invoice analytics", hint: "Invoice and provider-level breakdown" },
+    ],
+  },
+  {
     mode: "operations",
     title: "Billing routing",
     description: "Collections, dunning actions, and invoice visibility.",
@@ -58,10 +72,7 @@ export const dashboardNavSections: DashboardNavSection[] = [
     mode: "workspace",
     title: "Billing workspace",
     description: "Customer payment recovery and invoice visibility.",
-    items: [
-      { href: "/billing", label: "Payment center", hint: "Resume checkout and review subscription invoices" },
-      { href: "/dashboard/billing-details", label: "Invoice analytics", hint: "Channel and provider breakdown" },
-    ],
+    items: [{ href: "/billing", label: "Payment center", hint: "Resume checkout and review subscription invoices" }],
   },
   {
     mode: "operations",

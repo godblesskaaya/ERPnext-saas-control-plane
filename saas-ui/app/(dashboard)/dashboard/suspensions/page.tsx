@@ -1,6 +1,32 @@
-import { redirect } from "next/navigation";
+"use client";
 
-export default function LegacyDashboardSuspensionsRedirectPage() {
-  // AGENT-NOTE: keep legacy dashboard URLs stable while enforcing admin/user route separation.
-  redirect("/dashboard/overview");
+import { WorkspaceQueuePage } from "../../../../domains/dashboard/components/WorkspaceQueuePage";
+
+export default function DashboardSuspensionsQueuePage() {
+  return (
+    <WorkspaceQueuePage
+      routeScope="workspace"
+      title="Suspensions queue"
+      description="Review suspended workspaces and coordinate reactivation with billing or support owners."
+      statusFilter={["suspended", "suspended_admin", "suspended_billing"]}
+      showMetrics
+      showAttention
+      showBillingAlert
+      showStatusFilter={false}
+      attentionNote="Verify suspension reason and next action for each impacted customer."
+      callout={{
+        title: "Reactivation checklist",
+        body: "Confirm payment state, support notes, and customer acknowledgement before restoring access.",
+        tone: "warn",
+      }}
+      handoffLinks={[
+        { label: "Billing operations", href: "/dashboard/billing-ops" },
+        { label: "Support", href: "/dashboard/support" },
+      ]}
+      emptyStateTitle="No suspended workspaces"
+      emptyStateBody="No customer workspaces are currently suspended."
+      emptyStateActionLabel="Go to billing operations"
+      emptyStateActionHref="/dashboard/billing-ops"
+    />
+  );
 }

@@ -2,6 +2,22 @@
 
 import { useEffect, useState } from "react";
 
+import {
+  Alert,
+  Box,
+  Button,
+  Link,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from "@mui/material";
+
 import { loadBillingWorkspaceSnapshot, toBillingErrorMessage } from "../../../domains/billing/application/billingUseCases";
 import type { BillingInvoice } from "../../../domains/shared/lib/types";
 
@@ -45,89 +61,84 @@ export default function BillingPage() {
   }, []);
 
   return (
-    <section className="space-y-4">
-      <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Billing & invoices</h1>
-            <p className="text-sm text-slate-600">Review payment history and resume outstanding invoices.</p>
-          </div>
+    <Stack spacing={2.5}>
+      <Paper variant="outlined" sx={{ borderRadius: 4, p: 3, borderColor: "warning.light" }}>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "flex-start", sm: "center" }} justifyContent="space-between">
+          <Box>
+            <Typography variant="overline" sx={{ color: "warning.dark", fontWeight: 700, letterSpacing: 0.8 }}>
+              Payment center
+            </Typography>
+            <Typography variant="h4" sx={{ fontWeight: 700 }}>
+              Billing & invoices
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Review invoice history and resume pending payments.
+            </Typography>
+          </Box>
           {portalUrl ? (
-            <a
-              href={portalUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-full bg-[#0d6a6a] px-4 py-2 text-xs font-semibold text-white"
-            >
+            <Button variant="contained" href={portalUrl} target="_blank" rel="noreferrer" sx={{ borderRadius: 999 }}>
               Open billing workspace
-            </a>
+            </Button>
           ) : null}
-        </div>
-      </div>
+        </Stack>
+      </Paper>
 
       {!supported ? (
-        <p className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <Alert severity="warning" sx={{ borderRadius: 3 }}>
           Invoice history is not available for the active payment provider.
-        </p>
+        </Alert>
       ) : error ? (
-        <p className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>
+        <Alert severity="error" sx={{ borderRadius: 3 }}>
+          {error}
+        </Alert>
       ) : invoices.length ? (
-        <div className="overflow-x-auto rounded-2xl border border-amber-200 bg-white/90">
-          <table className="min-w-full text-sm">
-            <thead className="bg-[#fff7ed] text-left text-xs uppercase tracking-wide text-slate-600">
-              <tr>
-                <th className="p-2.5">Workspace</th>
-                <th className="p-2.5">Invoice</th>
-                <th className="p-2.5">Status</th>
-                <th className="p-2.5">Amount due</th>
-                <th className="p-2.5">Amount paid</th>
-                <th className="p-2.5">Created</th>
-                <th className="p-2.5">Link</th>
-              </tr>
-            </thead>
-            <tbody>
+        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 3, borderColor: "warning.light" }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: "rgba(245,158,11,0.08)" }}>
+                <TableCell>Workspace</TableCell>
+                <TableCell>Invoice</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Amount due</TableCell>
+                <TableCell>Amount paid</TableCell>
+                <TableCell>Created</TableCell>
+                <TableCell>Link</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {invoices.map((invoice) => (
-                <tr key={invoice.id} className="border-t border-amber-200/60">
-                  <td className="p-2.5 text-xs text-slate-700">
+                <TableRow key={invoice.id} hover>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>
                     {invoice.metadata?.company_name ?? invoice.metadata?.tenant_domain ?? "—"}
-                  </td>
-                  <td className="p-2.5 font-mono text-xs text-slate-700">{invoice.id}</td>
-                  <td className="p-2.5 text-xs text-slate-700">{invoice.status ?? "—"}</td>
-                  <td className="p-2.5 text-xs text-slate-700">
-                    {formatCurrency(invoice.amount_due ?? undefined, invoice.currency)}
-                  </td>
-                  <td className="p-2.5 text-xs text-slate-700">
-                    {formatCurrency(invoice.amount_paid ?? undefined, invoice.currency)}
-                  </td>
-                  <td className="p-2.5 text-xs text-slate-700">{formatTimestamp(invoice.created_at)}</td>
-                  <td className="p-2.5 text-xs">
+                  </TableCell>
+                  <TableCell sx={{ fontFamily: "monospace", fontSize: 12 }}>{invoice.id}</TableCell>
+                  <TableCell>{invoice.status ?? "—"}</TableCell>
+                  <TableCell>{formatCurrency(invoice.amount_due ?? undefined, invoice.currency)}</TableCell>
+                  <TableCell>{formatCurrency(invoice.amount_paid ?? undefined, invoice.currency)}</TableCell>
+                  <TableCell>{formatTimestamp(invoice.created_at)}</TableCell>
+                  <TableCell>
                     {invoice.hosted_invoice_url ? (
-                      <a
-                        className="text-[#0d6a6a] hover:text-[#0b5a5a]"
-                        href={invoice.hosted_invoice_url}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
+                      <Link href={invoice.hosted_invoice_url} target="_blank" rel="noreferrer" underline="hover">
                         Resume payment
-                      </a>
+                      </Link>
                     ) : invoice.invoice_pdf ? (
-                      <a className="text-[#0d6a6a] hover:text-[#0b5a5a]" href={invoice.invoice_pdf} target="_blank" rel="noreferrer">
+                      <Link href={invoice.invoice_pdf} target="_blank" rel="noreferrer" underline="hover">
                         Download
-                      </a>
+                      </Link>
                     ) : (
                       "—"
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       ) : (
-        <p className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <Alert severity="info" sx={{ borderRadius: 3 }}>
           No invoices found yet.
-        </p>
+        </Alert>
       )}
-    </section>
+    </Stack>
   );
 }

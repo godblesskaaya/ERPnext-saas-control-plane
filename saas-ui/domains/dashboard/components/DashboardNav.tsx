@@ -16,15 +16,22 @@ const keyWorkspaceRoutes = new Set([
   "/dashboard/overview",
   "/dashboard/registry",
   "/dashboard/active",
+  "/dashboard/onboarding",
+  "/dashboard/provisioning",
+  "/dashboard/incidents",
+  "/dashboard/suspensions",
+  "/dashboard/support",
+  "/dashboard/billing-ops",
   "/billing",
   "/dashboard/billing-details",
   "/dashboard/account",
   "/dashboard/settings",
 ]);
+
 const keyFeatureWorkspaceSections = workspaceSections
   .map((section) => ({
     ...section,
-    items: section.items.filter((item) => keyWorkspaceRoutes.has(item.href)),
+    items: section.items.filter((item) => keyWorkspaceRoutes.has(item.href) && !item.href.startsWith("/admin")),
   }))
   .filter((section) => section.items.length > 0);
 
@@ -55,7 +62,7 @@ export function DashboardNav() {
             Workspace navigation
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            Key customer features only: tenants, billing, account, and settings.
+            Customer-facing routes only: queues, tenants, billing, account, and settings.
           </Typography>
         </Box>
 

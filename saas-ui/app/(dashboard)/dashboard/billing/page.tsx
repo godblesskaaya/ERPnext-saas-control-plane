@@ -1,6 +1,3 @@
-import { redirect } from "next/navigation";
-
-export default function LegacyDashboardBillingRedirectPage() {
-  // AGENT-NOTE: keep legacy dashboard URLs stable while enforcing admin/user route separation.
-  redirect("/billing");
-}
+// AGENT-NOTE: Keep legacy /dashboard/billing URL stable while rendering the canonical
+// customer billing workspace directly (no redirect), so the route behaves like a real page.
+export { default } from "../../../(billing)/billing/page";

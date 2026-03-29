@@ -6,6 +6,7 @@ import pytest
 
 from app.config import get_settings
 from app.models import AuditLog, Job, PaymentEvent, Tenant, User
+from app.schemas import MessageResponse
 from app.modules.subscription.models import Subscription
 
 
@@ -204,3 +205,53 @@ def test_unknown_provider_path_returns_400(client, db_session):
     assert len(mismatch) == 1
     assert mismatch[0].provider == "unknown-provider"
     assert mismatch[0].processing_status == "rejected"
+
+
+def test_default_webhook_delegates_to_service(client, monkeypatch):
+    captured: dict[str, object] = {}
+
+    def _fake_handle_gateway_webhook(**kwargs):
+        captured.update(kwargs)
+        return MessageResponse(message="processed:delegated-default")
+
+    monkeypatch.setattr(
+        "app.modules.billing.router.handle_gateway_webhook",
+        _fake_handle_gateway_webhook,
+    )
+
+    response = client.post(
+        "/billing/webhook",
+        json={"type": "checkout.session.completed", "data": {"object": {"metadata": {}}}},
+        headers={"Authorization": "Bearer secret-token"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "processed:delegated-default"
+    assert captured["route_provider"] is None
+    assert isinstance(captured["payload"], bytes)
+    assert "authorization" not in captured["request_headers"]
+    assert "gateway" in captured
+
+
+def test_provider_webhook_delegates_to_service(client, monkeypatch):
+    captured: dict[str, object] = {}
+
+    def _fake_handle_gateway_webhook(**kwargs):
+        captured.update(kwargs)
+        return MessageResponse(message="processed:delegated-provider")
+
+    monkeypatch.setattr(
+        "app.modules.billing.router.handle_gateway_webhook",
+        _fake_handle_gateway_webhook,
+    )
+
+    response = client.post(
+        "/billing/webhook/stripe",
+        json={"type": "checkout.session.completed", "data": {"object": {"metadata": {}}}},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "processed:delegated-provider"
+    assert captured["route_provider"] == "stripe"
+    assert isinstance(captured["payload"], bytes)
+    assert "gateway" in captured

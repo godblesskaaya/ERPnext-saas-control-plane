@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from app.config import get_settings
-from app.models import AuditLog, Job, PaymentEvent, Tenant, User
+from app.models import AuditLog, Job, PaymentEvent, PaymentEventOutbox, Tenant, User
 from app.schemas import MessageResponse
 from app.modules.subscription.models import Subscription
 
@@ -84,7 +84,7 @@ def test_checkout_completed_webhook_enqueues_provisioning_once(mock_get_queue, c
         row.action
         for row in db_session.query(AuditLog).filter(AuditLog.resource_id == tenant.id).order_by(AuditLog.created_at.asc()).all()
     ]
-    assert payment_actions.count("billing.payment_succeeded") == 2
+    assert payment_actions.count("billing.payment_succeeded") == 1
     payment_events = (
         db_session.query(PaymentEvent)
         .filter(PaymentEvent.tenant_id == tenant.id, PaymentEvent.event_type == "payment.confirmed")
@@ -93,6 +93,11 @@ def test_checkout_completed_webhook_enqueues_provisioning_once(mock_get_queue, c
     )
     assert len(payment_events) == 2
     assert all(row.processing_status == "processed" for row in payment_events)
+    outbox_events = db_session.query(PaymentEventOutbox).filter(PaymentEventOutbox.tenant_id == tenant.id).all()
+    assert len(outbox_events) == 1
+    assert outbox_events[0].status == "processed"
+    assert outbox_events[0].attempts == 1
+    assert outbox_events[0].processed_at is not None
 
 
 def test_payment_failed_and_subscription_cancelled_audited(client, db_session):
@@ -255,3 +260,58 @@ def test_provider_webhook_delegates_to_service(client, monkeypatch):
     assert captured["route_provider"] == "stripe"
     assert isinstance(captured["payload"], bytes)
     assert "gateway" in captured
+
+
+def test_checkout_completed_webhook_retries_failed_outbox_attempt_without_duplicate_side_effects(client, db_session, monkeypatch):
+    user = User(email="retry-owner@example.com", password_hash="hash", role="user")
+    tenant = Tenant(
+        owner_id=user.id,
+        subdomain="retry-webhook",
+        domain="retry-webhook.erp.blenkotechnologies.co.tz",
+        site_name="retry-webhook.erp.blenkotechnologies.co.tz",
+        company_name="Retry Webhook Ltd",
+        plan="starter",
+        status="pending_payment",
+        payment_provider="stripe",
+    )
+    db_session.add(user)
+    db_session.flush()
+    tenant.owner_id = user.id
+    db_session.add(tenant)
+    db_session.commit()
+    db_session.refresh(tenant)
+
+    attempts = {"count": 0}
+
+    def _flaky_process_event(**kwargs):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise RuntimeError("transient processing error")
+        return MessageResponse(message="processed:payment.confirmed")
+
+    monkeypatch.setattr("app.modules.billing.webhook_service.process_event", _flaky_process_event)
+
+    payload = {
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "id": "cs_retry_123",
+                "customer": "cus_retry_123",
+                "subscription": "sub_retry_123",
+                "metadata": {"tenant_id": tenant.id, "plan": "starter"},
+            }
+        },
+    }
+
+    first = client.post("/billing/webhook/stripe", json=payload)
+    assert first.status_code == 500
+
+    second = client.post("/billing/webhook/stripe", json=payload)
+    assert second.status_code == 200
+    assert second.json()["message"] == "processed:payment.confirmed"
+
+    outbox = db_session.query(PaymentEventOutbox).filter(PaymentEventOutbox.tenant_id == tenant.id).one()
+    assert outbox.status == "processed"
+    assert outbox.attempts == 2
+    assert outbox.last_error is None
+    assert outbox.processed_at is not None

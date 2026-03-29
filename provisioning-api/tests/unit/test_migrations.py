@@ -34,6 +34,8 @@ def test_alembic_upgrade_creates_core_tables(monkeypatch, tmp_path) -> None:
         "tenants",
         "jobs",
         "audit_logs",
+        "payment_events",
+        "payment_event_outbox",
         "organizations",
         "tenant_memberships",
         "domain_mappings",
@@ -57,6 +59,20 @@ def test_alembic_upgrade_creates_core_tables(monkeypatch, tmp_path) -> None:
     assert "platform_customer_id" in tenant_columns
     plan_columns = {column["name"] for column in inspector.get_columns("plans")}
     assert {"slug", "isolation_model", "backup_frequency", "stripe_price_id"} <= plan_columns
+    payment_outbox_columns = {column["name"] for column in inspector.get_columns("payment_event_outbox")}
+    assert {
+        "provider",
+        "event_type",
+        "tenant_id",
+        "subscription_id",
+        "customer_ref",
+        "dedup_key",
+        "status",
+        "attempts",
+        "last_error",
+        "processed_at",
+        "created_at",
+    } <= payment_outbox_columns
 
     engine = create_engine(f"sqlite:///{database_path}")
     with engine.connect() as connection:

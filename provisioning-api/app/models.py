@@ -172,3 +172,21 @@ class PaymentEvent(Base):
     request_headers: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class PaymentEventOutbox(Base):
+    __tablename__ = "payment_event_outbox"
+    __table_args__ = (UniqueConstraint("dedup_key", name="uq_payment_event_outbox_dedup_key"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    provider: Mapped[str] = mapped_column(String(30), index=True)
+    event_type: Mapped[str] = mapped_column(String(50), index=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    subscription_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    customer_ref: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    dedup_key: Mapped[str] = mapped_column(String(128), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)

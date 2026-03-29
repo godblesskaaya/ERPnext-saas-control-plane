@@ -9,13 +9,14 @@ logging semantics.
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import hashlib
 import json
 from urllib.parse import parse_qs
 
 from fastapi import BackgroundTasks, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.models import PaymentEvent, Tenant, User
+from app.models import PaymentEvent, PaymentEventOutbox, Tenant, User
 from app.modules.audit.service import record_audit_event
 from app.modules.notifications.service import notification_service
 from app.modules.subscription.models import Subscription
@@ -106,6 +107,46 @@ def resolve_processing_status(message: str) -> str:
     if message.startswith("ignored:"):
         return "ignored"
     return "unknown"
+
+
+def build_outbox_dedup_key(*, provider: str, event_type: str, tenant_id: str | None, subscription_id: str | None, raw: dict) -> str:
+    payload = json.dumps(raw, sort_keys=True, separators=(",", ":"), default=str)
+    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return f"{provider}:{event_type}:{tenant_id or '-'}:{subscription_id or '-'}:{digest}"
+
+
+def ensure_outbox_event(
+    *,
+    db: Session,
+    provider: str,
+    event_type: str,
+    tenant_id: str | None,
+    subscription_id: str | None,
+    customer_ref: str | None,
+    raw: dict,
+) -> PaymentEventOutbox:
+    dedup_key = build_outbox_dedup_key(
+        provider=provider,
+        event_type=event_type,
+        tenant_id=tenant_id,
+        subscription_id=subscription_id,
+        raw=raw,
+    )
+    existing = db.query(PaymentEventOutbox).filter(PaymentEventOutbox.dedup_key == dedup_key).first()
+    if existing is not None:
+        return existing
+    event = PaymentEventOutbox(
+        provider=provider,
+        event_type=event_type,
+        tenant_id=tenant_id,
+        subscription_id=subscription_id,
+        customer_ref=customer_ref,
+        dedup_key=dedup_key,
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    return event
 
 
 def record_payment_event(
@@ -358,6 +399,42 @@ def handle_gateway_webhook(
         )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    outbox_event = ensure_outbox_event(
+        db=db,
+        provider=provider_for_logs,
+        event_type=event.event_type,
+        tenant_id=event.tenant_id,
+        subscription_id=event.subscription_id,
+        customer_ref=event.customer_ref,
+        raw=event.raw,
+    )
+    if outbox_event.status == "processed":
+        response = MessageResponse(
+            message="ignored:duplicate"
+            if event.event_type == "ignored"
+            else f"processed:{event.event_type}"
+        )
+        record_payment_event(
+            db=db,
+            provider=provider_for_logs,
+            event_type=event.event_type,
+            processing_status=resolve_processing_status(response.message),
+            http_status=status.HTTP_200_OK,
+            message=response.message,
+            tenant_id=event.tenant_id,
+            subscription_id=event.subscription_id,
+            customer_ref=event.customer_ref,
+            request_headers=request_headers,
+            payload=event.raw,
+        )
+        return response
+
+    outbox_event.status = "processing"
+    outbox_event.attempts += 1
+    outbox_event.last_error = None
+    db.add(outbox_event)
+    db.commit()
+
     try:
         response = process_event(
             request=request,
@@ -371,6 +448,10 @@ def handle_gateway_webhook(
         )
     except HTTPException as exc:
         db.rollback()
+        outbox_event.status = "failed"
+        outbox_event.last_error = str(exc.detail)
+        db.add(outbox_event)
+        db.commit()
         record_payment_event(
             db=db,
             provider=provider_for_logs,
@@ -387,6 +468,10 @@ def handle_gateway_webhook(
         raise
     except Exception as exc:
         db.rollback()
+        outbox_event.status = "failed"
+        outbox_event.last_error = str(exc)
+        db.add(outbox_event)
+        db.commit()
         record_payment_event(
             db=db,
             provider=provider_for_logs,
@@ -401,6 +486,12 @@ def handle_gateway_webhook(
             payload=event.raw,
         )
         raise
+
+    outbox_event.status = "processed"
+    outbox_event.last_error = None
+    outbox_event.processed_at = utcnow()
+    db.add(outbox_event)
+    db.commit()
 
     record_payment_event(
         db=db,

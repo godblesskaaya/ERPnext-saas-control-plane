@@ -32,8 +32,8 @@ export default function DashboardOverviewPage() {
   return (
     <WorkspaceQueuePage
       routeScope="workspace"
-      title="Operations overview"
-      description="Live operations snapshot for Tanzania: payments, provisioning, and tenant health in one console."
+      title="Workspace overview"
+      description="Live workspace snapshot for Tanzania: payments, provisioning, and customer health in one console."
       extraContent={
         <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 2, borderRadius: 4 }}>
           <Typography variant="overline" sx={{ color: "warning.dark", fontWeight: 700, letterSpacing: 0.8 }}>

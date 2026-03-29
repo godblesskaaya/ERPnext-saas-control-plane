@@ -32,14 +32,14 @@ export const dashboardNavSections: DashboardNavSection[] = [
   },
   {
     mode: "workspace",
-    title: "Workspace routing",
-    description: "Operate current tenants and customer-facing workspace views.",
+    title: "Workspace home",
+    description: "Navigate customer-facing workspace views from one place.",
     items: [
       { href: "/dashboard/overview", label: "Overview", hint: "Workspace snapshot and priorities" },
       {
         href: "/dashboard/registry",
         label: "Tenant registry",
-        hint: "Search workspaces and open tenant detail",
+        hint: "Search workspaces and open workspace details",
         match: ["/tenants"],
       },
       { href: "/dashboard/active", label: "Active tenants", hint: "Live customers and workspace health" },
@@ -48,14 +48,14 @@ export const dashboardNavSections: DashboardNavSection[] = [
   {
     mode: "workspace",
     title: "Customer journey queues",
-    description: "Follow queue-specific customer flows without switching to admin routes.",
+    description: "Follow queue-specific customer flows in the workspace journey.",
     items: [
       { href: "/dashboard/onboarding", label: "Onboarding queue", hint: "Payment onboarding and activation readiness" },
       { href: "/dashboard/provisioning", label: "Provisioning queue", hint: "Deployments and pending upgrades" },
       { href: "/dashboard/incidents", label: "Incidents queue", hint: "Provisioning failures and rescue actions" },
       { href: "/dashboard/suspensions", label: "Suspensions queue", hint: "Workspace and billing suspension status" },
       { href: "/dashboard/support", label: "Support queue", hint: "Customer support handoff and resolution tracking" },
-      { href: "/dashboard/billing-ops", label: "Billing operations", hint: "Collections and dunning follow-ups" },
+      { href: "/dashboard/billing-ops", label: "Billing recovery", hint: "Collections and payment follow-ups" },
       { href: "/dashboard/billing-details", label: "Invoice analytics", hint: "Invoice and provider-level breakdown" },
     ],
   },

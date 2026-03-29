@@ -32,6 +32,7 @@ import { JobLogPanel } from "../../shared/components/JobLogPanel";
 import { BUSINESS_APP_OPTIONS, getPlanMeta } from "../../onboarding/components/PlanSelector";
 
 type Props = {
+  routeScope?: "workspace" | "admin";
   tenants: Tenant[];
   jobsByTenant: Record<string, Job | undefined>;
   onBackup: (id: string) => Promise<void>;
@@ -70,16 +71,16 @@ function statusChipStyles(status: string): { color: "default" | "error" | "succe
   return { color: "default", sx: { bgcolor: "#e0f2fe", color: "#0369a1" } };
 }
 
-function statusHint(status: string): string {
+function statusHint(status: string, isAdminScope: boolean): string {
   const normalized = status.toLowerCase();
-  if (normalized === "active") return "Serving daily operations";
+  if (normalized === "active") return isAdminScope ? "Serving daily operations" : "Serving daily workspace activity";
   if (normalized === "pending_payment") return "Waiting for checkout confirmation";
   if (normalized === "pending" || normalized === "provisioning") return "Setup in progress";
   if (normalized === "upgrading") return "Upgrade running";
   if (normalized === "restoring") return "Restore in progress";
   if (normalized === "pending_deletion") return "Deletion scheduled";
-  if (normalized === "failed") return "Needs operator follow-up";
-  if (normalized === "suspended_admin") return "Paused by admin";
+  if (normalized === "failed") return isAdminScope ? "Needs operator follow-up" : "Needs support follow-up";
+  if (normalized === "suspended_admin") return isAdminScope ? "Paused by admin" : "Access paused";
   if (normalized === "suspended_billing") return "Paused for billing";
   if (normalized === "suspended") return "Access paused";
   if (normalized === "deleted") return "Archived";
@@ -119,6 +120,7 @@ function getBillingLabel(tenant: Tenant): string {
 }
 
 export function TenantTable({
+  routeScope = "workspace",
   tenants,
   jobsByTenant,
   onBackup,
@@ -136,6 +138,7 @@ export function TenantTable({
   filterLabel,
   showPaymentChannel = false,
 }: Props) {
+  const isAdminScope = routeScope === "admin";
   const [expandedTenantId, setExpandedTenantId] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [confirmInput, setConfirmInput] = useState("");
@@ -422,7 +425,7 @@ export function TenantTable({
                     <TableCell>
                       <Chip size="small" label={tenant.status} color={statusStyle.color} sx={statusStyle.sx} />
                       <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: "block" }}>
-                        {statusHint(tenant.status)}
+                        {statusHint(tenant.status, isAdminScope)}
                       </Typography>
                       {job ? (
                         <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
@@ -477,7 +480,7 @@ export function TenantTable({
                             setConfirmError(null);
                           }}
                         >
-                          Reset admin login
+                          {isAdminScope ? "Reset admin login" : "Reset workspace login"}
                         </Button>
                         {onUpdatePlan ? (
                           <Button
@@ -555,7 +558,13 @@ export function TenantTable({
       </TableContainer>
 
       <Dialog open={Boolean(confirmAction)} onClose={isSubmitting ? undefined : closeConfirm} fullWidth maxWidth="sm">
-        <DialogTitle>{confirmAction?.type === "delete" ? "Confirm workspace deletion" : "Confirm admin password reset"}</DialogTitle>
+        <DialogTitle>
+          {confirmAction?.type === "delete"
+            ? "Confirm workspace deletion"
+            : isAdminScope
+            ? "Confirm admin password reset"
+            : "Confirm workspace password reset"}
+        </DialogTitle>
         <DialogContent sx={{ display: "grid", gap: 2, pt: 1 }}>
           {confirmAction ? (
             <>

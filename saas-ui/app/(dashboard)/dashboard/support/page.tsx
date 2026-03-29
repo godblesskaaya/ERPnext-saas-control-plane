@@ -19,7 +19,7 @@ export default function DashboardSupportQueuePage() {
       handoffLinks={[
         { label: "Incidents", href: "/dashboard/incidents" },
         { label: "Suspensions", href: "/dashboard/suspensions" },
-        { label: "Billing operations", href: "/dashboard/billing-ops" },
+        { label: "Billing recovery", href: "/dashboard/billing-ops" },
       ]}
       callout={{
         title: "Customer communication",

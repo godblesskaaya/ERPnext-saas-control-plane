@@ -83,21 +83,21 @@ export default function DashboardPage() {
       {
         eyebrow: "Workspace",
         title: "Workspace overview",
-        description: "Start from a consolidated summary of tenant and platform activity.",
+        description: "Start from a consolidated summary of workspace and platform activity.",
         href: "/dashboard/overview",
         value: metrics?.jobs_last_24h,
       },
       {
         eyebrow: "Workspace",
         title: "Tenant registry",
-        description: "Search workspaces and open tenant-level control pages.",
+        description: "Search workspaces and open workspace detail pages.",
         href: "/dashboard/registry",
         value: metrics?.total_tenants,
       },
       {
         eyebrow: "Workspace",
         title: "Active workspaces",
-        description: "Review live tenants and continue routine workspace operations.",
+        description: "Review live workspaces and continue routine workspace workflows.",
         href: "/dashboard/active",
         value: metrics?.active_tenants,
       },
@@ -123,7 +123,7 @@ export default function DashboardPage() {
           Workspace command center
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1, maxWidth: 920 }}>
-          Customer-facing workspace only: overview, tenant registry, account settings, and billing recovery.
+          Customer-facing workspace only: overview, workspace registry, account settings, and billing recovery.
         </Typography>
       </Paper>
 

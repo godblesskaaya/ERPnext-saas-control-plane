@@ -479,7 +479,7 @@ export function WorkspaceQueuePage({
           <Stack direction={{ xs: "column", md: "row" }} spacing={2} justifyContent="space-between" alignItems={{ md: "center" }}>
             <Box>
               <Typography variant="overline" sx={{ fontWeight: 700, color: "warning.dark", letterSpacing: 0.8 }}>
-                Operations
+                {isAdminScope ? "Operations" : "Workspace"}
               </Typography>
               <Typography variant="h4" sx={{ fontWeight: 700 }}>
                 {title}
@@ -822,6 +822,7 @@ export function WorkspaceQueuePage({
       {extraContent}
 
       <TenantTable
+        routeScope={routeScope}
         tenants={pagedTenants}
         jobsByTenant={jobsByTenant}
         showPaymentChannel={Boolean(paymentChannelFilter && paymentChannelFilter.length)}
@@ -852,12 +853,12 @@ export function WorkspaceQueuePage({
             setError(null);
             addNotification({
               type: "warning",
-              title: "Admin password reset",
-              body: `Credentials reset for ${result.domain}. Share securely with the owner.`,
+              title: isAdminScope ? "Admin password reset" : "Workspace password reset",
+              body: `Credentials reset for ${result.domain}. Share securely with ${isAdminScope ? "the owner" : "your workspace owner"}.`,
             });
             return result;
           } catch (err) {
-            handleError(err, "Failed to reset admin password");
+            handleError(err, isAdminScope ? "Failed to reset admin password" : "Failed to reset workspace password");
             throw err;
           }
         }}

@@ -41,6 +41,15 @@ test("resolve mode strips query/hash when matching", () => {
 test("sections can be filtered by mode", () => {
   const workspaceSections = getDashboardNavSectionsByMode("workspace");
   assert.ok(workspaceSections.length > 0);
-  assert.ok(workspaceSections.some((section) => section.title === "Workspace routing"));
+  assert.ok(workspaceSections.some((section) => section.title === "Workspace home"));
   assert.ok(workspaceSections.some((section) => section.title === "Account routing"));
+});
+
+test("workspace navigation copy avoids admin route language", () => {
+  const workspaceSections = getDashboardNavSectionsByMode("workspace");
+  const disallowed = /admin route|admin routes/i;
+
+  for (const section of workspaceSections) {
+    assert.equal(disallowed.test(section.description), false);
+  }
 });

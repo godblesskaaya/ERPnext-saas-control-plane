@@ -7,7 +7,7 @@ export default function DashboardActivePage() {
     <WorkspaceQueuePage
       routeScope="workspace"
       title="Active tenants"
-      description="Monitor live tenants and run routine operations like backups, plan updates, and workspace health checks."
+      description="Monitor live tenants and run routine workflows like backups, plan updates, and workspace health checks."
       statusFilter={["active"]}
       showMetrics
       showAttention={false}
@@ -15,7 +15,7 @@ export default function DashboardActivePage() {
       showStatusFilter={false}
       attentionNote="Focus on uptime, backups, and customer growth for active workspaces."
       emptyStateTitle="No active tenants yet"
-      emptyStateBody="Once provisioning is complete, live tenants will appear here for routine operations."
+      emptyStateBody="Once provisioning is complete, live tenants will appear here for routine workspace workflows."
       emptyStateActionLabel="Review onboarding queue"
       emptyStateActionHref="/onboarding"
     />

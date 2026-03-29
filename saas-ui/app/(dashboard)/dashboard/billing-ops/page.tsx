@@ -6,7 +6,7 @@ export default function DashboardBillingOpsQueuePage() {
   return (
     <WorkspaceQueuePage
       routeScope="workspace"
-      title="Billing operations"
+      title="Billing recovery"
       description="Work dunning, retry, and overdue payment queues without leaving the dashboard journey."
       statusFilter={["pending_payment", "suspended_billing"]}
       billingFilter={["failed", "past_due", "unpaid", "cancelled"]}
@@ -25,7 +25,7 @@ export default function DashboardBillingOpsQueuePage() {
         { label: "Billing details", href: "/dashboard/billing-details" },
         { label: "Suspensions", href: "/dashboard/suspensions" },
       ]}
-      emptyStateTitle="No billing operations backlog"
+      emptyStateTitle="No billing recovery backlog"
       emptyStateBody="No pending payment follow-ups are currently in the queue."
       emptyStateActionLabel="Open payment center"
       emptyStateActionHref="/billing"

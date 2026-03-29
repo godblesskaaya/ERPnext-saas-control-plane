@@ -21,12 +21,12 @@ export default function DashboardBillingDetailsQueuePage() {
         tone: "default",
       }}
       handoffLinks={[
-        { label: "Billing operations", href: "/dashboard/billing-ops" },
+        { label: "Billing recovery", href: "/dashboard/billing-ops" },
         { label: "Payment center", href: "/billing" },
       ]}
       emptyStateTitle="No billing details requiring review"
       emptyStateBody="Invoice and payment status queues are currently healthy."
-      emptyStateActionLabel="Back to billing operations"
+      emptyStateActionLabel="Back to billing recovery"
       emptyStateActionHref="/dashboard/billing-ops"
     />
   );

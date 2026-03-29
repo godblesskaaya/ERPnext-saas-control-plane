@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import ast
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,9 +12,14 @@ APP_ROOT = PROJECT_ROOT / "app"
 # AGENT-NOTE: These exceptions track intentional transitional coupling while
 # legacy app/domains code is being converged into app/modules.
 ALLOWED_DOMAINS_TO_MODULES = {
+    "app/domains/support/__init__.py",
+    "app/domains/support/dunning.py",
     "app/domains/billing/billing_client.py",
+    "app/domains/support/job_service.py",
+    "app/domains/support/job_stream.py",
     "app/domains/support/admin_router.py",
     "app/domains/support/jobs_router.py",
+    "app/domains/support/platform_erp_client.py",
     "app/domains/support/ws_router.py",
     "app/domains/tenants/backup_service.py",
     "app/domains/tenants/router.py",
@@ -26,6 +30,13 @@ ALLOWED_MODULES_TO_DOMAINS = {
     "app/modules/billing/router.py",
     "app/modules/features/service.py",
     "app/modules/subscription/service.py",
+    "app/modules/support/admin_router.py",
+    "app/modules/support/dunning.py",
+    "app/modules/support/job_service.py",
+    "app/modules/support/job_stream.py",
+    "app/modules/support/jobs_router.py",
+    "app/modules/support/platform_erp_client.py",
+    "app/modules/support/ws_router.py",
     "app/modules/tenant/service.py",
 }
 

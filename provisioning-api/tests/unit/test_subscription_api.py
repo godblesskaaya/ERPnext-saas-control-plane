@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 from unittest.mock import patch
 
 from app.models import User
+from app.modules.subscription.models import Plan
+from app.modules.subscription.service import ensure_default_plan_catalog
 
 
 class DummyCheckout:
@@ -74,3 +76,28 @@ def test_tenant_subscription_endpoint_returns_plan_detail(_, client, db_session)
     assert payload["plan"]["slug"] == "business"
     assert payload["selected_app"] == "crm"
 
+
+@patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())
+def test_tenant_create_rejects_unsupported_plan_isolation_model(_, client, db_session):
+    ensure_default_plan_catalog(db_session)
+    business_plan = db_session.query(Plan).filter(Plan.slug == "business").one()
+    business_plan.isolation_model = "silo_k3s"
+    db_session.commit()
+
+    headers = _auth_headers(client, db_session)
+    response = client.post(
+        "/tenants",
+        headers=headers,
+        json={
+            "subdomain": "invalid-isolation",
+            "company_name": "Invalid Isolation Ltd",
+            "plan": "business",
+            "chosen_app": "crm",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "Unsupported isolation model 'silo_k3s' for plan 'business'. "
+        "Supported models: pooled, silo_compose"
+    )

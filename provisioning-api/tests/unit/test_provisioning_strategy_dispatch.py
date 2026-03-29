@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
+
 from app.models import Job, Tenant, User
 from app.modules.subscription.models import Plan, Subscription
 from app.modules.subscription.service import ensure_default_plan_catalog
@@ -100,3 +102,26 @@ def test_strategy_for_tenant_falls_back_to_pooled_without_subscription(db_sessio
     isolation_model = getattr(strategy, "isolation_model", "").lower()
     strategy_name = strategy.__class__.__name__.lower()
     assert isolation_model == "pooled" or "pooled" in strategy_name
+
+
+def test_business_selects_pooled_strategy(db_session):
+    worker_tasks_phase4 = _worker_tasks_phase4()
+    _, tenant, _ = _create_tenant_with_job(db_session, plan_slug="business", with_subscription=True)
+
+    strategy = _strategy_for_tenant(worker_tasks_phase4, db_session, tenant)
+    isolation_model = getattr(strategy, "isolation_model", "").lower()
+    strategy_name = strategy.__class__.__name__.lower()
+    assert isolation_model == "pooled" or "pooled" in strategy_name
+
+
+def test_strategy_for_tenant_raises_for_unknown_isolation_model(db_session):
+    worker_tasks_phase4 = _worker_tasks_phase4()
+    ensure_default_plan_catalog(db_session)
+    enterprise_plan = db_session.query(Plan).filter(Plan.slug == "enterprise").one()
+    enterprise_plan.isolation_model = "silo_k3s"
+    db_session.commit()
+
+    _, tenant, _ = _create_tenant_with_job(db_session, plan_slug="enterprise", with_subscription=True)
+
+    with pytest.raises(RuntimeError, match="Unknown isolation model 'silo_k3s'"):
+        _strategy_for_tenant(worker_tasks_phase4, db_session, tenant)

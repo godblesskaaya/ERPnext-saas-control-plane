@@ -68,6 +68,28 @@ DEFAULT_PLAN_CATALOG = {
 }
 
 
+def _supported_isolation_models() -> set[str]:
+    # AGENT-NOTE: keep assignment-time validation aligned with strategy dispatch.
+    from app.modules.provisioning.service import STRATEGY_REGISTRY
+
+    return {model.strip().lower() for model in STRATEGY_REGISTRY}
+
+
+def validate_plan_isolation_model(plan: Plan) -> str:
+    normalized = (plan.isolation_model or "").strip().lower()
+    supported_models = _supported_isolation_models()
+    if normalized not in supported_models:
+        supported = ", ".join(sorted(supported_models)) or "none"
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Unsupported isolation model '{plan.isolation_model}' "
+                f"for plan '{plan.slug}'. Supported models: {supported}"
+            ),
+        )
+    return normalized
+
+
 def ensure_default_plan_catalog(db: Session) -> None:
     if db.query(Plan.id).first() is not None:
         return
@@ -191,6 +213,8 @@ def upsert_subscription_for_tenant(
     provider_customer_id: str | None = None,
     provider_checkout_session_id: str | None = None,
 ) -> Subscription:
+    validate_plan_isolation_model(plan)
+
     normalized_status = (status_value or "pending").strip().lower()
     if normalized_status not in SUBSCRIPTION_STATUSES:
         normalized_status = "pending"

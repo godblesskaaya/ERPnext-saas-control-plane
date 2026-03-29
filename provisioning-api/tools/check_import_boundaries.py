@@ -37,6 +37,7 @@ ALLOWED_MODULES_TO_DOMAINS = {
     "app/modules/support/jobs_router.py",
     "app/modules/support/platform_erp_client.py",
     "app/modules/support/ws_router.py",
+    "app/modules/tenant/router.py",
     "app/modules/tenant/service.py",
 }
 

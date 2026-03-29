@@ -164,7 +164,7 @@ def test_tenant_membership_list_and_invite(_, client, db_session):
     )
 
 
-@patch("app.domains.tenants.router._domain_points_to_tenant", return_value=True)
+@patch("app.modules.tenant.router._domain_points_to_tenant", return_value=True)
 @patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())
 def test_tenant_custom_domain_flow(_, __, client, db_session):
     headers = _auth_headers(client, db_session)

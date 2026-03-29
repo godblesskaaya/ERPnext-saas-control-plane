@@ -22,10 +22,10 @@ from app.middleware.security import SecurityHeadersMiddleware
 from app.modules.billing.router import router as billing_router
 from app.modules.identity.router import router as auth_router
 from app.modules.features.router import router as features_router
+from app.modules.tenant.router import router as tenant_router
 from app.modules.subscription.router import router as subscription_router
 from app.modules.observability import init_metrics, init_sentry
 from app.modules.support import admin_router, jobs_router, ws_router
-from app.domains.tenants.router import router as tenants_router
 from app.queue.redis import get_redis_connection
 from app.rate_limits import limiter
 
@@ -166,7 +166,7 @@ if settings.metrics_enabled and API_PREFIX:
 
 
 app.include_router(auth_router, prefix=API_PREFIX)
-app.include_router(tenants_router, prefix=API_PREFIX)
+app.include_router(tenant_router, prefix=API_PREFIX)
 app.include_router(subscription_router, prefix=API_PREFIX)
 app.include_router(features_router, prefix=API_PREFIX)
 app.include_router(jobs_router, prefix=API_PREFIX)

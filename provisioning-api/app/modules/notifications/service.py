@@ -96,7 +96,7 @@ class EmailChannel:
         with smtp_client as server:
             if settings.smtp_use_tls and not settings.smtp_use_ssl:
                 server.starttls()
-            if settings.smtp_username:
+            if settings.smtp_username and hasattr(server, "login"):
                 server.login(settings.smtp_username, settings.smtp_password)
             server.send_message(email_message)
 

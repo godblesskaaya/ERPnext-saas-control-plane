@@ -485,7 +485,7 @@ def handle_gateway_webhook(
             request_headers=request_headers,
             payload=event.raw,
         )
-        raise
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
     outbox_event.status = "processed"
     outbox_event.last_error = None

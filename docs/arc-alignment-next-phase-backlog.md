@@ -76,6 +76,11 @@ Reference target: `sourcefuse/arc-saas` architectural principles (control-plane 
      - Frontend contract coverage landed in `saas-ui/domains/onboarding/application/onboardingUseCases.contract.test.ts` for payment success and failure-to-resume mappings.
      - Verification evidence captured in `docs/p1-8-cross-context-integration-regression-verification.md` (backend pytest/lsp checks and frontend contracts/typecheck results).
      - Residual gap: full-repo lint/full backend coverage gates were not rerun in this lane; targeted journey regression evidence is complete for P1.8 scope.
+   - **P1.9 progress update (2026-03-30):**
+     - Full quality-gate closure completed with backend and frontend evidence captured in `docs/p1-9-residual-gap-closure-quality-gates-verification.md`.
+     - Backend gates: full pytest+coverage PASS (`143 passed`, coverage `77.28%`) and import-boundary check PASS (`94` files; `24` tracked transitional exceptions).
+     - Frontend gates: `tsc`, `test:contracts`, `check:boundaries`, and production `build` PASS; lint remained optional/interactive in this environment.
+     - Residual gap decision: P1.9 closure accepted using canonical mounted-source backend gate command; exec-in-running-container variant is documented as environment-flaky and non-blocking.
 
 ## Execution Order
 

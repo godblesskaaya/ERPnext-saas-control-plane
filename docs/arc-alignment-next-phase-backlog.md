@@ -71,6 +71,11 @@ Reference target: `sourcefuse/arc-saas` architectural principles (control-plane 
      - payment failure → recovery → resume
    - Acceptance:
      - Automated path coverage for primary customer and operator journeys.
+   - **P1.8 progress update (2026-03-30):**
+     - Backend regression coverage landed in `provisioning-api/tests/unit/test_billing_webhook.py` for both Journey A (onboarding → payment confirmation → provisioning enqueue) and Journey B (payment failure → recovery → resume provisioning path).
+     - Frontend contract coverage landed in `saas-ui/domains/onboarding/application/onboardingUseCases.contract.test.ts` for payment success and failure-to-resume mappings.
+     - Verification evidence captured in `docs/p1-8-cross-context-integration-regression-verification.md` (backend pytest/lsp checks and frontend contracts/typecheck results).
+     - Residual gap: full-repo lint/full backend coverage gates were not rerun in this lane; targeted journey regression evidence is complete for P1.8 scope.
 
 ## Execution Order
 

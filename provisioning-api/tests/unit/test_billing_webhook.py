@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
@@ -16,6 +17,43 @@ class DummyRQJob:
 
 def fake_enqueue(*args, **kwargs):
     return DummyRQJob()
+
+
+class SequencedCheckout:
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        self.checkout_url = f"https://mock-billing.local/checkout/{session_id}"
+        self.customer_ref = f"cus_{session_id}"
+        self.provider = "stripe"
+        self.payment_channel = "card"
+        self.mock_mode = True
+
+
+class SequencedGateway:
+    def __init__(self, session_ids: list[str]):
+        self._session_ids = list(session_ids)
+        self._index = 0
+
+    def create_checkout(self, tenant, owner):
+        del tenant, owner
+        if self._index < len(self._session_ids):
+            session_id = self._session_ids[self._index]
+        else:
+            session_id = self._session_ids[-1]
+        self._index += 1
+        return SequencedCheckout(session_id)
+
+
+def _auth_headers(client, db_session, email: str) -> dict[str, str]:
+    client.post("/auth/signup", json={"email": email, "password": "Secret123!"})
+    owner = db_session.query(User).filter(User.email == email).one()
+    owner.email_verified = True
+    owner.email_verified_at = datetime.now(timezone.utc)
+    db_session.add(owner)
+    db_session.commit()
+    login = client.post("/auth/login", json={"email": email, "password": "Secret123!"})
+    token = login.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture(autouse=True)
@@ -315,3 +353,114 @@ def test_checkout_completed_webhook_retries_failed_outbox_attempt_without_duplic
     assert outbox.attempts == 2
     assert outbox.last_error is None
     assert outbox.processed_at is not None
+
+
+@patch("app.modules.tenant.service.get_queue")
+def test_onboarding_to_payment_confirmation_enqueues_provisioning(mock_get_queue, client, db_session, monkeypatch):
+    mock_get_queue.return_value.enqueue = fake_enqueue
+    gateway = SequencedGateway(["cs_journey_a_1"])
+    monkeypatch.setattr("app.modules.tenant.service.get_payment_gateway", lambda: gateway)
+
+    headers = _auth_headers(client, db_session, "journey-a-owner@example.com")
+    create = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "journey-a", "company_name": "Journey A Ltd", "plan": "starter"},
+    )
+    assert create.status_code == 202
+    tenant_id = create.json()["tenant"]["id"]
+    assert create.json()["checkout_session_id"] == "cs_journey_a_1"
+
+    payload = {
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "id": "cs_journey_a_1",
+                "customer": "cus_journey_a",
+                "subscription": "sub_journey_a_1",
+                "metadata": {"tenant_id": tenant_id, "plan": "starter"},
+            }
+        },
+    }
+    webhook = client.post("/billing/webhook/stripe", json=payload)
+    assert webhook.status_code == 200
+    assert webhook.json()["message"] == "processed:payment.confirmed"
+
+    db_session.expire_all()
+    tenant = db_session.get(Tenant, tenant_id)
+    subscription = db_session.query(Subscription).filter(Subscription.tenant_id == tenant_id).one()
+    jobs = db_session.query(Job).filter(Job.tenant_id == tenant_id, Job.type == "create").all()
+
+    assert tenant.status == "pending"
+    assert subscription.status == "active"
+    assert subscription.provider_checkout_session_id == "cs_journey_a_1"
+    assert len(jobs) == 1
+    assert jobs[0].status == "queued"
+    assert jobs[0].rq_job_id == "rq-billing-1"
+
+
+@patch("app.modules.tenant.service.get_queue")
+def test_payment_failure_recovery_and_resume_provisioning_path(mock_get_queue, client, db_session, monkeypatch):
+    mock_get_queue.return_value.enqueue = fake_enqueue
+    gateway = SequencedGateway(["cs_journey_b_1", "cs_journey_b_2"])
+    monkeypatch.setattr("app.modules.tenant.service.get_payment_gateway", lambda: gateway)
+    monkeypatch.setattr("app.modules.tenant.router.get_payment_gateway", lambda: gateway)
+
+    headers = _auth_headers(client, db_session, "journey-b-owner@example.com")
+    create = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "journey-b", "company_name": "Journey B Ltd", "plan": "starter"},
+    )
+    assert create.status_code == 202
+    tenant_id = create.json()["tenant"]["id"]
+    assert create.json()["checkout_session_id"] == "cs_journey_b_1"
+
+    failed_payload = {
+        "type": "invoice.payment_failed",
+        "data": {
+            "object": {
+                "id": "in_journey_b_1",
+                "subscription": "sub_journey_b_1",
+                "metadata": {"tenant_id": tenant_id},
+            }
+        },
+    }
+    failed = client.post("/billing/webhook/stripe", json=failed_payload)
+    assert failed.status_code == 200
+    assert failed.json()["message"] == "processed:payment.failed"
+
+    renewed = client.post(f"/tenants/{tenant_id}/checkout/renew", headers=headers)
+    assert renewed.status_code == 200
+    assert renewed.json()["checkout_session_id"] == "cs_journey_b_2"
+
+    success_payload = {
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "id": "cs_journey_b_2",
+                "customer": "cus_journey_b",
+                "subscription": "sub_journey_b_2",
+                "metadata": {"tenant_id": tenant_id, "plan": "starter"},
+            }
+        },
+    }
+    success = client.post("/billing/webhook/stripe", json=success_payload)
+    assert success.status_code == 200
+    assert success.json()["message"] == "processed:payment.confirmed"
+
+    db_session.expire_all()
+    tenant = db_session.get(Tenant, tenant_id)
+    subscription = db_session.query(Subscription).filter(Subscription.tenant_id == tenant_id).one()
+    jobs = db_session.query(Job).filter(Job.tenant_id == tenant_id, Job.type == "create").all()
+    actions = [row.action for row in db_session.query(AuditLog).filter(AuditLog.resource_id == tenant_id).all()]
+
+    assert tenant.status == "pending"
+    assert subscription.status == "active"
+    assert subscription.provider_checkout_session_id == "cs_journey_b_2"
+    assert len(jobs) == 1
+    assert jobs[0].status == "queued"
+    assert jobs[0].rq_job_id == "rq-billing-1"
+    assert "billing.payment_failed" in actions
+    assert "tenant.checkout_renewed" in actions
+    assert "billing.payment_succeeded" in actions

@@ -266,3 +266,50 @@ test("workspace side-effect wrappers map backup/delete/reset/resend/session subs
   assert.equal(deletion.id, "job-delete");
   assert.equal(subscribed, false);
 });
+
+test("workspace payment journey maps checkout success and failed resume retry contracts", async () => {
+  api.createTenant = async (payload) => ({
+    tenant: {
+      id: "tenant-payment",
+      owner_id: "owner-1",
+      subdomain: payload.subdomain,
+      domain: `${payload.subdomain}.example.com`,
+      site_name: payload.subdomain,
+      company_name: payload.company_name,
+      plan: payload.plan,
+      chosen_app: payload.chosen_app ?? null,
+      status: "pending_payment",
+      created_at: "2026-03-30T00:00:00Z",
+      updated_at: "2026-03-30T00:00:00Z",
+    },
+    checkout_url: "https://checkout.example.com/session",
+    job: { id: "job-payment", tenant_id: "tenant-payment", type: "provision_tenant", status: "queued", logs: "" },
+  });
+  api.retryTenant = async (tenantId) => ({
+    supported: true,
+    data: {
+      id: "job-resume",
+      tenant_id: tenantId,
+      type: "provision_tenant",
+      status: "queued",
+      logs: "resume after payment failure",
+    },
+  });
+
+  const created = await createWorkspaceTenant({
+    subdomain: "resume-demo",
+    company_name: "Resume Demo Ltd",
+    plan: "business",
+    chosen_app: "erpnext",
+  });
+  const resumed = await retryWorkspaceProvisioning(created.tenant.id);
+
+  assert.equal(created.tenant.status, "pending_payment");
+  assert.equal(created.checkout_url, "https://checkout.example.com/session");
+  assert.equal(resumed.supported, true);
+  if (!resumed.supported) {
+    throw new Error("Expected retry endpoint to be supported.");
+  }
+  assert.equal(resumed.data.tenant_id, "tenant-payment");
+  assert.equal(resumed.data.id, "job-resume");
+});

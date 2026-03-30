@@ -3,6 +3,7 @@ import test, { afterEach } from "node:test";
 
 import {
   loadWorkspaceReadiness,
+  restorePersistedTenant,
   submitTenantOnboarding,
   validateSubdomain,
 } from "./onboardingUseCases";
@@ -12,12 +13,14 @@ import type { TenantCreatePayload } from "../../shared/lib/types";
 const originalApi = {
   checkSubdomainAvailability: api.checkSubdomainAvailability,
   createTenant: api.createTenant,
+  getTenant: api.getTenant,
   getTenantReadiness: api.getTenantReadiness,
 };
 
 afterEach(() => {
   api.checkSubdomainAvailability = originalApi.checkSubdomainAvailability;
   api.createTenant = originalApi.createTenant;
+  api.getTenant = originalApi.getTenant;
   api.getTenantReadiness = originalApi.getTenantReadiness;
 });
 
@@ -102,4 +105,50 @@ test("loadWorkspaceReadiness preserves optional endpoint support shape", async (
     throw new Error("Expected supported readiness response.");
   }
   assert.equal(supported.data.ready, true);
+});
+
+test("restorePersistedTenant maps payment success to success step", async () => {
+  api.getTenant = async () =>
+    ({
+      id: "tenant-success",
+      owner_id: "owner-1",
+      subdomain: "alpha",
+      domain: "alpha.example.com",
+      site_name: "alpha",
+      company_name: "Alpha Ltd",
+      plan: "business",
+      chosen_app: "crm",
+      status: "active",
+      created_at: "2026-03-23T00:00:00Z",
+      updated_at: "2026-03-23T00:00:00Z",
+    }) as Awaited<ReturnType<typeof api.getTenant>>;
+
+  const restored = await restorePersistedTenant("tenant-success", "https://checkout.example.com/session");
+  assert.equal(restored.step, "success");
+  assert.equal(restored.progress, 100);
+  assert.ok(restored.tenant);
+  assert.equal(restored.tenant.status, "active");
+});
+
+test("restorePersistedTenant maps failed payment resume experience to waiting step", async () => {
+  api.getTenant = async () =>
+    ({
+      id: "tenant-failed",
+      owner_id: "owner-1",
+      subdomain: "beta",
+      domain: "beta.example.com",
+      site_name: "beta",
+      company_name: "Beta Ltd",
+      plan: "starter",
+      chosen_app: null,
+      status: "failed",
+      created_at: "2026-03-23T00:00:00Z",
+      updated_at: "2026-03-23T00:00:00Z",
+    }) as Awaited<ReturnType<typeof api.getTenant>>;
+
+  const restored = await restorePersistedTenant("tenant-failed", null);
+  assert.equal(restored.step, "waiting");
+  assert.equal(restored.progress, 100);
+  assert.ok(restored.tenant);
+  assert.equal(restored.tenant.status, "failed");
 });

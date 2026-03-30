@@ -16,6 +16,10 @@ Scope: `provisioning-api` backend boundary convergence only (no behavior-change 
 
 - Policy ownership review/report: `docs/p2-p0-1-wave-3-policy-review.md` (updated 2026-03-30)
 
+## Wave 4 status report link
+
+- Billing legacy surface review/report: `docs/p2-p0-1-wave-4-billing-review.md` (updated 2026-03-30)
+
 ## 1) Current Residual Responsibilities (Evidence Snapshot)
 
 Repository scan shows the backend still has runtime ownership in `app/domains/*` for four clusters, while `app/modules/*` is only partially authoritative.
@@ -47,11 +51,12 @@ Repository scan shows the backend still has runtime ownership in `app/domains/*`
 - **Compatibility shim state:** `app/domains/policy/{tenant_policy.py,__init__.py}` are shim-only re-export surfaces.
 - **Current module-consumer state:** tenant/support/workers now import policy from `app.modules.tenant.policy`.
 
-### D. Billing compatibility code remains under `app/domains/billing/*`
+### D. Billing legacy surface moved to module ownership (updated 2026-03-30)
 
 - **Current runtime implementation:**
-  - `app/domains/billing/billing_client.py`
-- **Current module state:** no active imports found in app/test code; file appears orphaned legacy compatibility surface and should be explicitly resolved (migrate or remove with shim plan).
+  - `app/modules/billing/legacy_billing_client.py`
+- **Compatibility shim state:** `app/domains/billing/billing_client.py` is shim-only re-export surface.
+- **Current module-consumer state:** no active runtime imports in app/test code; legacy path retained for compatibility imports only.
 
 ### E. Dependency signal
 

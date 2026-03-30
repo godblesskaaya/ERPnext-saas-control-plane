@@ -30,7 +30,6 @@ ALLOWED_DOMAINS_TO_MODULES = {
 }
 
 ALLOWED_MODULES_TO_DOMAINS = {
-    "app/modules/billing/router.py",
     "app/modules/support/job_service.py",
     "app/modules/support/job_stream.py",
     "app/modules/support/platform_erp_client.py",

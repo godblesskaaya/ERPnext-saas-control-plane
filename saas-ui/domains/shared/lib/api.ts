@@ -152,6 +152,14 @@ type RequestOptions = {
   idempotencyKey?: string;
 };
 
+type NotificationPreferencesApiPayload = {
+  email_alerts: boolean;
+  sms_alerts: boolean;
+  billing_alerts: boolean;
+  provisioning_alerts: boolean;
+  support_alerts: boolean;
+};
+
 const REFRESH_EXEMPT_PATHS = new Set([
   "/auth/login",
   "/auth/signup",
@@ -349,6 +357,16 @@ async function createTenantWithCompatibility(
   }
 }
 
+async function requestNotificationPreferencesOptional(
+  init?: RequestInit
+): Promise<OptionalEndpointResult<NotificationPreferencesApiPayload>> {
+  const primary = await requestOptionalEndpoint<NotificationPreferencesApiPayload>("/auth/me/notification-preferences", init);
+  if (primary.supported) {
+    return primary;
+  }
+  return requestOptionalEndpoint<NotificationPreferencesApiPayload>("/auth/me/preferences/notifications", init);
+}
+
 export function jobStreamUrl(jobId: string): string {
   const base = resolveWsBase().replace(/\/+$/, "");
   return `${base}/ws/jobs/${encodeURIComponent(jobId)}`;
@@ -451,6 +469,14 @@ export const api = {
 
   updateCurrentUser: (payload: { phone?: string | null }) =>
     request<UserProfile>("/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  getCurrentUserNotificationPreferences: () => requestNotificationPreferencesOptional(),
+
+  updateCurrentUserNotificationPreferences: (payload: NotificationPreferencesApiPayload) =>
+    requestNotificationPreferencesOptional({
       method: "PATCH",
       body: JSON.stringify(payload),
     }),

@@ -18,7 +18,9 @@ import {
 } from "@mui/material";
 
 import {
+  loadAccountNotificationPreferences,
   loadAccountProfile,
+  saveAccountNotificationPreferences,
   saveAccountPhone,
   toAccountErrorMessage,
 } from "../../../../domains/account/application/accountUseCases";
@@ -46,7 +48,9 @@ export default function DashboardSettingsPage() {
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [preferences, setPreferences] = useState<NotificationPreferences>(DEFAULT_PREFERENCES);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+  const [preferencesBusy, setPreferencesBusy] = useState(false);
   const [preferencesNotice, setPreferencesNotice] = useState<string | null>(null);
+  const [preferencesError, setPreferencesError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -69,6 +73,24 @@ export default function DashboardSettingsPage() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const result = await loadAccountNotificationPreferences();
+        if (!active || !result.supported) return;
+        setPreferences(result.preferences);
+        setPreferencesLoaded(true);
+      } catch (err) {
+        if (!active) return;
+        setPreferencesError(toAccountErrorMessage(err, "Failed to load notification preferences."));
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     setPreferences(parsePreferences(window.localStorage.getItem(PREFERENCES_STORAGE_KEY)));
     setPreferencesLoaded(true);
@@ -76,8 +98,6 @@ export default function DashboardSettingsPage() {
 
   useEffect(() => {
     if (!preferencesLoaded || typeof window === "undefined") return;
-    // AGENT-NOTE: backend notification-preference endpoint is not available yet.
-    // Persist locally for now to keep customer-side settings usable without inventing API contracts.
     window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(preferences));
   }, [preferences, preferencesLoaded]);
 
@@ -97,9 +117,24 @@ export default function DashboardSettingsPage() {
     }
   };
 
-  const savePreferences = () => {
-    setPreferencesNotice("Notification preferences saved on this device.");
-    window.setTimeout(() => setPreferencesNotice(null), 1800);
+  const savePreferences = async () => {
+    setPreferencesBusy(true);
+    setPreferencesError(null);
+    setPreferencesNotice(null);
+    try {
+      const result = await saveAccountNotificationPreferences(preferences);
+      setPreferences(result.preferences);
+      setPreferencesNotice(
+        result.supported
+          ? "Notification preferences saved to your account."
+          : "Notification preferences saved on this device."
+      );
+      window.setTimeout(() => setPreferencesNotice(null), 1800);
+    } catch (err) {
+      setPreferencesError(toAccountErrorMessage(err, "Unable to save notification preferences."));
+    } finally {
+      setPreferencesBusy(false);
+    }
   };
 
   return (
@@ -207,10 +242,11 @@ export default function DashboardSettingsPage() {
         </Grid>
 
         <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-          <Button variant="outlined" size="small" onClick={savePreferences}>
-            Save preferences
+          <Button variant="outlined" size="small" disabled={preferencesBusy} onClick={() => void savePreferences()}>
+            {preferencesBusy ? "Saving..." : "Save preferences"}
           </Button>
           {preferencesNotice ? <Typography variant="caption" color="success.main">{preferencesNotice}</Typography> : null}
+          {preferencesError ? <Typography variant="caption" color="error.main">{preferencesError}</Typography> : null}
         </Stack>
       </Paper>
 

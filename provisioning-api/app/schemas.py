@@ -84,6 +84,22 @@ class ProfileUpdateRequest(BaseModel):
     phone: str | None = Field(default=None, max_length=32, description="Optional phone number for SMS notifications.")
 
 
+class NotificationPreferencesUpdateRequest(BaseModel):
+    email_alerts: bool | None = Field(default=None, description="Enable or disable general email alerts.")
+    sms_alerts: bool | None = Field(default=None, description="Enable or disable SMS alerts.")
+    billing_alerts: bool | None = Field(default=None, description="Enable or disable billing alerts.")
+    provisioning_alerts: bool | None = Field(default=None, description="Enable or disable provisioning alerts.")
+    support_alerts: bool | None = Field(default=None, description="Enable or disable support alerts.")
+
+
+class NotificationPreferencesOut(BaseModel):
+    email_alerts: bool
+    sms_alerts: bool
+    billing_alerts: bool
+    provisioning_alerts: bool
+    support_alerts: bool
+
+
 class ForgotPasswordRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={

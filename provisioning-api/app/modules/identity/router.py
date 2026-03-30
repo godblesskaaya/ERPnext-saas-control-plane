@@ -28,6 +28,8 @@ from app.schemas import (
     ImpersonationExchangeRequest,
     LoginRequest,
     MessageResponse,
+    NotificationPreferencesOut,
+    NotificationPreferencesUpdateRequest,
     ProfileUpdateRequest,
     ResetPasswordRequest,
     SignupRequest,
@@ -217,6 +219,16 @@ def auth_health(request: Request, db: Session = Depends(get_db)) -> MessageRespo
     return MessageResponse(message="ok")
 
 
+def _notification_preferences_from_user(user: User) -> NotificationPreferencesOut:
+    return NotificationPreferencesOut(
+        email_alerts=user.notification_email_alerts,
+        sms_alerts=user.notification_sms_alerts,
+        billing_alerts=user.notification_billing_alerts,
+        provisioning_alerts=user.notification_provisioning_alerts,
+        support_alerts=user.notification_support_alerts,
+    )
+
+
 @router.get(
     "/me",
     response_model=UserOut,
@@ -264,6 +276,103 @@ def update_me(
         metadata={"updated_fields": ["phone"]},
     )
     return UserOut.model_validate(current_user)
+
+
+@router.get(
+    "/me/preferences",
+    response_model=NotificationPreferencesOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+@router.get(
+    "/me/notification-preferences",
+    response_model=NotificationPreferencesOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+@router.get(
+    "/me/preferences/notifications",
+    response_model=NotificationPreferencesOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def get_notification_preferences(current_user: User = Depends(get_current_user)) -> NotificationPreferencesOut:
+    return _notification_preferences_from_user(current_user)
+
+
+@router.patch(
+    "/me/preferences",
+    response_model=NotificationPreferencesOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+@router.patch(
+    "/me/notification-preferences",
+    response_model=NotificationPreferencesOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+@router.patch(
+    "/me/preferences/notifications",
+    response_model=NotificationPreferencesOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def update_notification_preferences(
+    request: Request,
+    payload: NotificationPreferencesUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> NotificationPreferencesOut:
+    updated_fields: list[str] = []
+    if payload.email_alerts is not None:
+        current_user.notification_email_alerts = payload.email_alerts
+        updated_fields.append("email_alerts")
+    if payload.sms_alerts is not None:
+        current_user.notification_sms_alerts = payload.sms_alerts
+        updated_fields.append("sms_alerts")
+    if payload.billing_alerts is not None:
+        current_user.notification_billing_alerts = payload.billing_alerts
+        updated_fields.append("billing_alerts")
+    if payload.provisioning_alerts is not None:
+        current_user.notification_provisioning_alerts = payload.provisioning_alerts
+        updated_fields.append("provisioning_alerts")
+    if payload.support_alerts is not None:
+        current_user.notification_support_alerts = payload.support_alerts
+        updated_fields.append("support_alerts")
+
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+
+    record_audit_event(
+        db,
+        action="auth.notification_preferences_updated",
+        resource="users",
+        actor=current_user,
+        resource_id=current_user.id,
+        request=request,
+        metadata={"updated_fields": updated_fields},
+    )
+    return _notification_preferences_from_user(current_user)
 
 
 @router.post(

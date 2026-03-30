@@ -33,6 +33,11 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), default="user")
     email_verified: Mapped[bool] = mapped_column(default=False, index=True)
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    notification_email_alerts: Mapped[bool] = mapped_column(default=True)
+    notification_sms_alerts: Mapped[bool] = mapped_column(default=True)
+    notification_billing_alerts: Mapped[bool] = mapped_column(default=True)
+    notification_provisioning_alerts: Mapped[bool] = mapped_column(default=True)
+    notification_support_alerts: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     tenants: Mapped[list[Tenant]] = relationship(back_populates="owner")

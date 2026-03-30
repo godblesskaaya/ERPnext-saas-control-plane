@@ -60,6 +60,10 @@ Reference target: `sourcefuse/arc-saas` architectural principles (control-plane 
    - Add missing endpoints currently handled with frontend-only fallbacks (e.g., notification preferences).
    - Acceptance:
      - Frontend removes corresponding fallback TODO/AGENT-NOTE where API is available.
+   - **P1.7 progress update (2026-03-30):**
+     - Backend parity landed for notification preferences via persistent user fields + migration and `/auth/me/preferences` read/write APIs (including compatibility aliases).
+     - Frontend parity landed for notification preferences API flow, with local-only fallback no longer the primary persistence path.
+     - Verification executed across backend + frontend contract/type layers (see team task result evidence).
 
 8. **Cross-context integration regression suite**
    - End-to-end control-plane journey tests:

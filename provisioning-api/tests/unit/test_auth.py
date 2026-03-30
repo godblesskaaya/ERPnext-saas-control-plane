@@ -120,6 +120,89 @@ def test_update_me_phone_and_clear_phone(client, db_session):
     assert "auth.profile_updated" in actions
 
 
+def test_notification_preferences_defaults_and_alias_get_paths(client):
+    signup = client.post(
+        "/auth/signup",
+        json={"email": "prefs-get@example.com", "password": "Secret123!"},
+    )
+    assert signup.status_code == 201
+
+    login = client.post("/auth/login", json={"email": "prefs-get@example.com", "password": "Secret123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    expected = {
+        "email_alerts": True,
+        "sms_alerts": True,
+        "billing_alerts": True,
+        "provisioning_alerts": True,
+        "support_alerts": True,
+    }
+
+    canonical = client.get("/auth/me/preferences", headers=headers)
+    assert canonical.status_code == 200
+    assert canonical.json() == expected
+
+    primary = client.get("/auth/me/notification-preferences", headers=headers)
+    assert primary.status_code == 200
+    assert primary.json() == expected
+
+    compatibility = client.get("/auth/me/preferences/notifications", headers=headers)
+    assert compatibility.status_code == 200
+    assert compatibility.json() == expected
+
+
+def test_notification_preferences_patch_persists_and_does_not_affect_phone(client, db_session):
+    signup = client.post(
+        "/auth/signup",
+        json={"email": "prefs-patch@example.com", "password": "Secret123!", "phone": "+255700000000"},
+    )
+    assert signup.status_code == 201
+
+    login = client.post("/auth/login", json={"email": "prefs-patch@example.com", "password": "Secret123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    updated = client.patch(
+        "/auth/me/preferences",
+        headers=headers,
+        json={"sms_alerts": False, "support_alerts": False},
+    )
+    assert updated.status_code == 200
+    assert updated.json() == {
+        "email_alerts": True,
+        "sms_alerts": False,
+        "billing_alerts": True,
+        "provisioning_alerts": True,
+        "support_alerts": False,
+    }
+
+    fetch_primary = client.get("/auth/me/notification-preferences", headers=headers)
+    assert fetch_primary.status_code == 200
+    assert fetch_primary.json()["sms_alerts"] is False
+    assert fetch_primary.json()["support_alerts"] is False
+
+    fetch_compat = client.get("/auth/me/preferences/notifications", headers=headers)
+    assert fetch_compat.status_code == 200
+    assert fetch_compat.json()["sms_alerts"] is False
+    assert fetch_compat.json()["support_alerts"] is False
+
+    me = client.get("/auth/me", headers=headers)
+    assert me.status_code == 200
+    assert me.json()["phone"] == "+255700000000"
+
+    user = db_session.query(User).filter(User.email == "prefs-patch@example.com").one()
+    assert user.phone == "+255700000000"
+    assert user.notification_email_alerts is True
+    assert user.notification_sms_alerts is False
+    assert user.notification_billing_alerts is True
+    assert user.notification_provisioning_alerts is True
+    assert user.notification_support_alerts is False
+
+    actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
+    assert "auth.notification_preferences_updated" in actions
+
+
 @patch(
     "app.modules.identity.router.secrets.token_urlsafe",
     side_effect=["signup-verify-token-123456789", "resend-verify-token-123456789"],

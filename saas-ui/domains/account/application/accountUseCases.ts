@@ -1,9 +1,12 @@
 import { getApiErrorMessage } from "../../shared/lib/api";
 import type { BillingInvoice, UserProfile } from "../../shared/lib/types";
+import type { NotificationPreferences } from "../domain/settingsPreferences";
 import {
   fetchBillingInvoices,
   fetchBillingPortalUrl,
   fetchCurrentUserProfile,
+  fetchNotificationPreferences,
+  updateNotificationPreferences,
   updateCurrentUserPhone,
 } from "../infrastructure/accountRepository";
 
@@ -32,6 +35,19 @@ export async function loadAccountBillingInvoices(): Promise<BillingInvoicesResul
 export async function saveAccountPhone(phoneInput: string): Promise<UserProfile> {
   const phone = phoneInput.trim() || null;
   return updateCurrentUserPhone(phone);
+}
+
+export async function loadAccountNotificationPreferences(): Promise<{
+  supported: boolean;
+  preferences: NotificationPreferences;
+}> {
+  return fetchNotificationPreferences();
+}
+
+export async function saveAccountNotificationPreferences(
+  preferences: NotificationPreferences
+): Promise<{ supported: boolean; preferences: NotificationPreferences }> {
+  return updateNotificationPreferences(preferences);
 }
 
 export function pickLatestInvoice(invoices: BillingInvoice[]): BillingInvoice | null {

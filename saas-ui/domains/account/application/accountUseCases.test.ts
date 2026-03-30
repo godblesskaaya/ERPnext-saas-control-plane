@@ -2,17 +2,22 @@ import assert from "node:assert/strict";
 import test, { afterEach } from "node:test";
 
 import {
+  loadAccountNotificationPreferences,
   loadAccountBillingInvoices,
   loadAccountBillingPortal,
   loadAccountProfile,
   pickLatestInvoice,
+  saveAccountNotificationPreferences,
   saveAccountPhone,
 } from "./accountUseCases";
 import { api } from "../../shared/lib/api";
+import { DEFAULT_PREFERENCES } from "../domain/settingsPreferences";
 
 const originalApi = {
   getCurrentUser: api.getCurrentUser,
   updateCurrentUser: api.updateCurrentUser,
+  getCurrentUserNotificationPreferences: api.getCurrentUserNotificationPreferences,
+  updateCurrentUserNotificationPreferences: api.updateCurrentUserNotificationPreferences,
   getBillingPortal: api.getBillingPortal,
   listBillingInvoices: api.listBillingInvoices,
 };
@@ -20,6 +25,8 @@ const originalApi = {
 afterEach(() => {
   api.getCurrentUser = originalApi.getCurrentUser;
   api.updateCurrentUser = originalApi.updateCurrentUser;
+  api.getCurrentUserNotificationPreferences = originalApi.getCurrentUserNotificationPreferences;
+  api.updateCurrentUserNotificationPreferences = originalApi.updateCurrentUserNotificationPreferences;
   api.getBillingPortal = originalApi.getBillingPortal;
   api.listBillingInvoices = originalApi.listBillingInvoices;
 });
@@ -86,4 +93,44 @@ test("pickLatestInvoice returns most recent invoice by created timestamp", () =>
 
   assert.equal(latest?.id, "inv-b");
   assert.equal(pickLatestInvoice([]), null);
+});
+
+test("notification preference use cases map API payloads and fallback behavior", async () => {
+  api.getCurrentUserNotificationPreferences = async () => ({
+    supported: true,
+    data: {
+      email_alerts: true,
+      sms_alerts: false,
+      billing_alerts: true,
+      provisioning_alerts: true,
+      support_alerts: false,
+    },
+  });
+
+  let capturedPayloadJson = "";
+  api.updateCurrentUserNotificationPreferences = async (payload) => {
+    capturedPayloadJson = JSON.stringify(payload);
+    return { supported: true, data: payload };
+  };
+
+  const loaded = await loadAccountNotificationPreferences();
+  const saved = await saveAccountNotificationPreferences({
+    ...loaded.preferences,
+    billingAlerts: false,
+  });
+
+  assert.equal(loaded.supported, true);
+  assert.equal(loaded.preferences.smsAlerts, false);
+  assert.equal(saved.supported, true);
+  assert.match(capturedPayloadJson, /"billing_alerts":false/);
+  assert.equal(saved.preferences.billingAlerts, false);
+
+  api.getCurrentUserNotificationPreferences = async () => ({ supported: false, data: null });
+  api.updateCurrentUserNotificationPreferences = async () => ({ supported: false, data: null });
+  const unsupportedLoaded = await loadAccountNotificationPreferences();
+  const unsupportedSaved = await saveAccountNotificationPreferences(DEFAULT_PREFERENCES);
+  assert.equal(unsupportedLoaded.supported, false);
+  assert.deepEqual(unsupportedLoaded.preferences, DEFAULT_PREFERENCES);
+  assert.equal(unsupportedSaved.supported, false);
+  assert.deepEqual(unsupportedSaved.preferences, DEFAULT_PREFERENCES);
 });

@@ -6,6 +6,14 @@ export type NotificationPreferences = {
   supportAlerts: boolean;
 };
 
+export type NotificationPreferencesApiPayload = {
+  email_alerts?: boolean;
+  sms_alerts?: boolean;
+  billing_alerts?: boolean;
+  provisioning_alerts?: boolean;
+  support_alerts?: boolean;
+};
+
 export const DEFAULT_PREFERENCES: NotificationPreferences = {
   emailAlerts: true,
   smsAlerts: true,
@@ -30,4 +38,25 @@ export function parsePreferences(raw: string | null): NotificationPreferences {
   } catch {
     return DEFAULT_PREFERENCES;
   }
+}
+
+export function fromApiPreferences(payload?: NotificationPreferencesApiPayload | null): NotificationPreferences {
+  if (!payload) return DEFAULT_PREFERENCES;
+  return {
+    emailAlerts: payload.email_alerts ?? DEFAULT_PREFERENCES.emailAlerts,
+    smsAlerts: payload.sms_alerts ?? DEFAULT_PREFERENCES.smsAlerts,
+    billingAlerts: payload.billing_alerts ?? DEFAULT_PREFERENCES.billingAlerts,
+    provisioningAlerts: payload.provisioning_alerts ?? DEFAULT_PREFERENCES.provisioningAlerts,
+    supportAlerts: payload.support_alerts ?? DEFAULT_PREFERENCES.supportAlerts,
+  };
+}
+
+export function toApiPreferences(preferences: NotificationPreferences): Required<NotificationPreferencesApiPayload> {
+  return {
+    email_alerts: preferences.emailAlerts,
+    sms_alerts: preferences.smsAlerts,
+    billing_alerts: preferences.billingAlerts,
+    provisioning_alerts: preferences.provisioningAlerts,
+    support_alerts: preferences.supportAlerts,
+  };
 }

@@ -9,7 +9,7 @@ from app.config import get_settings
 from app.db import SessionLocal
 from app.models import Job, Tenant, User
 from app.queue.redis import get_redis_connection
-from app.domains.tenants.membership import ensure_membership
+from app.modules.tenant.membership import ensure_membership
 from app.modules.identity.security import decode_access_token
 
 

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user
-from app.domains.tenants.membership import ensure_membership
+from app.modules.tenant.membership import ensure_membership
 from app.models import Tenant, User
 from app.modules.features.models import FeatureFlag, TenantFeature
 from app.modules.features.schemas import TenantFeatureOverrideOut

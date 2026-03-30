@@ -7,7 +7,7 @@ from app.db import get_db
 from app.deps import get_current_user
 from app.models import Job, Tenant, User
 from app.modules.audit.service import record_audit_event
-from app.domains.tenants.membership import ensure_membership
+from app.modules.tenant.membership import ensure_membership
 from app.rate_limits import authenticated_default_rate_limit
 from app.schemas import JobOut
 

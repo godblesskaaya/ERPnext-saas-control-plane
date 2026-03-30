@@ -52,7 +52,7 @@ from app.schemas import (
     TenantUpdateRequest,
     TenantReadinessOut,
 )
-from app.domains.tenants.backup_service import list_backup_manifests
+from app.modules.tenant.backup_service import list_backup_manifests
 from app.modules.audit.service import record_audit_event
 from app.modules.features.service import require_feature
 from app.queue.enqueue import get_queue
@@ -67,7 +67,7 @@ from app.modules.billing.payment.factory import get_payment_gateway
 from app.modules.billing.payment.stripe_gateway import StripeGateway
 from app.modules.support.platform_erp_client import PlatformERPClient
 from app.modules.tenant.state import transition_tenant_status
-from app.domains.tenants.membership import (
+from app.modules.tenant.membership import (
     TENANT_ROLE_CAN_MANAGE_BILLING,
     TENANT_ROLE_CAN_MANAGE_TEAM,
     TENANT_ROLE_CAN_OPERATE,

@@ -4,7 +4,7 @@ from app.utils.time import utcnow
 
 from app.db import SessionLocal
 from app.modules.observability.logging import get_logger
-from app.domains.tenants.backup_service import cleanup_expired_backups
+from app.modules.tenant.backup_service import cleanup_expired_backups
 
 
 log = get_logger(__name__)

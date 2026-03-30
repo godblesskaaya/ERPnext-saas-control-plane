@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, selectinload
 
 from app.bench.validators import BUSINESS_APPS, ValidationError, validate_app_name
-from app.domains.tenants.membership import ensure_membership
+from app.modules.tenant.membership import ensure_membership
 from app.models import Tenant, User
 from app.modules.subscription.models import Plan, PlanEntitlement, Subscription
 from app.modules.subscription.schemas import PlanDetailOut, SubscriptionOut

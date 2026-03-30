@@ -6,6 +6,11 @@ Scope: `provisioning-api` backend boundary convergence only (no behavior-change 
 ## Wave 1 status report link
 
 - Support-ownership review/report: `docs/p2-p0-1-wave-1-support-review.md` (updated 2026-03-30)
+- Tenant-helper review/report: `docs/p2-p0-1-wave-2-tenant-helper-review.md` (updated 2026-03-30)
+
+## Wave 2 status report link
+
+- Tenant-helper ownership review/report: `docs/p2-p0-1-wave-2-tenant-helper-review.md` (updated 2026-03-30)
 
 ## 1) Current Residual Responsibilities (Evidence Snapshot)
 
@@ -29,7 +34,7 @@ Repository scan shows the backend still has runtime ownership in `app/domains/*`
   - `app/domains/tenants/backup_service.py`
   - `app/domains/tenants/membership.py`
   - `app/domains/tenants/tls_sync.py`
-- **Current module state:** `app/modules/tenant/*` imports these helpers from `app.domains.tenants.*`.
+- **Current module state (updated 2026-03-30):** runtime ownership moved to `app/modules/tenant/{membership,backup_service,tls_sync}.py`; `app/domains/tenants/*` remains compatibility shim-only for transition.
 
 ### C. Tenant policy rules still owned by `app/domains/policy/*`
 

@@ -10,7 +10,7 @@ from app.deps import get_current_user
 from app.models import Tenant, TenantMembership, User
 from app.schemas import BillingInvoiceListResponse, BillingInvoiceOut, BillingPortalResponse, MessageResponse
 from app.modules.audit.service import record_audit_event
-from app.domains.support.platform_erp_client import PlatformERPClient
+from app.modules.support.platform_erp_client import PlatformERPClient
 from app.modules.billing.payment.factory import get_payment_gateway
 from app.modules.billing.payment.stripe_gateway import StripeGateway
 from app.modules.billing.webhook_service import (

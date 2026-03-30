@@ -3,11 +3,14 @@ from __future__ import annotations
 import hashlib
 import time
 from datetime import UTC, datetime
+from importlib import import_module
 from unittest.mock import patch
 
 from app.models import AuditLog, User
 from app.modules.identity.security import decode_access_token
 from app.token_store import get_token_store
+
+SUPPORT_ADMIN_ROUTER_MODULE = import_module("app.modules.support.admin_router").list_all_tenants.__module__
 
 
 def test_signup_login_refresh_and_logout_revokes_access_token(client, db_session):
@@ -313,7 +316,7 @@ def test_impersonation_exchange_rejects_invalid_token(client):
     assert response.status_code == 400
 
 
-@patch("app.domains.support.admin_router.secrets.token_urlsafe", return_value="impersonation-token-for-tests")
+@patch(f"{SUPPORT_ADMIN_ROUTER_MODULE}.secrets.token_urlsafe", return_value="impersonation-token-for-tests")
 def test_admin_can_issue_and_consume_impersonation_link(mock_token, client, db_session):
     del mock_token
     client.post("/auth/signup", json={"email": "admin-imp@example.com", "password": "Secret123!"})

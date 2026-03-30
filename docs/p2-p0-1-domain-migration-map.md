@@ -3,6 +3,10 @@
 Date: 2026-03-30  
 Scope: `provisioning-api` backend boundary convergence only (no behavior-change implementation in this kickoff doc)
 
+## Wave 1 status report link
+
+- Support-ownership review/report: `docs/p2-p0-1-wave-1-support-review.md` (updated 2026-03-30)
+
 ## 1) Current Residual Responsibilities (Evidence Snapshot)
 
 Repository scan shows the backend still has runtime ownership in `app/domains/*` for four clusters, while `app/modules/*` is only partially authoritative.

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from importlib import import_module
 from unittest.mock import patch
 
 from app.config import get_settings
 from app.models import AuditLog, Job, Tenant, TenantMembership, User
 from app.modules.subscription.models import Plan, Subscription
 from app.modules.subscription.service import ensure_default_plan_catalog
+
+SUPPORT_ADMIN_ROUTER_MODULE = import_module("app.modules.support.admin_router").list_all_tenants.__module__
 
 
 class DummyRQJob:
@@ -690,7 +693,7 @@ def test_admin_jobs_and_logs_view(client, db_session):
     assert "admin.view_job_logs" in actions
 
 
-@patch("app.domains.support.admin_router.PlatformERPClient")
+@patch(f"{SUPPORT_ADMIN_ROUTER_MODULE}.PlatformERPClient")
 @patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())
 def test_admin_billing_dunning_includes_schedule_and_invoice_context(_, platform_client_cls, client, db_session):
     owner_headers = _auth_headers(client, db_session)
@@ -731,7 +734,7 @@ def test_admin_billing_dunning_includes_schedule_and_invoice_context(_, platform
     assert row["grace_ends_at"] is not None
 
 
-@patch("app.domains.support.admin_router.get_queue")
+@patch(f"{SUPPORT_ADMIN_ROUTER_MODULE}.get_queue")
 def test_admin_can_queue_billing_dunning_cycle(mock_get_queue, client, db_session):
     mock_get_queue.return_value.enqueue = fake_enqueue
     headers = _admin_headers(client, db_session)

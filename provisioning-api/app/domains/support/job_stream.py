@@ -1,14 +1,3 @@
-from __future__ import annotations
+"""Compatibility shim for moved support implementation."""
 
-from app.queue.redis import get_redis_connection
-
-
-def publish_job_log(job_id: str, message: str) -> None:
-    try:
-        get_redis_connection().publish(f"job:{job_id}:logs", message)
-    except Exception:
-        return
-
-
-def publish_job_done(job_id: str) -> None:
-    publish_job_log(job_id, "__DONE__")
+from app.modules.support.job_stream import *  # noqa: F401,F403

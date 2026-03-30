@@ -65,7 +65,7 @@ from app.modules.tenant.service import (
 )
 from app.modules.billing.payment.factory import get_payment_gateway
 from app.modules.billing.payment.stripe_gateway import StripeGateway
-from app.domains.support.platform_erp_client import PlatformERPClient
+from app.modules.support.platform_erp_client import PlatformERPClient
 from app.modules.tenant.state import transition_tenant_status
 from app.domains.tenants.membership import (
     TENANT_ROLE_CAN_MANAGE_BILLING,

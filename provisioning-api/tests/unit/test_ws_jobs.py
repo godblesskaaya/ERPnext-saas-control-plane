@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib import import_module
 from unittest.mock import patch
 
 import pytest
@@ -8,6 +9,8 @@ from starlette.websockets import WebSocketDisconnect
 from app.config import get_settings
 from app.models import Job, Tenant, User
 from app.modules.identity.security import create_access_token
+
+SUPPORT_WS_ROUTER_MODULE = import_module("app.modules.support.ws_router").job_stream.__module__
 
 
 class FakePubSub:
@@ -40,7 +43,7 @@ class FakeRedis:
         return FakePubSub()
 
 
-@patch("app.domains.support.ws_router.get_redis_connection", return_value=FakeRedis())
+@patch(f"{SUPPORT_WS_ROUTER_MODULE}.get_redis_connection", return_value=FakeRedis())
 def test_ws_job_stream_for_authorized_user(_, client, db_session):
     user = User(email="ws@example.com", password_hash="hash", role="user")
     db_session.add(user)

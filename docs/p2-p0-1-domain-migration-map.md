@@ -12,6 +12,10 @@ Scope: `provisioning-api` backend boundary convergence only (no behavior-change 
 
 - Tenant-helper ownership review/report: `docs/p2-p0-1-wave-2-tenant-helper-review.md` (updated 2026-03-30)
 
+## Wave 3 status report link
+
+- Policy ownership review/report: `docs/p2-p0-1-wave-3-policy-review.md` (updated 2026-03-30)
+
 ## 1) Current Residual Responsibilities (Evidence Snapshot)
 
 Repository scan shows the backend still has runtime ownership in `app/domains/*` for four clusters, while `app/modules/*` is only partially authoritative.
@@ -36,12 +40,12 @@ Repository scan shows the backend still has runtime ownership in `app/domains/*`
   - `app/domains/tenants/tls_sync.py`
 - **Current module state (updated 2026-03-30):** runtime ownership moved to `app/modules/tenant/{membership,backup_service,tls_sync}.py`; `app/domains/tenants/*` remains compatibility shim-only for transition.
 
-### C. Tenant policy rules still owned by `app/domains/policy/*`
+### C. Tenant policy rules moved to module ownership (updated 2026-03-30)
 
 - **Current runtime implementation:**
-  - `app/domains/policy/tenant_policy.py`
-  - `app/domains/policy/__init__.py`
-- **Current module state:** `app/modules/tenant/router.py`, `app/modules/tenant/service.py`, and workers import policy from `app.domains.policy`.
+  - `app/modules/tenant/policy.py`
+- **Compatibility shim state:** `app/domains/policy/{tenant_policy.py,__init__.py}` are shim-only re-export surfaces.
+- **Current module-consumer state:** tenant/support/workers now import policy from `app.modules.tenant.policy`.
 
 ### D. Billing compatibility code remains under `app/domains/billing/*`
 

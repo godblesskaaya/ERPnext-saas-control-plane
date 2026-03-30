@@ -25,17 +25,15 @@ ALLOWED_DOMAINS_TO_MODULES = {
     "app/domains/tenants/membership.py",
     "app/domains/tenants/router.py",
     "app/domains/tenants/tls_sync.py",
+    "app/domains/policy/__init__.py",
+    "app/domains/policy/tenant_policy.py",
 }
 
 ALLOWED_MODULES_TO_DOMAINS = {
     "app/modules/billing/router.py",
-    "app/modules/support/admin_router.py",
-    "app/modules/support/dunning.py",
     "app/modules/support/job_service.py",
     "app/modules/support/job_stream.py",
     "app/modules/support/platform_erp_client.py",
-    "app/modules/tenant/router.py",
-    "app/modules/tenant/service.py",
 }
 
 

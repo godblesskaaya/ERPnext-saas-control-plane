@@ -16,7 +16,7 @@ from app.models import BackupManifest, Job, Tenant, User
 from app.modules.subscription.models import Subscription
 from app.schemas import BillingPayload
 from app.modules.audit.service import record_audit_event
-from app.domains.policy.tenant_policy import tenant_subscription_status
+from app.modules.tenant.policy import tenant_subscription_status
 from app.modules.support.dunning import resolve_dunning_context
 from app.modules.tenant.backup_service import persist_backup_manifest
 from app.modules.support.job_service import append_log, mark_job_failed, mark_job_running, mark_job_success

@@ -40,7 +40,7 @@ from app.modules.audit.service import record_audit_event
 from app.modules.notifications.service import notification_service
 from app.modules.support.platform_erp_client import PlatformERPClient
 from app.modules.support.dunning import resolve_dunning_context
-from app.domains.policy.tenant_policy import (
+from app.modules.tenant.policy import (
     SUBSCRIPTION_DELINQUENT_STATUSES,
     tenant_billing_status_compat,
     tenant_subscription_status,

@@ -1,4 +1,9 @@
-from app.domains.policy.tenant_policy import (
+"""Compatibility shim for tenant policy package.
+
+Runtime ownership moved to ``app.modules.tenant.policy``.
+"""
+
+from app.modules.tenant.policy import (
     PLAN_BACKUP_DAILY_LIMITS,
     enforce_backup_policy,
     enforce_delete_policy,
@@ -8,6 +13,8 @@ from app.domains.policy.tenant_policy import (
     ensure_domain_operation_allowed,
     legacy_backup_daily_limit_for_plan,
     resolve_plan_and_app,
+    tenant_billing_status_compat,
+    tenant_subscription_status,
     validate_plan_change,
 )
 
@@ -21,5 +28,7 @@ __all__ = [
     "ensure_domain_operation_allowed",
     "legacy_backup_daily_limit_for_plan",
     "resolve_plan_and_app",
+    "tenant_billing_status_compat",
+    "tenant_subscription_status",
     "validate_plan_change",
 ]

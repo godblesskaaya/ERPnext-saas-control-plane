@@ -11,7 +11,7 @@ from app.bench.validators import ValidationError, domain_from_subdomain, validat
 from app.config import get_settings
 from app.modules.observability.logging import get_logger
 from app.models import AuditLog, Job, Organization, Tenant, TenantMembership, User
-from app.domains.policy import ensure_email_verified, legacy_backup_daily_limit_for_plan
+from app.modules.tenant.policy import ensure_email_verified, legacy_backup_daily_limit_for_plan
 from app.modules.tenant.membership import TENANT_ROLE_OWNER
 from app.queue.enqueue import get_queue
 from app.modules.audit.service import record_audit_event

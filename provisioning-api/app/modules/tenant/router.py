@@ -76,15 +76,15 @@ from app.modules.tenant.membership import (
     ensure_membership,
     require_role,
 )
-from app.domains.policy import (
+from app.modules.tenant.policy import (
     enforce_backup_policy,
     enforce_delete_policy,
     enforce_plan_change_policy,
     enforce_retry_policy,
     ensure_domain_operation_allowed,
+    tenant_subscription_status,
     validate_plan_change,
 )
-from app.domains.policy.tenant_policy import tenant_subscription_status
 from app.token_store import get_token_store
 from app.modules.notifications.service import notification_service
 from app.utils.time import utcnow

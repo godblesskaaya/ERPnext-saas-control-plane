@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
-from app.domains.policy.tenant_policy import tenant_subscription_status
+from app.modules.tenant.policy import tenant_subscription_status
 from app.modules.support.platform_erp_client import PlatformERPClient
 
 if TYPE_CHECKING:

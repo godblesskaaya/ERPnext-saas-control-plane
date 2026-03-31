@@ -180,6 +180,21 @@ def enqueue_provisioning_for_paid_tenant(db: Session, tenant: Tenant, owner_emai
         .first()
     )
     if existing:
+        if existing.status == "queued" and not existing.rq_job_id:
+            rq_job = _compat_module().get_queue().enqueue(
+                "app.workers.tasks.provision_tenant",
+                existing.id,
+                tenant.id,
+                owner_email,
+                secrets.token_urlsafe(16),
+                job_timeout="10m",
+                retry=Retry(max=3, interval=[30, 120, 300]),
+            )
+            existing.rq_job_id = rq_job.id
+            db.add(existing)
+            db.commit()
+            db.refresh(existing)
+            return existing, True
         return existing, False
 
     job = Job(tenant_id=tenant.id, type="create", status="queued", logs="Queued tenant provisioning (payment confirmed)")

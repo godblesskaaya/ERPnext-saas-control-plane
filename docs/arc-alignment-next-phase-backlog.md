@@ -67,6 +67,10 @@ Reference target: `sourcefuse/arc-saas` architectural principles (control-plane 
    - Acceptance:
      - Retries do not duplicate state transitions.
      - Replay-safe behavior verified by tests.
+   - **P1.6 progress update (2026-03-31):**
+     - Outbox-backed webhook processing is active in `provisioning-api/app/modules/billing/webhook_service.py` + `webhook_application_service.py` with deterministic dedup keys (`build_outbox_dedup_key`) and processed-event short-circuiting.
+     - Focused retry/idempotency coverage confirms transient failures can be replayed without duplicate state transitions, including `test_checkout_completed_webhook_retry_recovers_without_duplicate_state_transitions` and `test_enqueue_provisioning_retries_existing_queued_job_without_rq_id`.
+     - Verification evidence captured in `docs/p1-6-wave-1-6-outbox-reliability-review.md` (plus consolidated review in `docs/p1-6-outbox-event-reliability-review.md`).
 
 7. **API parity for UX fallback gaps**
    - Add missing endpoints currently handled with frontend-only fallbacks (e.g., notification preferences).

@@ -19,6 +19,17 @@ def fake_enqueue(*args, **kwargs):
     return DummyRQJob()
 
 
+class FlakyQueue:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def enqueue(self, *args, **kwargs):
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("transient queue outage")
+        return DummyRQJob()
+
+
 class SequencedCheckout:
     def __init__(self, session_id: str):
         self.session_id = session_id
@@ -135,6 +146,83 @@ def test_checkout_completed_webhook_enqueues_provisioning_once(mock_get_queue, c
     assert len(outbox_events) == 1
     assert outbox_events[0].status == "processed"
     assert outbox_events[0].attempts == 1
+    assert outbox_events[0].processed_at is not None
+
+
+@patch("app.modules.tenant.service.get_queue")
+def test_checkout_completed_webhook_retry_recovers_without_duplicate_state_transitions(
+    mock_get_queue,
+    client,
+    db_session,
+):
+    mock_get_queue.return_value = FlakyQueue()
+
+    user = User(email="retry-owner@example.com", password_hash="hash", role="user")
+    tenant = Tenant(
+        owner_id=user.id,
+        subdomain="retry-paid",
+        domain="retry-paid.erp.blenkotechnologies.co.tz",
+        site_name="retry-paid.erp.blenkotechnologies.co.tz",
+        company_name="Retry Paid Ltd",
+        plan="starter",
+        status="pending_payment",
+        payment_provider="stripe",
+    )
+    db_session.add(user)
+    db_session.flush()
+    tenant.owner_id = user.id
+    db_session.add(tenant)
+    db_session.commit()
+    db_session.refresh(tenant)
+
+    payload = {
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "id": "cs_retry_123",
+                "customer": "cus_retry_123",
+                "subscription": "sub_retry_123",
+                "metadata": {"tenant_id": tenant.id, "plan": "starter"},
+            }
+        },
+    }
+
+    first = client.post("/billing/webhook/stripe", json=payload)
+    assert first.status_code == 500
+
+    second = client.post("/billing/webhook/stripe", json=payload)
+    assert second.status_code == 200
+    assert second.json()["message"] == "processed:payment.confirmed"
+
+    db_session.expire_all()
+    refreshed_tenant = db_session.get(Tenant, tenant.id)
+    subscription = db_session.query(Subscription).filter(Subscription.tenant_id == tenant.id).one()
+    jobs = db_session.query(Job).filter(Job.tenant_id == tenant.id, Job.type == "create").all()
+    assert len(jobs) == 1
+    assert jobs[0].status == "queued"
+    assert jobs[0].rq_job_id == "rq-billing-1"
+    assert refreshed_tenant.status == "pending"
+    assert subscription.status == "active"
+
+    payment_actions = [
+        row.action
+        for row in db_session.query(AuditLog).filter(AuditLog.resource_id == tenant.id).order_by(AuditLog.created_at.asc()).all()
+    ]
+    assert payment_actions.count("billing.payment_succeeded") == 1
+
+    payment_events = (
+        db_session.query(PaymentEvent)
+        .filter(PaymentEvent.tenant_id == tenant.id, PaymentEvent.event_type == "payment.confirmed")
+        .order_by(PaymentEvent.created_at.asc())
+        .all()
+    )
+    assert len(payment_events) == 2
+    assert [row.processing_status for row in payment_events] == ["error", "processed"]
+
+    outbox_events = db_session.query(PaymentEventOutbox).filter(PaymentEventOutbox.tenant_id == tenant.id).all()
+    assert len(outbox_events) == 1
+    assert outbox_events[0].status == "processed"
+    assert outbox_events[0].attempts == 2
     assert outbox_events[0].processed_at is not None
 
 

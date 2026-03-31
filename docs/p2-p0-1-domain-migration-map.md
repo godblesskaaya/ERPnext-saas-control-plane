@@ -20,6 +20,10 @@ Scope: `provisioning-api` backend boundary convergence only (no behavior-change 
 
 - Billing legacy surface review/report: `docs/p2-p0-1-wave-4-billing-review.md` (updated 2026-03-30)
 
+## Wave 5 status report link
+
+- Boundary hardening review/report: `docs/p2-p0-1-wave-5-boundary-hardening-review.md` (updated 2026-03-31)
+
 ## 1) Current Residual Responsibilities (Evidence Snapshot)
 
 Repository scan shows the backend still has runtime ownership in `app/domains/*` for four clusters, while `app/modules/*` is only partially authoritative.

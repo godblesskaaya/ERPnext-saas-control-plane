@@ -12,7 +12,6 @@ APP_ROOT = PROJECT_ROOT / "app"
 # AGENT-NOTE: These exceptions track intentional transitional coupling while
 # legacy app/domains code is being converged into app/modules.
 ALLOWED_DOMAINS_TO_MODULES = {
-    "app/domains/support/__init__.py",
     "app/domains/support/dunning.py",
     "app/domains/billing/billing_client.py",
     "app/domains/support/job_service.py",
@@ -23,17 +22,12 @@ ALLOWED_DOMAINS_TO_MODULES = {
     "app/domains/support/ws_router.py",
     "app/domains/tenants/backup_service.py",
     "app/domains/tenants/membership.py",
-    "app/domains/tenants/router.py",
     "app/domains/tenants/tls_sync.py",
     "app/domains/policy/__init__.py",
     "app/domains/policy/tenant_policy.py",
 }
 
-ALLOWED_MODULES_TO_DOMAINS = {
-    "app/modules/support/job_service.py",
-    "app/modules/support/job_stream.py",
-    "app/modules/support/platform_erp_client.py",
-}
+ALLOWED_MODULES_TO_DOMAINS: set[str] = set()
 
 
 @dataclass(frozen=True)
@@ -73,6 +67,8 @@ def _normalize_path(path: Path) -> str:
 
 def analyze_app_tree(app_root: Path = APP_ROOT) -> tuple[list[Violation], int]:
     violations: list[Violation] = []
+    observed_domains_to_modules: set[str] = set()
+    observed_modules_to_domains: set[str] = set()
     tracked_exception_count = len(ALLOWED_DOMAINS_TO_MODULES) + len(ALLOWED_MODULES_TO_DOMAINS)
 
     for file_path in _iter_python_files(app_root):
@@ -82,6 +78,7 @@ def analyze_app_tree(app_root: Path = APP_ROOT) -> tuple[list[Violation], int]:
 
         for imported_module in imported_modules:
             if relative_path.startswith("app/domains/") and imported_module.startswith("app.modules."):
+                observed_domains_to_modules.add(relative_path)
                 if relative_path not in ALLOWED_DOMAINS_TO_MODULES:
                     violations.append(
                         Violation(
@@ -93,6 +90,7 @@ def analyze_app_tree(app_root: Path = APP_ROOT) -> tuple[list[Violation], int]:
                     )
 
             if relative_path.startswith("app/modules/") and imported_module.startswith("app.domains."):
+                observed_modules_to_domains.add(relative_path)
                 if relative_path not in ALLOWED_MODULES_TO_DOMAINS:
                     violations.append(
                         Violation(
@@ -102,6 +100,20 @@ def analyze_app_tree(app_root: Path = APP_ROOT) -> tuple[list[Violation], int]:
                             message="app/modules must not add new dependencies on legacy app/domains.",
                         )
                     )
+
+            if (
+                not relative_path.startswith("app/domains/")
+                and not relative_path.startswith("app/modules/")
+                and imported_module.startswith("app.domains.")
+            ):
+                violations.append(
+                    Violation(
+                        rule_id="non-domains-to-domains",
+                        file_path=relative_path,
+                        imported_module=imported_module,
+                        message="Runtime code must use app/modules imports, not legacy app/domains paths.",
+                    )
+                )
 
             if relative_path.startswith("app/modules/") and (
                 imported_module.startswith("app.services.") or imported_module.startswith("app.routers.")
@@ -114,6 +126,30 @@ def analyze_app_tree(app_root: Path = APP_ROOT) -> tuple[list[Violation], int]:
                         message="app/modules must not import legacy app/services or app/routers packages.",
                     )
                 )
+
+    for stale_path in sorted(ALLOWED_DOMAINS_TO_MODULES - observed_domains_to_modules):
+        violations.append(
+            Violation(
+                rule_id="stale-domains-to-modules-exception",
+                file_path=stale_path,
+                imported_module="(none)",
+                message=(
+                    "Remove stale ALLOWED_DOMAINS_TO_MODULES entry; this file no longer imports app.modules."
+                ),
+            )
+        )
+
+    for stale_path in sorted(ALLOWED_MODULES_TO_DOMAINS - observed_modules_to_domains):
+        violations.append(
+            Violation(
+                rule_id="stale-modules-to-domains-exception",
+                file_path=stale_path,
+                imported_module="(none)",
+                message=(
+                    "Remove stale ALLOWED_MODULES_TO_DOMAINS entry; this file no longer imports app.domains."
+                ),
+            )
+        )
 
     return violations, tracked_exception_count
 

@@ -265,7 +265,11 @@ def test_default_webhook_delegates_to_service(client, monkeypatch):
     response = client.post(
         "/billing/webhook",
         json={"type": "checkout.session.completed", "data": {"object": {"metadata": {}}}},
-        headers={"Authorization": "Bearer secret-token"},
+        headers={
+            "Authorization": "Bearer secret-token",
+            "Cookie": "session=abc",
+            "X-Api-Key": "top-secret",
+        },
     )
 
     assert response.status_code == 200
@@ -273,6 +277,9 @@ def test_default_webhook_delegates_to_service(client, monkeypatch):
     assert captured["route_provider"] is None
     assert isinstance(captured["payload"], bytes)
     assert "authorization" not in captured["request_headers"]
+    assert "cookie" not in captured["request_headers"]
+    assert "x-api-key" not in captured["request_headers"]
+    assert "content-type" in captured["request_headers"]
     assert "gateway" in captured
 
 

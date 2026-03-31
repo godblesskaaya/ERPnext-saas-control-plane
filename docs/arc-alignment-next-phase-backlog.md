@@ -30,6 +30,10 @@ Reference target: `sourcefuse/arc-saas` architectural principles (control-plane 
    - Acceptance:
      - Webhook flows remain idempotent and auditable.
      - Payment event logging continues with unchanged semantics.
+   - **P0.2 Wave-0.2 progress update (2026-03-31):**
+     - Added service-focused regression coverage for webhook normalization utilities and deterministic outbox deduping in `provisioning-api/tests/unit/test_billing_webhook_service.py`.
+     - Extended transport-layer delegation coverage in `provisioning-api/tests/unit/test_billing_webhook.py` to assert sensitive headers are stripped before router→service handoff.
+     - Verification evidence captured in `docs/p2-p0-2-wave-0-2-billing-review.md`.
 
 3. **Isolation-model completeness**
    - Implement missing isolation strategy (`silo_k3s`) **or** hard-fail with explicit plan validation if unsupported.

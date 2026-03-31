@@ -38,6 +38,15 @@ Reference target: `sourcefuse/arc-saas` architectural principles (control-plane 
      - Added service-focused regression coverage for webhook normalization utilities and deterministic outbox deduping in `provisioning-api/tests/unit/test_billing_webhook_service.py`.
      - Extended transport-layer delegation coverage in `provisioning-api/tests/unit/test_billing_webhook.py` to assert sensitive headers are stripped before router→service handoff.
      - Verification evidence captured in `docs/p2-p0-2-wave-0-2-billing-review.md`.
+   - **P0.2 Wave-0.3 progress update (2026-03-31):**
+     - Introduced explicit lifecycle orchestration entrypoints in `provisioning-api/app/modules/billing/webhook_application_service.py`: `handle_payment_confirmed`, `handle_payment_failed`, and `handle_subscription_cancelled`.
+     - Kept webhook transport thin and orchestration ordering centralized via `process_event` delegation, preserving outbox retry/idempotency semantics in `webhook_service.py`.
+     - Added focused dispatcher coverage in `provisioning-api/tests/unit/test_billing_webhook_service.py` to verify event routing to module-local orchestrators and unknown-event ignore behavior.
+     - Verification evidence captured in `docs/p2-p0-2-wave-0-3-lifecycle-orchestration-review.md`.
+   - **P0.2 Wave-0.4 progress update (2026-03-31):**
+     - Added explicit lifecycle-entrypoint orchestration tests in `provisioning-api/tests/unit/test_billing_webhook_application_service.py` to verify `process_event` dispatch for `payment.confirmed`, `payment.failed`, and `subscription.cancelled`.
+     - Refactored `webhook_application_service.py` to expose module-local orchestration entrypoints (`handle_payment_confirmed`, `handle_payment_failed`, `handle_subscription_cancelled`) while preserving existing outbox/idempotency behavior through `webhook_service.py`.
+     - Verification evidence captured in `docs/p2-p0-2-wave-0-4-lifecycle-orchestrator-tests-review.md`.
 
 3. **Isolation-model completeness**
    - Implement missing isolation strategy (`silo_k3s`) **or** hard-fail with explicit plan validation if unsupported.

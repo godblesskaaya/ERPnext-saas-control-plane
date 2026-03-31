@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from app.modules.billing import webhook_application_service
 from app.modules.billing.webhook_service import build_outbox_dedup_key, decode_payload, sanitize_headers, to_minor_units
+from app.schemas import MessageResponse
 
 
 def test_sanitize_headers_filters_secrets_and_normalizes_keys():
@@ -64,3 +66,50 @@ def test_outbox_dedup_key_is_stable_for_equivalent_payloads():
 
     assert first_key == second_key
     assert first_key.startswith("stripe:payment.confirmed:tenant-1:sub-1:")
+
+
+def test_process_event_dispatches_to_event_orchestrator(monkeypatch):
+    captured: dict[str, object] = {}
+
+    def _fake_handle_payment_confirmed(**kwargs):
+        captured.update(kwargs)
+        return MessageResponse(message="processed:delegated")
+
+    monkeypatch.setattr(
+        webhook_application_service,
+        "handle_payment_confirmed",
+        _fake_handle_payment_confirmed,
+    )
+
+    response = webhook_application_service.process_event(
+        request=object(),
+        background_tasks=object(),
+        db=object(),
+        event_type="payment.confirmed",
+        tenant_id="tenant-1",
+        subscription_id="sub-1",
+        customer_ref="cus-1",
+        raw={"k": "v"},
+    )
+
+    assert response.message == "processed:delegated"
+    assert "background_tasks" not in captured
+    assert captured["tenant_id"] == "tenant-1"
+    assert captured["subscription_id"] == "sub-1"
+    assert captured["customer_ref"] == "cus-1"
+    assert captured["raw"] == {"k": "v"}
+
+
+def test_process_event_returns_ignored_for_unknown_event():
+    response = webhook_application_service.process_event(
+        request=object(),
+        background_tasks=object(),
+        db=object(),
+        event_type="something.else",
+        tenant_id="tenant-1",
+        subscription_id="sub-1",
+        customer_ref="cus-1",
+        raw={},
+    )
+
+    assert response.message == "ignored"

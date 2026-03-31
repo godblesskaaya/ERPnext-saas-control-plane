@@ -38,11 +38,11 @@ export const dashboardNavSections: DashboardNavSection[] = [
       { href: "/dashboard/overview", label: "Overview", hint: "Workspace snapshot and priorities" },
       {
         href: "/dashboard/registry",
-        label: "Tenant registry",
+        label: "Workspace registry",
         hint: "Search workspaces and open workspace details",
         match: ["/tenants"],
       },
-      { href: "/dashboard/active", label: "Active tenants", hint: "Live customers and workspace health" },
+      { href: "/dashboard/active", label: "Active workspaces", hint: "Live customers and workspace health" },
     ],
   },
   {
@@ -55,7 +55,12 @@ export const dashboardNavSections: DashboardNavSection[] = [
       { href: "/dashboard/incidents", label: "Incidents queue", hint: "Provisioning failures and rescue actions" },
       { href: "/dashboard/suspensions", label: "Suspensions queue", hint: "Workspace and billing suspension status" },
       { href: "/dashboard/support", label: "Support queue", hint: "Customer support handoff and resolution tracking" },
-      { href: "/dashboard/billing-ops", label: "Billing recovery", hint: "Collections and payment follow-ups" },
+      {
+        href: "/dashboard/billing-recovery",
+        label: "Billing recovery",
+        hint: "Payment follow-ups and invoice recovery",
+        match: ["/dashboard/billing-ops"],
+      },
       { href: "/dashboard/billing-details", label: "Invoice analytics", hint: "Invoice and provider-level breakdown" },
     ],
   },

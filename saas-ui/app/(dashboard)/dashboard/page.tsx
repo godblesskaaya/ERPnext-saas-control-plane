@@ -89,7 +89,7 @@ export default function DashboardPage() {
       },
       {
         eyebrow: "Workspace",
-        title: "Tenant registry",
+        title: "Workspace registry",
         description: "Search workspaces and open workspace detail pages.",
         href: "/dashboard/registry",
         value: metrics?.total_tenants,
@@ -161,7 +161,7 @@ export default function DashboardPage() {
             <Card variant="outlined" sx={{ borderRadius: 3 }}>
               <CardContent>
                 <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.7 }}>
-                  Active tenants
+                  Active workspaces
                 </Typography>
                 <Typography variant="h4" sx={{ mt: 0.5, fontWeight: 700 }}>
                   {renderMetric(metrics?.active_tenants, metricsLoading)}
@@ -173,7 +173,7 @@ export default function DashboardPage() {
             <Card variant="outlined" sx={{ borderRadius: 3 }}>
               <CardContent>
                 <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.7 }}>
-                  Tenants total
+                  Workspaces total
                 </Typography>
                 <Typography variant="h4" sx={{ mt: 0.5, fontWeight: 700 }}>
                   {renderMetric(metrics?.total_tenants, metricsLoading)}

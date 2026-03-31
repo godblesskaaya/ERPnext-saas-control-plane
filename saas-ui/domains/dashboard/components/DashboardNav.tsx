@@ -21,7 +21,7 @@ const keyWorkspaceRoutes = new Set([
   "/dashboard/incidents",
   "/dashboard/suspensions",
   "/dashboard/support",
-  "/dashboard/billing-ops",
+  "/dashboard/billing-recovery",
   "/billing",
   "/dashboard/billing-details",
   "/dashboard/account",
@@ -62,7 +62,7 @@ export function DashboardNav() {
             Workspace navigation
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            Customer-facing routes only: queues, tenants, billing, account, and settings.
+            Customer-facing routes only: queues, workspaces, billing, account, and settings.
           </Typography>
         </Box>
 

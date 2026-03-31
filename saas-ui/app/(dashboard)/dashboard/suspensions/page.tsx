@@ -20,13 +20,13 @@ export default function DashboardSuspensionsQueuePage() {
         tone: "warn",
       }}
       handoffLinks={[
-        { label: "Billing recovery", href: "/dashboard/billing-ops" },
+        { label: "Billing recovery", href: "/dashboard/billing-recovery" },
         { label: "Support", href: "/dashboard/support" },
       ]}
       emptyStateTitle="No suspended workspaces"
       emptyStateBody="No customer workspaces are currently suspended."
       emptyStateActionLabel="Go to billing recovery"
-      emptyStateActionHref="/dashboard/billing-ops"
+      emptyStateActionHref="/dashboard/billing-recovery"
     />
   );
 }

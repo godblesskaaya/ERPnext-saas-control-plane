@@ -350,9 +350,9 @@ export function WorkspaceQueuePage({
       },
       {
         href: "/dashboard/registry",
-        eyebrow: "Tenant registry",
+        eyebrow: "Workspace registry",
         value: totalTenants,
-        description: "Search all workspaces and open tenant detail.",
+        description: "Search all workspaces and open workspace details.",
       },
       {
         href: "/dashboard/active",

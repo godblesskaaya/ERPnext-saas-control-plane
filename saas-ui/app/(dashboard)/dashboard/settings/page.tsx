@@ -262,7 +262,7 @@ export default function DashboardSettingsPage() {
             Setup progress
           </Button>
           <Button component={NextLink} href="/dashboard/registry" variant="outlined" size="small">
-            Tenant registry
+            Workspace registry
           </Button>
         </Stack>
       </Paper>

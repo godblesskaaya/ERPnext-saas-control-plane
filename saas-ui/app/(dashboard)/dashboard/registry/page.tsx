@@ -6,7 +6,7 @@ export default function DashboardRegistryPage() {
   return (
     <WorkspaceQueuePage
       routeScope="workspace"
-      title="Tenant registry"
+      title="Workspace registry"
       description="Search and manage every customer workspace across the platform."
       showCreate
       showMetrics

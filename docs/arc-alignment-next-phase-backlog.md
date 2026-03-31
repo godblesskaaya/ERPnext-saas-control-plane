@@ -57,6 +57,10 @@ Reference target: `sourcefuse/arc-saas` architectural principles (control-plane 
    - Replace residual ops-centric labels/routes in workspace UX with customer-centric language.
    - Acceptance:
      - No admin-only concept appears in workspace navigation or workspace labels.
+   - **P1.5 Wave-1.5 progress update (2026-03-31):**
+     - Added workspace-navigation contract guardrails in `saas-ui/domains/dashboard/domain/navigation.test.ts` to assert workspace sections never link to `/admin/*` routes and avoid admin-only terminology in labels/hints/descriptions.
+     - Revalidated workspace route/mode alignment through contracts + typecheck + boundary gates in the `saas-ui` lane.
+     - Verification evidence captured in `docs/p1-5-wave-1-5-customer-information-architecture-review.md`.
 
 6. **Outbox/event reliability for cross-domain effects**
    - Introduce outbox-based delivery for payment → subscription/provisioning/notifications side-effects.

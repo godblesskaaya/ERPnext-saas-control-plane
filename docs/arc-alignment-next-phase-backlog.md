@@ -21,6 +21,10 @@ Reference target: `sourcefuse/arc-saas` architectural principles (control-plane 
    - Acceptance:
      - No business-critical endpoint behavior regression.
      - `app/main.py` composes only module-owned routers/services for tenant/support paths.
+   - **P0.1 Wave-6 progress update (2026-03-31):**
+     - Closed G1 transitional exception debt to zero by converting residual `app/domains/*` compatibility shims from static `from app.modules...` imports to compatibility-safe dynamic forwarding.
+     - `provisioning-api/tools/check_import_boundaries.py` now tracks zero transitional exceptions (`ALLOWED_DOMAINS_TO_MODULES = set()`), and guard tests assert this invariant.
+     - Verification evidence captured in `docs/p2-p0-1-wave-6-g1-zero-exceptions-review.md` and `docs/p2-p0-1-wave-6-boundary-zero-review.md`.
 
 2. **Billing orchestration decomposition**
    - Split `app/modules/billing/router.py` responsibilities:

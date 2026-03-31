@@ -9,23 +9,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 APP_ROOT = PROJECT_ROOT / "app"
 
-# AGENT-NOTE: These exceptions track intentional transitional coupling while
-# legacy app/domains code is being converged into app/modules.
-ALLOWED_DOMAINS_TO_MODULES = {
-    "app/domains/support/dunning.py",
-    "app/domains/billing/billing_client.py",
-    "app/domains/support/job_service.py",
-    "app/domains/support/job_stream.py",
-    "app/domains/support/admin_router.py",
-    "app/domains/support/jobs_router.py",
-    "app/domains/support/platform_erp_client.py",
-    "app/domains/support/ws_router.py",
-    "app/domains/tenants/backup_service.py",
-    "app/domains/tenants/membership.py",
-    "app/domains/tenants/tls_sync.py",
-    "app/domains/policy/__init__.py",
-    "app/domains/policy/tenant_policy.py",
-}
+# Transitional exceptions intentionally kept explicit; target is zero.
+ALLOWED_DOMAINS_TO_MODULES: set[str] = set()
 
 ALLOWED_MODULES_TO_DOMAINS: set[str] = set()
 

@@ -19,3 +19,4 @@ def test_import_boundary_guard_passes() -> None:
     output = (result.stdout or "") + (result.stderr or "")
     assert result.returncode == 0, output
     assert "Import boundary check passed" in output
+    assert "tracked transitional exceptions: 0" in output

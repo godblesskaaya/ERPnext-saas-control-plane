@@ -5,9 +5,15 @@ from unittest.mock import patch
 import pytest
 
 from app.models import Job, Tenant, User
+from app.modules.provisioning.service import STRATEGY_REGISTRY
 from app.modules.subscription.models import Plan, Subscription
-from app.modules.subscription.service import ensure_default_plan_catalog
+from app.modules.subscription.service import DEFAULT_PLAN_CATALOG, ensure_default_plan_catalog
 from app.modules.identity.security import hash_password
+
+PLAN_DISPATCH_CASES = sorted(
+    (plan_slug, (config.get("isolation_model") or "").strip().lower())
+    for plan_slug, config in DEFAULT_PLAN_CATALOG.items()
+)
 
 
 def _worker_tasks_phase4():
@@ -92,6 +98,24 @@ def test_enterprise_selects_silo_compose_strategy_in_mock_mode(db_session):
     isolation_model = getattr(strategy, "isolation_model", "").lower()
     strategy_name = strategy.__class__.__name__.lower()
     assert isolation_model == "silo_compose" or "silo" in strategy_name
+
+
+def test_strategy_registry_covers_all_catalog_isolation_models():
+    configured_models = {
+        (config.get("isolation_model") or "").strip().lower() for config in DEFAULT_PLAN_CATALOG.values()
+    }
+    configured_models.discard("")
+    assert configured_models <= set(STRATEGY_REGISTRY)
+
+
+@pytest.mark.parametrize("plan_slug, expected_model", PLAN_DISPATCH_CASES)
+def test_default_plan_dispatch_selects_expected_model(db_session, plan_slug: str, expected_model: str):
+    worker_tasks_phase4 = _worker_tasks_phase4()
+    _, tenant, _ = _create_tenant_with_job(db_session, plan_slug=plan_slug, with_subscription=True)
+
+    strategy = _strategy_for_tenant(worker_tasks_phase4, db_session, tenant)
+    isolation_model = getattr(strategy, "isolation_model", "").strip().lower()
+    assert isolation_model == expected_model
 
 
 def test_strategy_for_tenant_falls_back_to_pooled_without_subscription(db_session):

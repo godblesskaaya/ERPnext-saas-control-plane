@@ -40,6 +40,10 @@ Reference target: `sourcefuse/arc-saas` architectural principles (control-plane 
    - Acceptance:
      - Unsupported isolation models fail fast at plan assignment/provision dispatch.
      - Strategy dispatch tests cover all configured models.
+   - **P0.3 Wave-0.3 progress update (2026-03-31):**
+     - Added dispatch guardrail tests in `provisioning-api/tests/unit/test_provisioning_strategy_dispatch.py` to ensure all configured catalog isolation models are covered by `STRATEGY_REGISTRY` and each default plan dispatches the expected model.
+     - Confirmed unsupported `silo_k3s` remains fail-fast via strategy selection path and explicit negative test coverage.
+     - Verification evidence captured in `docs/p2-p0-3-wave-0-3-isolation-model-review.md` (focused pytest, compileall, import-boundary checks).
 
 4. **Backend architecture guardrails**
    - Add import-boundary checks to prevent new cross-layer shortcuts.

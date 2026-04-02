@@ -126,6 +126,16 @@ Reference target: `sourcefuse/arc-saas` architectural principles (control-plane 
      - Added focused route-guard tests in `saas-ui/domains/auth/domain/adminRouteAccessPolicy.test.ts` covering `/admin/*` access for non-admin, expired-token, and unauthenticated states.
      - Verification evidence captured in `docs/p1-10-wave-1-10-g4-route-auth-hardening-review.md` (`tsx --test`, contracts suite, `tsc`, and frontend boundary check all PASS; lint command remains interactive in this environment).
 
+10. **Deterministic quality gates (G5)**
+   - Make required lint/type/boundary/contracts/regression checks non-interactive and CI-enforceable.
+   - Acceptance:
+     - Frontend lint no longer prompts interactive setup.
+     - Canonical backend/frontend quality gates run deterministically in CI.
+   - **P1.11 Wave-1.11 progress update (2026-04-02):**
+     - Migrated frontend lint gate to deterministic ESLint CLI (`saas-ui/.eslintrc.json`, `saas-ui/package.json` scripts), removing `next lint` setup prompt as a blocking quality-gate path.
+     - Added CI `frontend-quality` job in `.github/workflows/ci.yml` with non-interactive lint, typecheck, route-guard tests, contracts, and import-boundary checks; added backend import-boundary gate step.
+     - Verification evidence captured in `docs/p1-11-g5-deterministic-quality-gates-verification.md`.
+
 ## Execution Order
 
 1) P0.4 (guardrails) → 2) P0.1 (boundary convergence) → 3) P0.2 (billing split) → 4) P0.3 (isolation completeness) → P1 items.

@@ -184,6 +184,13 @@ GitHub Actions pipeline (`.github/workflows/ci.yml`) includes:
 - pre-commit checks + secret scanning
 - backend tests with coverage gate (`>=70%`)
 - Alembic migration + drift checks
+- backend import-boundary guard (`provisioning-api/tools/check_import_boundaries.py`)
+- frontend deterministic gates:
+  - non-interactive lint (`npm run lint`)
+  - typecheck (`npm run typecheck`)
+  - route-guard regressions (`npm run test:route-guards`)
+  - contracts (`npm run test:contracts`)
+  - frontend import-boundary guard (`npm run check:boundaries`)
 - shell script safety tests
 - Docker build validation (`provisioning-api`, `saas-ui`)
 - deploy job stub gated to pushes on `main`

@@ -74,8 +74,58 @@ jobs:
             --cov-report=term-missing \
             --cov-fail-under=70
 
+      - name: Backend import boundary gate
+        env:
+          PYTHONPATH: provisioning-api
+        run: |
+          python provisioning-api/tools/check_import_boundaries.py
+
       - name: Shell script safety tests
         run: bash tests/scripts/test_script_safety.sh
+
+  frontend-quality:
+    name: Frontend deterministic quality gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: saas-ui/package-lock.json
+
+      - name: Install frontend dependencies
+        run: |
+          cd saas-ui
+          npm ci
+
+      - name: Frontend lint (non-interactive)
+        run: |
+          cd saas-ui
+          npm run lint
+
+      - name: Frontend typecheck
+        run: |
+          cd saas-ui
+          npm run typecheck
+
+      - name: Frontend route-guard regression tests
+        run: |
+          cd saas-ui
+          npm run test:route-guards
+
+      - name: Frontend contracts regression tests
+        run: |
+          cd saas-ui
+          npm run test:contracts
+
+      - name: Frontend import boundary gate
+        run: |
+          cd saas-ui
+          npm run check:boundaries
 
   docker-builds:
     name: Docker build validation
@@ -96,6 +146,7 @@ jobs:
     needs:
       - pre-commit
       - backend-quality
+      - frontend-quality
       - docker-builds
     runs-on: ubuntu-latest
     concurrency:

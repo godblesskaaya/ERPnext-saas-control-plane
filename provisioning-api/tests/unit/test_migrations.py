@@ -9,11 +9,13 @@ from app.main import APP_ROOT, startup
 
 
 def test_startup_runs_alembic_upgrade_head(mocker) -> None:
-    run = mocker.patch("app.main.subprocess.run")
+    run_migrations = mocker.patch("app.main._run_startup_migrations")
+    validate_strategy_contract = mocker.patch("app.main._validate_provisioning_strategy_contract")
 
     startup()
 
-    run.assert_called_once_with(["alembic", "upgrade", "head"], cwd=APP_ROOT, check=True)
+    run_migrations.assert_called_once_with()
+    validate_strategy_contract.assert_called_once_with()
 
 
 

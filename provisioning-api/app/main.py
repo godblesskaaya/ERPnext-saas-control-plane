@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
+from app.db import SessionLocal
 from app.middleware.security import SecurityHeadersMiddleware
 from app.modules.billing.router import router as billing_router
 from app.modules.identity.router import router as auth_router
@@ -26,6 +27,8 @@ from app.modules.tenant.router import router as tenant_router
 from app.modules.subscription.router import router as subscription_router
 from app.modules.observability import init_metrics, init_sentry
 from app.modules.support import admin_router, jobs_router, ws_router
+from app.modules.provisioning.service import validate_active_plan_isolation_models
+from app.modules.subscription.service import ensure_default_plan_catalog
 from app.queue.redis import get_redis_connection
 from app.rate_limits import limiter
 
@@ -94,13 +97,25 @@ def _run_startup_migrations() -> None:
     subprocess.run(["alembic", "upgrade", "head"], cwd=APP_ROOT, check=True)
 
 
+def _validate_provisioning_strategy_contract() -> None:
+    db = SessionLocal()
+    try:
+        ensure_default_plan_catalog(db)
+        db.commit()
+        validate_active_plan_isolation_models(db)
+    finally:
+        db.close()
+
+
 def startup() -> None:
     _run_startup_migrations()
+    _validate_provisioning_strategy_contract()
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     _run_startup_migrations()
+    _validate_provisioning_strategy_contract()
     yield
 
 

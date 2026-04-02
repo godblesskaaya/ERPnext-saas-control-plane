@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from app.models import Job, Tenant, User
-from app.modules.provisioning.service import STRATEGY_REGISTRY
+from app.modules.provisioning.service import STRATEGY_REGISTRY, validate_active_plan_isolation_models
 from app.modules.subscription.models import Plan, Subscription
 from app.modules.subscription.service import DEFAULT_PLAN_CATALOG, ensure_default_plan_catalog
 from app.modules.identity.security import hash_password
@@ -108,6 +108,12 @@ def test_strategy_registry_covers_all_catalog_isolation_models():
     assert configured_models <= set(STRATEGY_REGISTRY)
 
 
+def test_validate_active_plan_isolation_models_accepts_default_catalog(db_session):
+    ensure_default_plan_catalog(db_session)
+
+    validate_active_plan_isolation_models(db_session)
+
+
 @pytest.mark.parametrize("plan_slug, expected_model", PLAN_DISPATCH_CASES)
 def test_default_plan_dispatch_selects_expected_model(db_session, plan_slug: str, expected_model: str):
     worker_tasks_phase4 = _worker_tasks_phase4()
@@ -149,3 +155,19 @@ def test_strategy_for_tenant_raises_for_unknown_isolation_model(db_session):
 
     with pytest.raises(RuntimeError, match="Unknown isolation model 'silo_k3s'"):
         _strategy_for_tenant(worker_tasks_phase4, db_session, tenant)
+
+
+def test_validate_active_plan_isolation_models_raises_for_unknown_active_model(db_session):
+    ensure_default_plan_catalog(db_session)
+    enterprise_plan = db_session.query(Plan).filter(Plan.slug == "enterprise").one()
+    enterprise_plan.isolation_model = "silo_k3s"
+    db_session.commit()
+
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "Active plan isolation models must exist in STRATEGY_REGISTRY.*"
+            "enterprise:silo_k3s.*Supported models: pooled, silo_compose"
+        ),
+    ):
+        validate_active_plan_isolation_models(db_session)

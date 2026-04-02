@@ -57,7 +57,11 @@ Reference target: `sourcefuse/arc-saas` architectural principles (control-plane 
      - Added dispatch guardrail tests in `provisioning-api/tests/unit/test_provisioning_strategy_dispatch.py` to ensure all configured catalog isolation models are covered by `STRATEGY_REGISTRY` and each default plan dispatches the expected model.
      - Confirmed unsupported `silo_k3s` remains fail-fast via strategy selection path and explicit negative test coverage.
      - Verification evidence captured in `docs/p2-p0-3-wave-0-3-isolation-model-review.md` (focused pytest, compileall, import-boundary checks).
-
+   - **P0.3 Wave-0.4 progress update (2026-03-31):**
+     - Added startup contract guard in `provisioning-api/app/main.py` to validate that every active plan isolation model resolves to an implementation in `STRATEGY_REGISTRY` before service startup completes.
+     - Added `validate_active_plan_isolation_models` invariant logic in `provisioning-api/app/modules/provisioning/service.py` and focused regression coverage in `provisioning-api/tests/unit/test_provisioning_strategy_dispatch.py`.
+     - Updated startup regression in `provisioning-api/tests/unit/test_migrations.py` to assert strategy-contract validation is part of startup sequencing.
+     - Verification evidence captured in `docs/p2-p0-3-wave-0-4-strategy-contract-hardening-review.md`.
 4. **Backend architecture guardrails**
    - Add import-boundary checks to prevent new cross-layer shortcuts.
    - Acceptance:

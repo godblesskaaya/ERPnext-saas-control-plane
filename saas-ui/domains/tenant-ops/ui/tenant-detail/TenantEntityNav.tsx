@@ -4,6 +4,8 @@ import NextLink from "next/link";
 import { usePathname } from "next/navigation";
 import { Box, Button, Paper, Stack, Typography } from "@mui/material";
 
+import { isExactOrChildPath, isTenantOverviewPath } from "./routeCompatibility";
+
 type TenantEntityNavProps = {
   id: string;
 };
@@ -14,17 +16,6 @@ type TenantNavItem = {
   active: boolean;
 };
 
-function normalizePath(pathname: string): string {
-  return pathname.replace(/\/+$/, "") || "/";
-}
-
-function isExactOrChild(pathname: string, href: string): boolean {
-  const normalizedPathname = normalizePath(pathname);
-  const normalizedHref = normalizePath(href);
-
-  return normalizedPathname === normalizedHref || normalizedPathname.startsWith(`${normalizedHref}/`);
-}
-
 export function TenantEntityNav({ id }: TenantEntityNavProps) {
   const pathname = usePathname() ?? "";
   const basePath = `/tenants/${id}`;
@@ -32,15 +23,15 @@ export function TenantEntityNav({ id }: TenantEntityNavProps) {
     {
       label: "Overview",
       href: basePath,
-      active: normalizePath(pathname) === basePath || normalizePath(pathname) === `${basePath}/overview`,
+      active: isTenantOverviewPath(pathname, id),
     },
-    { label: "Members", href: `${basePath}/members`, active: isExactOrChild(pathname, `${basePath}/members`) },
-    { label: "Domains", href: `${basePath}/domains`, active: isExactOrChild(pathname, `${basePath}/domains`) },
-    { label: "Billing", href: `${basePath}/billing`, active: isExactOrChild(pathname, `${basePath}/billing`) },
-    { label: "Jobs", href: `${basePath}/jobs`, active: isExactOrChild(pathname, `${basePath}/jobs`) },
-    { label: "Audit", href: `${basePath}/audit`, active: isExactOrChild(pathname, `${basePath}/audit`) },
-    { label: "Backups", href: `${basePath}/backups`, active: isExactOrChild(pathname, `${basePath}/backups`) },
-    { label: "Support", href: `${basePath}/support`, active: isExactOrChild(pathname, `${basePath}/support`) },
+    { label: "Members", href: `${basePath}/members`, active: isExactOrChildPath(pathname, `${basePath}/members`) },
+    { label: "Domains", href: `${basePath}/domains`, active: isExactOrChildPath(pathname, `${basePath}/domains`) },
+    { label: "Billing", href: `${basePath}/billing`, active: isExactOrChildPath(pathname, `${basePath}/billing`) },
+    { label: "Jobs", href: `${basePath}/jobs`, active: isExactOrChildPath(pathname, `${basePath}/jobs`) },
+    { label: "Audit", href: `${basePath}/audit`, active: isExactOrChildPath(pathname, `${basePath}/audit`) },
+    { label: "Backups", href: `${basePath}/backups`, active: isExactOrChildPath(pathname, `${basePath}/backups`) },
+    { label: "Support", href: `${basePath}/support`, active: isExactOrChildPath(pathname, `${basePath}/support`) },
   ];
 
   return (

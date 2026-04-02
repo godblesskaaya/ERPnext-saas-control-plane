@@ -3,10 +3,11 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Box, Container } from "@mui/material";
+import { Box } from "@mui/material";
 
 import { refreshAuthSession } from "../../auth/application/authUseCases";
 import { clearToken, getToken, saveToken } from "../../auth/auth";
+import { AppFrame } from "../../shell/components/AppFrame";
 import { DashboardNav } from "./DashboardNav";
 
 function hasValidToken(token: string | null): boolean {
@@ -70,20 +71,8 @@ export function UserShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "#f8f5ef", py: { xs: 2, md: 3 } }}>
-      <Container maxWidth="xl">
-        <Box
-          sx={{
-            display: "grid",
-            gap: 3,
-            gridTemplateColumns: { xs: "1fr", lg: "300px minmax(0,1fr)" },
-            alignItems: "start",
-          }}
-        >
-          <DashboardNav />
-          <Box sx={{ display: "grid", gap: 3 }}>{children}</Box>
-        </Box>
-      </Container>
-    </Box>
+    <AppFrame backgroundColor="#f8f5ef" sidebar={<DashboardNav />}>
+      <Box sx={{ display: "grid", gap: 3 }}>{children}</Box>
+    </AppFrame>
   );
 }

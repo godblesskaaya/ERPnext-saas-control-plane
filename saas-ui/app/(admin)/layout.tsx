@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Box, Container } from "@mui/material";
+import { Box } from "@mui/material";
 
 import { refreshAuthSession } from "../../domains/auth/application/authUseCases";
 import { clearToken, getToken, saveToken } from "../../domains/auth/auth";
@@ -12,6 +12,7 @@ import {
   parseSessionToken,
 } from "../../domains/auth/domain/adminRouteAccessPolicy";
 import { AdminNav } from "../../domains/admin-ops/components/AdminNav";
+import { AppFrame } from "../../domains/shell/components/AppFrame";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -101,20 +102,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "#020617", color: "grey.100", py: { xs: 2, md: 3 } }}>
-      <Container maxWidth="xl">
-        <Box
-          sx={{
-            display: "grid",
-            gap: 3,
-            gridTemplateColumns: { xs: "1fr", lg: "280px minmax(0,1fr)" },
-            alignItems: "start",
-          }}
-        >
-          <AdminNav />
-          <Box sx={{ display: "grid", gap: 3 }}>{children}</Box>
-        </Box>
-      </Container>
-    </Box>
+    <AppFrame backgroundColor="#020617" textColor="grey.100" sidebar={<AdminNav />}>
+      <Box sx={{ display: "grid", gap: 3 }}>{children}</Box>
+    </AppFrame>
   );
 }

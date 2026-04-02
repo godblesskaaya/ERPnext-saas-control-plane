@@ -19,10 +19,15 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { JobLogPanel } from "../../../../domains/shared/components/JobLogPanel";
+import {
+  TenantActivitySection,
+  TenantSectionLinks,
+  TenantSubscriptionSection,
+} from "../../../../domains/tenant-ops/ui/tenant-detail/sections";
 import {
   createTenantDomain,
   createTenantSupportNote,
@@ -141,8 +146,22 @@ const sectionPaperSx = {
   backgroundColor: "background.paper",
 };
 
+type TenantDetailSectionAnchor = "overview" | "team" | "domains" | "subscription" | "jobs" | "activity" | "backups" | "support";
+
+const routeSectionToAnchor: Record<string, TenantDetailSectionAnchor> = {
+  overview: "overview",
+  members: "team",
+  domains: "domains",
+  billing: "subscription",
+  jobs: "jobs",
+  audit: "activity",
+  backups: "backups",
+  support: "support",
+};
+
 export default function TenantDetailPage() {
   const params = useParams<{ id: string }>();
+  const pathname = usePathname() ?? "";
   const searchParams = useSearchParams();
   const router = useRouter();
   const id = params.id;
@@ -203,6 +222,22 @@ export default function TenantDetailPage() {
   const [restoreBusy, setRestoreBusy] = useState(false);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
+
+  const initialSection = useMemo<TenantDetailSectionAnchor | null>(() => {
+    if (!id) return null;
+    const normalizedPath = pathname.replace(/\/+$/, "");
+    const segments = normalizedPath.split("/").filter(Boolean);
+    const finalSegment = segments.at(-1);
+    if (!finalSegment || finalSegment === id) return null;
+    return routeSectionToAnchor[finalSegment] ?? null;
+  }, [id, pathname]);
+
+  useEffect(() => {
+    if (!initialSection) return;
+    const section = document.getElementById(initialSection);
+    if (!section) return;
+    section.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [initialSection]);
 
   const loadTenant = useCallback(async () => {
     if (!id) return;
@@ -817,116 +852,17 @@ export default function TenantDetailPage() {
         </Box>
       </Paper>
 
-      <Paper variant="outlined" sx={{ ...sectionPaperSx, p: 2 }}>
-        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-          {[
-            ["overview", "Overview"],
-            ["subscription", "Subscription"],
-            ["jobs", "Jobs"],
-            ["backups", "Backups"],
-            ["domains", "Domains"],
-            ["team", "Team"],
-            ["activity", "Activity log"],
-            ["support", "Support notes"],
-          ].map(([id, label]) => (
-            <Button
-              key={id}
-              component="a"
-              href={`#${id}`}
-              variant="outlined"
-              size="small"
-              sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
-            >
-              {label}
-            </Button>
-          ))}
-        </Stack>
-      </Paper>
+      <TenantSectionLinks tenantId={id} />
 
-      <Paper id="subscription" variant="outlined" sx={sectionPaperSx}>
-        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-          <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>
-            Subscription details
-          </Typography>
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() => {
-              void loadSubscription();
-            }}
-            sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
-          >
-            Refresh
-          </Button>
-        </Stack>
-
-        {subscriptionError ? <Alert severity="error" sx={{ mt: 2 }}>{subscriptionError}</Alert> : null}
-
-        {!subscriptionSupported ? (
-          <Alert severity="warning" sx={{ mt: 2 }}>
-            Subscription endpoint is not available on this backend deployment yet.
-          </Alert>
-        ) : subscription ? (
-          <Box sx={{ mt: 2, display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0,1fr))", lg: "repeat(3, minmax(0,1fr))" } }}>
-            <Card variant="outlined" sx={{ borderRadius: 3 }}>
-              <CardContent sx={{ p: 2 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>Plan</Typography>
-                <Typography variant="body2" sx={{ mt: 1, fontWeight: 700 }}>{subscription.plan.display_name}</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                  Isolation: {subscription.plan.isolation_model}
-                </Typography>
-              </CardContent>
-            </Card>
-            <Card variant="outlined" sx={{ borderRadius: 3 }}>
-              <CardContent sx={{ p: 2 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>Status</Typography>
-                <Chip label={subscription.status} size="small" sx={{ mt: 1 }} />
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                  Provider: {subscription.payment_provider ?? "—"}
-                </Typography>
-              </CardContent>
-            </Card>
-            <Card variant="outlined" sx={{ borderRadius: 3 }}>
-              <CardContent sx={{ p: 2 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>
-                  Billing period
-                </Typography>
-                <Typography variant="caption" sx={{ mt: 1, display: "block", color: "text.primary" }}>
-                  {formatTimestamp(subscription.current_period_start)} → {formatTimestamp(subscription.current_period_end)}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                  Next renewal: {formatTimestamp(subscription.current_period_end)}
-                </Typography>
-              </CardContent>
-            </Card>
-            <Card variant="outlined" sx={{ borderRadius: 3 }}>
-              <CardContent sx={{ p: 2 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>Selected app</Typography>
-                <Typography variant="body2" sx={{ mt: 1, fontWeight: 700 }}>{subscription.selected_app ?? "—"}</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                  Support: {subscription.plan.support_channel}
-                </Typography>
-              </CardContent>
-            </Card>
-            <Card variant="outlined" sx={{ borderRadius: 3 }}>
-              <CardContent sx={{ p: 2 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>Trial ends</Typography>
-                <Typography variant="body2" sx={{ mt: 1, fontWeight: 700 }}>{formatTimestamp(subscription.trial_ends_at)}</Typography>
-              </CardContent>
-            </Card>
-            <Card variant="outlined" sx={{ borderRadius: 3 }}>
-              <CardContent sx={{ p: 2 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>Cancelled at</Typography>
-                <Typography variant="body2" sx={{ mt: 1, fontWeight: 700 }}>{formatTimestamp(subscription.cancelled_at)}</Typography>
-              </CardContent>
-            </Card>
-          </Box>
-        ) : (
-          <Alert severity="info" sx={{ mt: 2 }}>
-            Loading subscription details...
-          </Alert>
-        )}
-      </Paper>
+      <TenantSubscriptionSection
+        subscriptionError={subscriptionError}
+        subscriptionSupported={subscriptionSupported}
+        subscription={subscription}
+        onRefresh={() => {
+          void loadSubscription();
+        }}
+        formatTimestamp={formatTimestamp}
+      />
 
       <Paper id="jobs" variant="outlined" sx={sectionPaperSx}>
         <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>
@@ -1664,84 +1600,22 @@ export default function TenantDetailPage() {
         </Paper>
       ) : null}
 
-      <Paper id="activity" variant="outlined" sx={sectionPaperSx}>
-        <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-          <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>
-            Activity log
-          </Typography>
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() => {
-              void loadAuditLog();
-            }}
-            sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
-          >
-            Refresh
-          </Button>
-        </Stack>
-
-        {!auditSupported ? (
-          <Alert severity="warning">
-            Activity log endpoint is not available on this backend yet.
-          </Alert>
-        ) : auditError ? (
-          <Alert severity="error">{auditError}</Alert>
-        ) : auditLog.length ? (
-          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 3 }}>
-            <Table size="small">
-              <TableHead sx={{ backgroundColor: "grey.50" }}>
-                <TableRow>
-                  <TableCell>Time</TableCell>
-                  <TableCell>Actor</TableCell>
-                  <TableCell>Action</TableCell>
-                  <TableCell>IP</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {auditLog.map((entry) => (
-                  <TableRow key={entry.id}>
-                    <TableCell>{formatTimestamp(entry.created_at)}</TableCell>
-                    <TableCell>{entry.actor_email || entry.actor_id || entry.actor_role}</TableCell>
-                    <TableCell>{entry.action}</TableCell>
-                    <TableCell>{entry.ip_address || "—"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        ) : (
-          <Alert severity="info">
-            No activity recorded yet.
-          </Alert>
-        )}
-
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }} justifyContent="space-between" sx={{ mt: 2 }}>
-          <Typography variant="caption" color="text.secondary">
-            Page {auditPage} of {auditTotalPages} • {auditTotal} events
-          </Typography>
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant="outlined"
-              size="small"
-              disabled={auditPage <= 1}
-              onClick={() => setAuditPage((prev) => Math.max(1, prev - 1))}
-              sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outlined"
-              size="small"
-              disabled={auditPage >= auditTotalPages}
-              onClick={() => setAuditPage((prev) => Math.min(auditTotalPages, prev + 1))}
-              sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
-            >
-              Next
-            </Button>
-          </Stack>
-        </Stack>
-      </Paper>
+      <TenantActivitySection
+        auditSupported={auditSupported}
+        auditError={auditError}
+        auditLog={auditLog}
+        auditPage={auditPage}
+        auditTotalPages={auditTotalPages}
+        auditTotal={auditTotal}
+        onRefresh={() => {
+          void loadAuditLog();
+        }}
+        onPreviousPage={() => setAuditPage((prev) => Math.max(1, prev - 1))}
+        onNextPage={() => setAuditPage((prev) => Math.min(auditTotalPages, prev + 1))}
+        canGoPrevious={auditPage > 1}
+        canGoNext={auditPage < auditTotalPages}
+        formatTimestamp={formatTimestamp}
+      />
 
       {error ? <Alert severity="error">{error}</Alert> : null}
     </Box>

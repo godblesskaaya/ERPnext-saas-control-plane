@@ -7,35 +7,11 @@ import { Box, Container } from "@mui/material";
 
 import { refreshAuthSession } from "../../domains/auth/application/authUseCases";
 import { clearToken, getToken, saveToken } from "../../domains/auth/auth";
+import {
+  decideAdminRouteAccess,
+  parseSessionToken,
+} from "../../domains/auth/domain/adminRouteAccessPolicy";
 import { AdminNav } from "../../domains/admin-ops/components/AdminNav";
-
-type SessionPayload = {
-  exp?: number;
-  role?: string;
-};
-
-function parseToken(token: string | null): SessionPayload | null {
-  if (!token) return null;
-
-  try {
-    const [, payload] = token.split(".");
-    if (!payload) return null;
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
-    return JSON.parse(atob(padded)) as SessionPayload;
-  } catch {
-    return null;
-  }
-}
-
-function hasLiveSession(payload: SessionPayload | null): boolean {
-  if (!payload?.exp) return false;
-  return payload.exp * 1000 > Date.now();
-}
-
-function isAdmin(payload: SessionPayload | null): boolean {
-  return payload?.role === "admin";
-}
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -52,24 +28,34 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
 
+    const applyDecision = (redirectPath: string) => {
+      if (!active) return;
+      setAuthorized(false);
+      setChecked(true);
+      router.replace(redirectPath);
+    };
+
     const ensureAdminSession = async () => {
       const token = getToken();
-      const payload = parseToken(token);
+      const hadToken = Boolean(token);
+      const payload = parseSessionToken(token);
 
-      if (hasLiveSession(payload)) {
-        if (isAdmin(payload)) {
-          if (active) {
-            setAuthorized(true);
-            setChecked(true);
-          }
-          return;
-        }
+      const immediateDecision = decideAdminRouteAccess({
+        payload,
+        hadToken,
+        nextPath,
+      });
 
+      if (immediateDecision.allow) {
         if (active) {
-          setAuthorized(false);
+          setAuthorized(true);
           setChecked(true);
-          router.replace("/dashboard/overview?reason=admin-required");
         }
+        return;
+      }
+
+      if (immediateDecision.status === 403) {
+        applyDecision(immediateDecision.redirectPath);
         return;
       }
 
@@ -78,25 +64,29 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
       if (refreshed?.access_token) {
         saveToken(refreshed.access_token);
-        const refreshedPayload = parseToken(refreshed.access_token);
 
-        if (isAdmin(refreshedPayload)) {
+        const refreshedDecision = decideAdminRouteAccess({
+          payload: parseSessionToken(refreshed.access_token),
+          hadToken: true,
+          nextPath,
+        });
+
+        if (refreshedDecision.allow) {
           setAuthorized(true);
           setChecked(true);
           return;
         }
 
-        clearToken();
-        setAuthorized(false);
-        setChecked(true);
-        router.replace("/dashboard/overview?reason=admin-required");
+        if (refreshedDecision.status === 403) {
+          clearToken();
+        }
+
+        applyDecision(refreshedDecision.redirectPath);
         return;
       }
 
       clearToken();
-      setAuthorized(false);
-      setChecked(true);
-      router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
+      applyDecision(immediateDecision.redirectPath);
     };
 
     void ensureAdminSession();

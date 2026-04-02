@@ -115,6 +115,17 @@ Reference target: `sourcefuse/arc-saas` architectural principles (control-plane 
      - Frontend gates: `tsc`, `test:contracts`, `check:boundaries`, and production `build` PASS; lint remained optional/interactive in this environment.
      - Residual gap decision: P1.9 closure accepted using canonical mounted-source backend gate command; exec-in-running-container variant is documented as environment-flaky and non-blocking.
 
+9. **Route-level auth hardening in UI (G4)**
+   - Enforce admin/workspace route separation at the routing layer (not only navigation/shell affordances).
+   - Align unauthorized handling to API semantics (`401` unauthenticated/session-expired vs `403` authenticated-but-forbidden).
+   - Acceptance:
+     - Crafted `/admin/*` URL access is denied for non-admin sessions.
+     - Workspace users are redirected to workspace routes without exposing admin content.
+   - **P1.10 Wave-1.10 progress update (2026-04-02):**
+     - Added policy-driven admin route access guard logic in `saas-ui/domains/auth/domain/adminRouteAccessPolicy.ts` and integrated it into `saas-ui/app/(admin)/layout.tsx`.
+     - Added focused route-guard tests in `saas-ui/domains/auth/domain/adminRouteAccessPolicy.test.ts` covering `/admin/*` access for non-admin, expired-token, and unauthenticated states.
+     - Verification evidence captured in `docs/p1-10-wave-1-10-g4-route-auth-hardening-review.md` (`tsx --test`, contracts suite, `tsc`, and frontend boundary check all PASS; lint command remains interactive in this environment).
+
 ## Execution Order
 
 1) P0.4 (guardrails) → 2) P0.1 (boundary convergence) → 3) P0.2 (billing split) → 4) P0.3 (isolation completeness) → P1 items.

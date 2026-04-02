@@ -162,7 +162,8 @@ Current implementation notes:
 
 ## Security notes
 
-- Access token expiry defaults to **15 minutes**.
+- Access token expiry is configurable via `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` (production currently set to **60 minutes**).
+- Refresh token expiry is configurable via `JWT_REFRESH_TOKEN_EXPIRE_DAYS` (production currently set to **14 days**).
 - Refresh tokens are cookie-based and revocable in Redis.
 - Rate limits are enforced on public/authenticated endpoints.
 - Reserved subdomain blocklist is enforced at tenant creation.

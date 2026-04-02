@@ -28,6 +28,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://erp_saas:change-me@postgres:5432/erp_saas}
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      JWT_REFRESH_TOKEN_EXPIRE_DAYS: ${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-14}
       PASSWORD_RESET_URL_BASE: ${PASSWORD_RESET_URL_BASE:-https://erp.blenkotechnologies.co.tz/reset-password}
       PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRE_MINUTES:-30}
       SAAS_UI_ORIGINS: ${SAAS_UI_ORIGINS:-https://erp.blenkotechnologies.co.tz,https://www.erp.blenkotechnologies.co.tz}
@@ -153,6 +155,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://erp_saas:change-me@postgres:5432/erp_saas}
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      JWT_REFRESH_TOKEN_EXPIRE_DAYS: ${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-14}
       PASSWORD_RESET_URL_BASE: ${PASSWORD_RESET_URL_BASE:-https://erp.blenkotechnologies.co.tz/reset-password}
       PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRE_MINUTES:-30}
       SAAS_UI_ORIGINS: ${SAAS_UI_ORIGINS:-https://erp.blenkotechnologies.co.tz,https://www.erp.blenkotechnologies.co.tz}

@@ -177,3 +177,22 @@ AGENT-NOTE: To avoid breaking live operations, decomposition starts by extractin
 - No visual redesign-first changes.
 - No backend workflow migration into frontend orchestration.
 - No broad route rewrites without compatibility paths.
+
+## 7) Checkpoint — Tenant Route Decomposition + Navigation Convergence (2026-04-02)
+
+Verification run (worker-3):
+
+- `cd saas-ui && npx tsc --noEmit` → **PASS**
+- `cd saas-ui && npm run -s check:boundaries` → **PASS** (`Import boundary check passed for 74 app files (exceptions tracked: 0).`)
+- `cd saas-ui && npm run -s test:route-guards` → **PASS** (`12 passed, 0 failed`)
+
+Completed decomposition items (verified in route tree):
+
+- Tenant detail subroutes are present for: `overview`, `members`, `domains`, `billing`, `jobs`, `audit`, `backups`, `support`.
+- Compatibility route remains present: `/tenants/[id]` (`app/(dashboard)/tenants/[id]/page.tsx`).
+- Route-guard behavior remains green after convergence verification.
+
+Remaining gaps / pending integration:
+
+- Root tenant route convergence to overview-only behavior is still pending worker task completion and merge validation.
+- Tenant section link active-route UX convergence is still pending worker task completion and merge validation.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from app.bench.runner import BenchCommandError, BenchResult
 from app.models import AuditLog, Job, Tenant, User
 from app.modules.subscription.models import Plan, Subscription
 from app.modules.subscription.service import ensure_default_plan_catalog
@@ -107,6 +108,60 @@ def test_worker_backup_and_delete_flow(db_session):
 
     actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
     assert actions == ["tenant.backup_succeeded", "tenant.delete_completed"]
+
+
+@patch("app.modules.provisioning.pooled.run_bench_command")
+def test_worker_delete_treats_missing_site_as_success(mock_run_bench_command, db_session):
+    user = User(email="delete-owner@example.com", password_hash=hash_password("Secret123!"), role="user")
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    tenant = Tenant(
+        owner_id=user.id,
+        subdomain="missing-site",
+        domain="missing-site.erp.blenkotechnologies.co.tz",
+        site_name="missing-site.erp.blenkotechnologies.co.tz",
+        company_name="Missing Site Ltd",
+        plan="starter",
+        status="pending_deletion",
+    )
+    db_session.add(tenant)
+    db_session.commit()
+    db_session.refresh(tenant)
+
+    delete_job = Job(tenant_id=tenant.id, type="delete", status="queued", logs="Queued tenant deletion")
+    db_session.add(delete_job)
+    db_session.commit()
+    db_session.refresh(delete_job)
+
+    def _run_command(command: list[str]) -> BenchResult:
+        if "drop-site" in command:
+            raise BenchCommandError(
+                BenchResult(
+                    command=command,
+                    returncode=1,
+                    stdout="",
+                    stderr=f"404 Not Found: {tenant.domain} does not exist.",
+                )
+            )
+        return BenchResult(command=command, returncode=0, stdout="MOCK_OK", stderr="")
+
+    mock_run_bench_command.side_effect = _run_command
+
+    delete_tenant(delete_job.id, tenant.id)
+
+    db_session.expire_all()
+    refreshed_job = db_session.get(Job, delete_job.id)
+    refreshed_tenant = db_session.get(Tenant, tenant.id)
+    assert refreshed_job is not None
+    assert refreshed_tenant is not None
+    assert refreshed_job.status == "succeeded"
+    assert refreshed_tenant.status == "deleted"
+    assert "treating as already deleted" in (refreshed_job.logs or "")
+
+    actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
+    assert actions == ["tenant.delete_completed"]
 
 
 @patch("app.workers.tasks.platform_erp_client.register_customer", return_value="CUST-BIZ")

@@ -288,12 +288,17 @@ function resolveWsBase(): string {
     const parsed = new URL(configured);
     parsed.protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
     const pathname = parsed.pathname.replace(/\/+$/, "");
-    const basePath = pathname.endsWith("/api") ? pathname.slice(0, -4) : pathname;
-    return `${parsed.protocol}//${parsed.host}${basePath}`;
+    return `${parsed.protocol}//${parsed.host}${pathname}`;
   }
 
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${window.location.host}`;
+  const normalizedPath = configured
+    ? configured.startsWith("/")
+      ? configured
+      : `/${configured}`
+    : "";
+  const pathname = normalizedPath.replace(/\/+$/, "");
+  return `${protocol}//${window.location.host}${pathname}`;
 }
 
 function normalizeTenantCreatePayload(payload: TenantCreatePayload): TenantCreatePayload {

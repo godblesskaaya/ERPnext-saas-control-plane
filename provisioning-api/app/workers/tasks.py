@@ -33,6 +33,23 @@ log = get_logger(__name__)
 settings = get_settings()
 
 
+def _bench_output(exc: BenchCommandError) -> str:
+    return "\n".join(part for part in [exc.result.stderr, exc.result.stdout] if part).strip()
+
+
+def _is_delete_site_not_found(exc: BenchCommandError) -> bool:
+    output = _bench_output(exc).lower()
+    if not output:
+        return False
+    markers = [
+        "does not exist",
+        "incorrectsitepath",
+        "404 not found",
+        "site does not exist",
+    ]
+    return any(marker in output for marker in markers)
+
+
 def _load_entities(db, job_id: str, tenant_id: str) -> tuple[Job, Tenant]:
     job = db.get(Job, job_id)
     tenant = db.get(Tenant, tenant_id)
@@ -54,6 +71,7 @@ def provision_tenant(job_id: str, tenant_id: str, owner_email: str, admin_passwo
         job, tenant = _load_entities(db, job_id, tenant_id)
         task_log = task_log.bind(domain=tenant.domain, subdomain=tenant.subdomain)
         mark_job_running(db, job)
+        append_log(job, "provision: job started")
 
         transition_tenant_status(tenant, "provisioning")
         db.add(tenant)
@@ -70,6 +88,11 @@ def provision_tenant(job_id: str, tenant_id: str, owner_email: str, admin_passwo
 
         strategy = _dispatch_strategy(db, tenant)
         apps_to_install = strategy.app_install_list_for_tenant(tenant)
+        append_log(
+            job,
+            f"provision: strategy={strategy.__class__.__name__} isolation={getattr(strategy, 'isolation_model', 'unknown')}",
+        )
+        append_log(job, f"provision: apps={','.join(apps_to_install) if apps_to_install else '(none)'}")
         strategy_result = strategy.provision(
             job=job,
             tenant=tenant,
@@ -256,6 +279,7 @@ def delete_tenant(job_id: str, tenant_id: str) -> None:
         job, tenant = _load_entities(db, job_id, tenant_id)
         task_log = task_log.bind(domain=tenant.domain, subdomain=tenant.subdomain)
         mark_job_running(db, job)
+        append_log(job, "delete: job started")
         if tenant.status != "deleting":
             transition_tenant_status(tenant, "deleting")
             db.add(tenant)
@@ -263,6 +287,10 @@ def delete_tenant(job_id: str, tenant_id: str) -> None:
             db.refresh(tenant)
 
         strategy = _dispatch_strategy(db, tenant)
+        append_log(
+            job,
+            f"delete: strategy={strategy.__class__.__name__} isolation={getattr(strategy, 'isolation_model', 'unknown')}",
+        )
         strategy_result = strategy.deprovision(job=job, tenant=tenant)
         for line in strategy_result.logs:
             append_log(job, line)
@@ -299,6 +327,52 @@ def delete_tenant(job_id: str, tenant_id: str) -> None:
             append_log(job, f"tls-sync-warning: {tls_sync.message}")
         db.add(job)
         db.commit()
+    except BenchCommandError as exc:
+        job, tenant = _load_entities(db, job_id, tenant_id)
+        if exc.result.stdout:
+            append_log(job, exc.result.stdout)
+        if exc.result.stderr:
+            append_log(job, exc.result.stderr)
+
+        if _is_delete_site_not_found(exc):
+            append_log(job, f"delete-site: {tenant.domain} not found; treating as already deleted")
+            transition_tenant_status(tenant, "deleted")
+            tenant.updated_at = utcnow()
+            db.add(tenant)
+            db.add(job)
+            db.commit()
+            mark_job_success(db, job)
+            record_audit_event(
+                db,
+                action="tenant.delete_completed",
+                resource="tenants",
+                actor_role="system",
+                resource_id=tenant.id,
+                metadata={"job_id": job.id, "site_not_found": True},
+            )
+            task_log.warning("tenant.delete.site_not_found_treated_as_success")
+            return
+
+        transition_tenant_status(tenant, "failed")
+        db.add(tenant)
+        db.add(job)
+        db.commit()
+        error_message = _bench_output(exc) or str(exc)
+        mark_job_failed(db, job, error_message)
+        record_audit_event(
+            db,
+            action="tenant.delete_failed",
+            resource="tenants",
+            actor_role="system",
+            resource_id=tenant.id,
+            metadata={"job_id": job.id, "error": error_message},
+        )
+        task_log.error(
+            "tenant.delete.bench_failed",
+            command=exc.result.command,
+            stderr=exc.result.stderr,
+            stdout=exc.result.stdout,
+        )
     except InvalidTenantStatusTransition as exc:
         job, tenant = _load_entities(db, job_id, tenant_id)
         append_log(job, f"State transition error: {exc}")

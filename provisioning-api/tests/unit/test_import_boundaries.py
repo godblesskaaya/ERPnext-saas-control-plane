@@ -20,3 +20,10 @@ def test_import_boundary_guard_passes() -> None:
     assert result.returncode == 0, output
     assert "Import boundary check passed" in output
     assert "tracked transitional exceptions: 0" in output
+
+
+def test_legacy_domains_python_sources_removed() -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    domains_root = project_root / "app" / "domains"
+    python_sources = sorted(path.relative_to(project_root).as_posix() for path in domains_root.rglob("*.py"))
+    assert python_sources == []

@@ -1,9 +1,8 @@
 "use client";
 
 import NextLink from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  Alert,
   Box,
   Button,
   Card,
@@ -30,6 +29,7 @@ import {
   parsePreferences,
   type NotificationPreferences,
 } from "../../../../domains/account/domain/settingsPreferences";
+import { EmptyState, ErrorState, LoadingState } from "../../../../domains/shell/components";
 import type { UserProfile } from "../../../../domains/shared/lib/types";
 
 const preferenceOptions: Array<{ key: keyof NotificationPreferences; label: string }> = [
@@ -42,6 +42,7 @@ const preferenceOptions: Array<{ key: keyof NotificationPreferences; label: stri
 
 export default function DashboardSettingsPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneBusy, setPhoneBusy] = useState(false);
   const [phoneNotice, setPhoneNotice] = useState<string | null>(null);
@@ -53,24 +54,24 @@ export default function DashboardSettingsPage() {
   const [preferencesError, setPreferencesError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const current = await loadAccountProfile();
-        if (!active) return;
-        setProfile(current);
-        setPhoneInput(current.phone ?? "");
-        setError(null);
-      } catch (err) {
-        if (!active) return;
-        setError(toAccountErrorMessage(err, "Failed to load user settings"));
-      }
-    })();
-    return () => {
-      active = false;
-    };
+  const loadProfile = useCallback(async () => {
+    setProfileLoading(true);
+    try {
+      const current = await loadAccountProfile();
+      setProfile(current);
+      setPhoneInput(current.phone ?? "");
+      setError(null);
+    } catch (err) {
+      setProfile(null);
+      setError(toAccountErrorMessage(err, "Failed to load user settings"));
+    } finally {
+      setProfileLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
 
   useEffect(() => {
     let active = true;
@@ -151,7 +152,33 @@ export default function DashboardSettingsPage() {
         </Typography>
       </Paper>
 
-      {error ? <Alert severity="error" variant="outlined">{error}</Alert> : null}
+      {profileLoading ? <LoadingState label="Loading account settings..." /> : null}
+
+      {!profileLoading && error && !profile ? (
+        <ErrorState
+          message={error}
+          action={
+            <Button variant="outlined" color="error" size="small" onClick={() => void loadProfile()}>
+              Retry
+            </Button>
+          }
+        />
+      ) : null}
+
+      {!profileLoading && !error && !profile ? (
+        <EmptyState
+          title="Account profile unavailable"
+          description="Settings are temporarily unavailable for this session."
+          action={
+            <Button variant="outlined" size="small" onClick={() => void loadProfile()}>
+              Reload
+            </Button>
+          }
+        />
+      ) : null}
+
+      {!profileLoading && profile ? (
+        <>
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, lg: 6 }}>
@@ -266,6 +293,8 @@ export default function DashboardSettingsPage() {
           </Button>
         </Stack>
       </Paper>
+        </>
+      ) : null}
     </Stack>
   );
 }

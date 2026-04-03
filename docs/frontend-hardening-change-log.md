@@ -99,6 +99,28 @@ Impact against plan:
 - Satisfies P1-1 acceptance criteria for explicit workspace-local nav sets, no admin routes in workspace navigation, and mode-filter regression coverage.
 - Leaves P1-2 standardization work unchanged.
 
+### 2026-04-03 — P1-2 page-pattern standardization completed (implementation + tests + docs review)
+
+Implementation + coverage landed (worker-1 + worker-2), consolidated review (worker-3):
+- Shared shell primitives were adopted across representative overview/list/queue/settings flows:
+  - `saas-ui/domains/dashboard/components/WorkspaceQueuePage.tsx` (LoadingState/ErrorState integration for route-level queue/list/overview flows)
+  - `saas-ui/domains/dashboard/components/TenantTable.tsx` (EmptyState primitive adoption)
+  - `saas-ui/app/(dashboard)/dashboard/settings/page.tsx` (LoadingState/ErrorState/EmptyState wrappers for settings route states)
+- Route-level shell wrapper contract coverage added in:
+  - `saas-ui/domains/dashboard/application/pagePatternShellContracts.test.ts`
+
+Verification evidence:
+- `cd saas-ui && npx --yes tsx --test domains/dashboard/application/pagePatternShellContracts.test.ts` → **PASS** (`4 passed, 0 failed`)
+- `cd saas-ui && npm run -s typecheck` → **PASS**
+- `cd saas-ui && npm run -s lint` → **PASS**
+- `cd saas-ui && npm run -s check:boundaries` → **PASS**
+- `cd saas-ui && npm run -s test:route-guards` → **PASS** (`12 passed, 0 failed`)
+- `cd saas-ui && npm run -s test:contracts` → **PASS** (`100 passed, 0 failed`)
+
+Impact against plan:
+- Satisfies P1-2 acceptance criteria for representative overview/list/queue/settings shell primitive standardization.
+- Confirms route-level loading/empty/error rendering invariants through shell primitives with explicit contracts.
+
 ## Remaining Gaps (Prioritized Backlog)
 
 ## P0
@@ -123,12 +145,13 @@ Remaining follow-up:
 
 ### P1-2: Standardize page patterns outside tenant detail flows
 
-Gap:
-- Pattern standardization is strongest in tenant detail; list/queue/settings patterns are not consistently encoded as reusable primitives across all workspaces.
+Status:
+- **Completed on 2026-04-03.**
+- Representative overview/list/queue/settings routes now use shared shell primitives.
+- Route-level contract tests now assert loading/empty/error wrappers through shell primitives.
 
-Acceptance criteria:
-- Shared primitives are adopted by at least one representative page in each pattern category (overview, list, queue, settings).
-- Route-level tests confirm loading/empty/error wrappers are consistently rendered through shell primitives.
+Remaining follow-up:
+- Extend the same contract style to additional non-representative routes as they are migrated, to keep wrapper semantics uniform as new pages are introduced.
 
 ## P2 (Optimization / closure)
 

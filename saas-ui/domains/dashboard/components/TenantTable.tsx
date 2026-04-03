@@ -29,6 +29,7 @@ import {
 
 import type { Job, ResetAdminPasswordResult, Tenant } from "../../shared/lib/types";
 import { JobLogPanel } from "../../shared/components/JobLogPanel";
+import { EmptyState } from "../../shell/components";
 import { BUSINESS_APP_OPTIONS, getPlanMeta } from "../../onboarding/components/PlanSelector";
 
 type Props = {
@@ -264,24 +265,22 @@ export function TenantTable({
     const actionHref = emptyStateActionHref ?? "#create-tenant";
 
     return (
-      <Card variant="outlined" sx={{ borderStyle: "dashed", borderColor: "warning.light", textAlign: "center", py: 4, px: 2 }}>
-        <CardContent sx={{ display: "grid", gap: 1 }}>
-          <Typography sx={{ fontSize: "2rem" }}>📦</Typography>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            {title}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {body}
-          </Typography>
-          {actionHref ? (
-            <Box sx={{ mt: 2 }}>
-              <Button component="a" href={actionHref} variant="contained" sx={{ borderRadius: 999, bgcolor: "#0d6a6a", "&:hover": { bgcolor: "#0b5a5a" } }}>
-                {actionLabel}
-              </Button>
-            </Box>
-          ) : null}
-        </CardContent>
-      </Card>
+      <EmptyState
+        title={title}
+        description={body}
+        action={
+          actionHref ? (
+            <Button
+              component="a"
+              href={actionHref}
+              variant="contained"
+              sx={{ borderRadius: 999, bgcolor: "#0d6a6a", "&:hover": { bgcolor: "#0b5a5a" } }}
+            >
+              {actionLabel}
+            </Button>
+          ) : undefined
+        }
+      />
     );
   }
 

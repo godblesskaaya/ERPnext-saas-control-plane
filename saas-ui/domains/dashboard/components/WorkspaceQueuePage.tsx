@@ -8,6 +8,7 @@ import { Alert, Box, Button, Card, CardContent, Chip, MenuItem, Stack, TextField
 import { TenantCreateForm } from "./TenantCreateForm";
 import { TenantTable } from "./TenantTable";
 import { useNotifications } from "../../shared/components/NotificationsProvider";
+import { ErrorState, LoadingState } from "../../shell/components";
 import type { Job, Tenant, TenantCreateResponse, UserProfile } from "../../shared/lib/types";
 import {
   deriveWorkspaceQueueSnapshot,
@@ -387,6 +388,8 @@ export function WorkspaceQueuePage({
     }
     return handoffLinks.filter((link) => !link.href.startsWith("/admin"));
   }, [handoffLinks, isAdminScope]);
+  const showRouteLoading = loading && tenants.length === 0 && !error;
+  const showRouteError = Boolean(error) && tenants.length === 0;
 
   const setTenantJob = (tenantId: string, job: Job) => {
     setJobsByTenant((previous) => ({ ...previous, [tenantId]: job }));
@@ -813,7 +816,7 @@ export function WorkspaceQueuePage({
         />
       ) : null}
 
-      {error ? (
+      {error && !showRouteError ? (
         <Alert severity="error" variant="outlined" sx={{ borderRadius: 3 }}>
           {error}
         </Alert>
@@ -821,78 +824,100 @@ export function WorkspaceQueuePage({
 
       {extraContent}
 
-      <TenantTable
-        routeScope={routeScope}
-        tenants={pagedTenants}
-        jobsByTenant={jobsByTenant}
-        showPaymentChannel={Boolean(paymentChannelFilter && paymentChannelFilter.length)}
-        filterLabel={
-          paymentChannelFilter && paymentChannelFilter.length
-            ? `Payment channel filter: ${paymentChannelFilter.join(", ").replace(/_/g, " ")}`
-            : undefined
-        }
-        onBackup={async (id) => {
-          try {
-            const job = await queueWorkspaceBackup(id);
-            setTenantJob(id, job);
-            setError(null);
-            addNotification({
-              type: "info",
-              title: "Backup started",
-              body: "A backup job was queued for this workspace.",
-            });
-            await load();
-          } catch (err) {
-            handleError(err, "Failed to trigger backup");
-            throw err;
+      {showRouteLoading ? <LoadingState label="Loading workspace queue…" /> : null}
+
+      {showRouteError ? (
+        <ErrorState
+          message={error ?? "Failed to load workspace queue."}
+          action={
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              onClick={() => {
+                void load();
+              }}
+            >
+              Retry
+            </Button>
           }
-        }}
-        onResetAdminPassword={async (id, newPassword) => {
-          try {
-            const result = await resetWorkspaceTenantAdminPassword(id, newPassword);
-            setError(null);
-            addNotification({
-              type: "warning",
-              title: isAdminScope ? "Admin password reset" : "Workspace password reset",
-              body: `Credentials reset for ${result.domain}. Share securely with ${isAdminScope ? "the owner" : "your workspace owner"}.`,
-            });
-            return result;
-          } catch (err) {
-            handleError(err, isAdminScope ? "Failed to reset admin password" : "Failed to reset workspace password");
-            throw err;
+        />
+      ) : null}
+
+      {!showRouteLoading && !showRouteError ? (
+        <TenantTable
+          routeScope={routeScope}
+          tenants={pagedTenants}
+          jobsByTenant={jobsByTenant}
+          showPaymentChannel={Boolean(paymentChannelFilter && paymentChannelFilter.length)}
+          filterLabel={
+            paymentChannelFilter && paymentChannelFilter.length
+              ? `Payment channel filter: ${paymentChannelFilter.join(", ").replace(/_/g, " ")}`
+              : undefined
           }
-        }}
-        onDelete={async (id) => {
-          try {
-            const job = await queueWorkspaceTenantDelete(id);
-            setTenantJob(id, job);
-            setError(null);
-            addNotification({
-              type: "warning",
-              title: "Workspace deletion queued",
-              body: "Deletion has been scheduled. Monitor job logs for completion.",
-            });
-            await load();
-          } catch (err) {
-            handleError(err, "Failed to delete tenant");
-            throw err;
-          }
-        }}
-        onJobUpdate={(job) => {
-          setTenantJob(job.tenant_id, job);
-          if (TERMINAL_JOB_STATUSES.has(job.status.toLowerCase())) {
-            void load();
-          }
-        }}
-        onRetryProvisioning={retryProvisioning}
-        retryingTenantId={retryingTenantId}
-        onUpdatePlan={updateTenantPlan}
-        updatingTenantId={updatingTenantId}
-        emptyStateTitle={emptyStateTitle}
-        emptyStateBody={emptyStateBody}
-        emptyStateActionLabel={emptyStateActionLabel}
-        emptyStateActionHref={emptyStateActionHref}
-      />
+          onBackup={async (id) => {
+            try {
+              const job = await queueWorkspaceBackup(id);
+              setTenantJob(id, job);
+              setError(null);
+              addNotification({
+                type: "info",
+                title: "Backup started",
+                body: "A backup job was queued for this workspace.",
+              });
+              await load();
+            } catch (err) {
+              handleError(err, "Failed to trigger backup");
+              throw err;
+            }
+          }}
+          onResetAdminPassword={async (id, newPassword) => {
+            try {
+              const result = await resetWorkspaceTenantAdminPassword(id, newPassword);
+              setError(null);
+              addNotification({
+                type: "warning",
+                title: isAdminScope ? "Admin password reset" : "Workspace password reset",
+                body: `Credentials reset for ${result.domain}. Share securely with ${isAdminScope ? "the owner" : "your workspace owner"}.`,
+              });
+              return result;
+            } catch (err) {
+              handleError(err, isAdminScope ? "Failed to reset admin password" : "Failed to reset workspace password");
+              throw err;
+            }
+          }}
+          onDelete={async (id) => {
+            try {
+              const job = await queueWorkspaceTenantDelete(id);
+              setTenantJob(id, job);
+              setError(null);
+              addNotification({
+                type: "warning",
+                title: "Workspace deletion queued",
+                body: "Deletion has been scheduled. Monitor job logs for completion.",
+              });
+              await load();
+            } catch (err) {
+              handleError(err, "Failed to delete tenant");
+              throw err;
+            }
+          }}
+          onJobUpdate={(job) => {
+            setTenantJob(job.tenant_id, job);
+            if (TERMINAL_JOB_STATUSES.has(job.status.toLowerCase())) {
+              void load();
+            }
+          }}
+          onRetryProvisioning={retryProvisioning}
+          retryingTenantId={retryingTenantId}
+          onUpdatePlan={updateTenantPlan}
+          updatingTenantId={updatingTenantId}
+          emptyStateTitle={emptyStateTitle}
+          emptyStateBody={emptyStateBody}
+          emptyStateActionLabel={emptyStateActionLabel}
+          emptyStateActionHref={emptyStateActionHref}
+        />
+      ) : null}
 
       <Stack
         direction={{ xs: "column", sm: "row" }}

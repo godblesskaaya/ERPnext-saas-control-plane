@@ -17,8 +17,9 @@ test("safePostLoginRedirect uses fallback for invalid values", () => {
 });
 
 test("safePostLoginRedirect allows rooted app paths", () => {
-  assert.equal(safePostLoginRedirect("/dashboard"), "/dashboard");
-  assert.equal(safePostLoginRedirect("/dashboard?tab=billing"), "/dashboard?tab=billing");
+  assert.equal(safePostLoginRedirect("/dashboard"), "/dashboard/overview");
+  assert.equal(safePostLoginRedirect("/dashboard?tab=billing"), "/dashboard/overview?tab=billing");
+  assert.equal(safePostLoginRedirect("/dashboard/overview"), "/dashboard/overview");
 });
 
 test("sanitizeAuthEmail trims leading and trailing whitespace", () => {

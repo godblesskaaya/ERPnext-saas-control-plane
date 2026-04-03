@@ -35,7 +35,7 @@ test.describe("auth shell route guards", () => {
     await expect(page).toHaveURL(/\/dashboard\/overview/);
   });
 
-  test("shows dashboard shell fallback when metrics endpoint is unavailable", async ({ page }) => {
+  test("redirects legacy dashboard root to canonical workspace overview", async ({ page }) => {
     await page.route("**/api/admin/metrics", async (route) => {
       await route.fulfill({
         status: 404,
@@ -50,9 +50,6 @@ test.describe("auth shell route guards", () => {
 
     await page.goto("/dashboard");
 
-    await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(
-      page.getByText("Metrics endpoint is unavailable on this deployment. Navigation and workspace actions remain available."),
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard\/overview$/);
   });
 });

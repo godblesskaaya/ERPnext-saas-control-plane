@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeCompatibilityRoute, resolveCompatibilityRoute } from "./domains/shared/lib/routeCompatibility";
 
 const TOKEN_COOKIE = "erp_saas_token";
 const ROLE_COOKIE = "erp_saas_role";
 const USER_COOKIE = "erp_saas_user";
+const DEFAULT_WORKSPACE_REDIRECT = "/dashboard/overview";
+const ROUTE_COMPATIBILITY_MODE = process.env.ROUTE_COMPATIBILITY_MODE === "observe" ? "observe" : "redirect";
+const ROUTE_COMPATIBILITY_SUNSET_AT = "2026-06-30T00:00:00Z";
 const LEGACY_ADMIN_ROOT_ROUTE_REDIRECTS: Record<string, string> = {
   overview: "/admin/control/overview",
   tenants: "/admin/control/tenants",
@@ -70,14 +74,14 @@ function isPublicAuthRoute(pathname: string): boolean {
 
 function safeRedirectPath(value: string | null): string {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/dashboard";
+    return DEFAULT_WORKSPACE_REDIRECT;
   }
-  return value;
+  return normalizeCompatibilityRoute(value);
 }
 
 function buildLoginUrl(request: NextRequest, sessionExpired: boolean): URL {
   const loginUrl = new URL("/login", request.url);
-  const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  const nextPath = normalizeCompatibilityRoute(`${request.nextUrl.pathname}${request.nextUrl.search}`);
   loginUrl.searchParams.set("next", nextPath);
   if (sessionExpired) {
     loginUrl.searchParams.set("sessionExpired", "1");
@@ -104,10 +108,21 @@ function forbiddenHtml(): string {
     <div class="card">
       <h1>403 — Admin access required</h1>
       <p>Your account does not have permission to view this admin route.</p>
-      <p><a href="/dashboard">Return to dashboard</a></p>
+      <p><a href="/dashboard/overview">Return to dashboard</a></p>
     </div>
   </body>
 </html>`;
+}
+
+function annotateCompatibilityResponse(
+  response: NextResponse,
+  routeId: string,
+  canonicalPath: string,
+): void {
+  response.headers.set("x-compat-route", routeId);
+  response.headers.set("x-compat-canonical", canonicalPath);
+  response.headers.set("x-compat-mode", ROUTE_COMPATIBILITY_MODE);
+  response.headers.set("x-compat-sunset-at", ROUTE_COMPATIBILITY_SUNSET_AT);
 }
 
 export function middleware(request: NextRequest) {
@@ -175,6 +190,19 @@ export function middleware(request: NextRequest) {
   const legacyAdminRootRedirect = resolveLegacyAdminRootRedirect(request);
   if (legacyAdminRootRedirect) {
     return NextResponse.redirect(legacyAdminRootRedirect);
+  }
+
+  const compatibility = resolveCompatibilityRoute(`${request.nextUrl.pathname}${request.nextUrl.search}`);
+  if (compatibility) {
+    if (ROUTE_COMPATIBILITY_MODE === "observe") {
+      const observeResponse = NextResponse.next();
+      annotateCompatibilityResponse(observeResponse, compatibility.id, compatibility.canonicalPath);
+      return observeResponse;
+    }
+
+    const redirectResponse = NextResponse.redirect(new URL(compatibility.canonicalPath, request.url), 308);
+    annotateCompatibilityResponse(redirectResponse, compatibility.id, compatibility.canonicalPath);
+    return redirectResponse;
   }
 
   return NextResponse.next();

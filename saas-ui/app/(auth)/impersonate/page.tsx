@@ -26,7 +26,7 @@ export default function ImpersonatePage() {
         await consumeImpersonationToken(token);
         if (!active) return;
         setStatus("done");
-        router.replace("/dashboard?impersonation=active");
+        router.replace("/dashboard/overview?impersonation=active");
       } catch (err) {
         if (!active) return;
         setStatus("error");

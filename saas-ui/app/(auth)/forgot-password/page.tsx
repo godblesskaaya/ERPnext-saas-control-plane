@@ -19,7 +19,7 @@ export default function ForgotPasswordPage() {
 
   useEffect(() => {
     if (getToken()) {
-      router.replace("/dashboard");
+      router.replace("/dashboard/overview");
       return;
     }
 

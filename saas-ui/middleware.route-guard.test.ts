@@ -58,3 +58,22 @@ test("admin root legacy routes redirect for authenticated admins", () => {
   assert.equal(response.status, 307);
   assert.equal(response.headers.get("location"), "http://localhost/admin/control/jobs?page=2");
 });
+
+test("redirects authenticated dashboard root compatibility route to canonical overview", () => {
+  const token = createJwt({ role: "member", exp: Math.floor(Date.now() / 1000) + 3600 });
+  const response = middleware(request("/dashboard?verifyEmail=1", `erp_saas_token=${token}; erp_saas_role=member`));
+
+  assert.equal(response.status, 308);
+  assert.equal(response.headers.get("location"), "http://localhost/dashboard/overview?verifyEmail=1");
+  assert.equal(response.headers.get("x-compat-route"), "dashboard-root");
+  assert.equal(response.headers.get("x-compat-canonical"), "/dashboard/overview?verifyEmail=1");
+});
+
+test("redirects authenticated tenant root compatibility route to tenant overview", () => {
+  const token = createJwt({ role: "member", exp: Math.floor(Date.now() / 1000) + 3600 });
+  const response = middleware(request("/tenants/acme", `erp_saas_token=${token}; erp_saas_role=member`));
+
+  assert.equal(response.status, 308);
+  assert.equal(response.headers.get("location"), "http://localhost/tenants/acme/overview");
+  assert.equal(response.headers.get("x-compat-route"), "tenant-root");
+});

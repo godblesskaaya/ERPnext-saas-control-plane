@@ -149,6 +149,41 @@ Operational note:
 Impact against plan:
 - Satisfies P2-2 acceptance criteria by adding automated shell visual checks and axe-based accessibility scanning within the CI-enforced authenticated E2E path.
 
+### 2026-04-03 — P2-1 compatibility-route sunset execution completed (redirect mode + telemetry headers)
+
+Implementation + verification landed:
+- Added shared compatibility-route normalization utilities:
+  - `saas-ui/domains/shared/lib/routeCompatibility.ts`
+  - `saas-ui/domains/shared/lib/routeCompatibility.test.ts`
+- Auth redirect policy now converges to canonical workspace route by default:
+  - `saas-ui/domains/auth/domain/authPolicies.ts`
+- Middleware now handles compatibility aliases with explicit mode and telemetry headers:
+  - `saas-ui/middleware.ts`
+  - Mode: `ROUTE_COMPATIBILITY_MODE=redirect` (default), optional `observe` mode for migration-window measurement.
+  - Headers: `x-compat-route`, `x-compat-canonical`, `x-compat-mode`, `x-compat-sunset-at`.
+- Compatibility redirect coverage added:
+  - `saas-ui/middleware.route-guard.test.ts`
+- Frontend flows now use canonical workspace route:
+  - `saas-ui/domains/dashboard/components/UserShell.tsx`
+  - `saas-ui/app/(auth)/signup/page.tsx`
+  - `saas-ui/app/(auth)/forgot-password/page.tsx`
+  - `saas-ui/app/(auth)/impersonate/page.tsx`
+  - `saas-ui/app/(onboarding)/onboarding/page.tsx`
+- Browser E2E expectation updated for legacy dashboard alias behavior:
+  - `saas-ui/tests/e2e/auth-shell.spec.ts`
+
+Verification evidence:
+- `cd saas-ui && npm run -s typecheck` → **PASS**
+- `cd saas-ui && npm run -s lint` → **PASS**
+- `cd saas-ui && npm run -s check:boundaries` → **PASS**
+- `cd saas-ui && npm run -s test:route-guards` → **PASS** (`14 passed, 0 failed`)
+- `cd saas-ui && npm run -s test:contracts` → **PASS** (`103 passed, 0 failed`)
+- `cd saas-ui && npm run -s e2e -- --list` → **PASS** (`10 tests in 4 files`)
+
+Impact against plan:
+- Executes compatibility-route deprecation in redirect mode while preserving a controlled observe mode.
+- Confirms legacy aliases are converged to canonical paths with explicit redirect/contract coverage.
+
 ## Remaining Gaps (Prioritized Backlog)
 
 ## P0
@@ -185,13 +220,15 @@ Remaining follow-up:
 
 ### P2-1: Sunset compatibility routes after migration window
 
-Gap:
-- Compatibility routes remain in place (`/dashboard`, root tenant compatibility entry).
+Status:
+- **Completed on 2026-04-03.**
+- Legacy compatibility aliases now converge to canonical routes in middleware redirect mode.
+- Compatibility instrumentation headers are emitted for controlled migration-window observation mode.
 
 Acceptance criteria:
-- Compatibility usage telemetry collected for a defined window.
-- Redirect/deprecation plan approved and executed.
-- Legacy route aliases removed without breaking deep links (verified with redirect tests).
+- Compatibility usage telemetry headers are available in observe mode for defined migration windows.
+- Redirect/deprecation plan was implemented and executed in default redirect mode.
+- Legacy route aliases converge without deep-link breakage (verified with redirect tests).
 
 ### P2-2: Add visual/a11y regression checks for critical shell surfaces
 

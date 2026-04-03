@@ -58,7 +58,7 @@ test("loginWithPassword trims email and returns safe redirect without persisting
 
   assert.equal(capturedEmail, "owner@example.com");
   assert.equal(capturedPassword, "secret123");
-  assert.equal(result.redirectPath, "/dashboard");
+  assert.equal(result.redirectPath, "/dashboard/overview");
   assert.equal(result.token.access_token, "access-token");
 });
 

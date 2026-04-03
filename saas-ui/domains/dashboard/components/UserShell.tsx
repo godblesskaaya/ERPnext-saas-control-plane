@@ -57,7 +57,7 @@ export function UserShell({ children }: { children: ReactNode }) {
       clearToken();
       setAuthorized(false);
       setChecked(true);
-      router.replace(`/login?next=${encodeURIComponent(pathname || "/dashboard")}`);
+      router.replace(`/login?next=${encodeURIComponent(pathname || "/dashboard/overview")}`);
     };
 
     void ensureSession();

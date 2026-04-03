@@ -124,7 +124,7 @@ export default function TenantMembersPage() {
       tenantContext={tenant ? `${tenant.company_name} (${tenant.domain})` : "Loading tenant context..."}
       footerError={error}
     >
-      <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderColor: "warning.light", backgroundColor: "background.paper" }}>
+      <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderColor: "divider", backgroundColor: "background.paper" }}>
         <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
           <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>
             Team

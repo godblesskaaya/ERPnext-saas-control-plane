@@ -99,7 +99,7 @@ export default function TenantBackupsPage() {
       tenantContext={tenant ? `${tenant.company_name} (${tenant.domain})` : "Loading tenant context..."}
       footerError={error}
     >
-      <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderColor: "warning.light", backgroundColor: "background.paper" }}>
+      <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderColor: "divider", backgroundColor: "background.paper" }}>
         <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
           <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>
             Recovery backups
@@ -145,7 +145,7 @@ export default function TenantBackupsPage() {
                         <TableCell>{formatTimestamp(typeof entry.created_at === "string" ? entry.created_at : null)}</TableCell>
                         <TableCell>
                           {link ? (
-                            <Link href={link} target="_blank" rel="noreferrer" underline="hover" sx={{ color: "#0d6a6a" }}>
+                            <Link href={link} target="_blank" rel="noreferrer" underline="hover" sx={{ color: "primary.main" }}>
                               {String(entry.file_path ?? "Download backup")}
                             </Link>
                           ) : (
@@ -219,7 +219,7 @@ export default function TenantBackupsPage() {
                         setRestoreBusy(false);
                       }
                     }}
-                    sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700, bgcolor: "#0d6a6a" }}
+                    sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700, bgcolor: "primary.main" }}
                   >
                     {restoreBusy ? "Queuing..." : "Confirm restore"}
                   </Button>

@@ -109,10 +109,10 @@ export default function TenantOverviewPage() {
       tenantContext={`${tenant.company_name} (${tenant.domain})`}
       footerError={error}
     >
-      <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderColor: "warning.light", backgroundColor: "background.paper" }}>
+      <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderColor: "divider", backgroundColor: "background.paper" }}>
         <Stack direction={{ xs: "column", md: "row" }} spacing={2} justifyContent="space-between">
           <Stack spacing={1}>
-            <Typography variant="caption" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, color: "warning.dark" }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8, color: "primary.main" }}>
               Tenant workspace
             </Typography>
             <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>
@@ -130,7 +130,7 @@ export default function TenantOverviewPage() {
               rel="noreferrer"
               variant="contained"
               size="small"
-              sx={{ borderRadius: 99, px: 2, py: 1, textTransform: "none", fontWeight: 700, bgcolor: "#0d6a6a" }}
+              sx={{ borderRadius: 99, px: 2, py: 1, textTransform: "none", fontWeight: 700, bgcolor: "primary.main" }}
             >
               Open workspace
             </Button>
@@ -179,7 +179,7 @@ export default function TenantOverviewPage() {
                 target="_blank"
                 rel="noreferrer"
                 underline="hover"
-                sx={{ mt: 1, display: "inline-block", fontWeight: 700, color: "#0d6a6a" }}
+                sx={{ mt: 1, display: "inline-block", fontWeight: 700, color: "primary.main" }}
               >
                 {tenant.domain}
               </Link>
@@ -202,7 +202,7 @@ export default function TenantOverviewPage() {
         </Alert>
       </Paper>
 
-      <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderColor: "warning.light", backgroundColor: "background.paper" }}>
+      <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderColor: "divider", backgroundColor: "background.paper" }}>
         <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>
           Quick actions
         </Typography>
@@ -291,7 +291,7 @@ export default function TenantOverviewPage() {
         </Stack>
       </Paper>
 
-      <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderColor: "warning.light", backgroundColor: "background.paper" }}>
+      <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderColor: "divider", backgroundColor: "background.paper" }}>
         <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>
           Recent operations
         </Typography>

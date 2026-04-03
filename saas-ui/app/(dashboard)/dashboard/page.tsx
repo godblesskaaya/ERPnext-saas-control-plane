@@ -115,8 +115,8 @@ export default function DashboardPage() {
 
   return (
     <Stack spacing={3}>
-      <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 3, borderRadius: 4, bgcolor: "background.paper" }}>
-        <Typography variant="overline" sx={{ color: "warning.dark", fontWeight: 700, letterSpacing: 0.8 }}>
+      <Paper variant="outlined" sx={{ borderColor: "divider", p: 3, borderRadius: 4, bgcolor: "background.paper" }}>
+        <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 700, letterSpacing: 0.8 }}>
           Journey hub
         </Typography>
         <Typography variant="h4" sx={{ fontWeight: 700 }}>
@@ -152,8 +152,8 @@ export default function DashboardPage() {
         ))}
       </Grid>
 
-      <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 3, borderRadius: 4 }}>
-        <Typography variant="overline" sx={{ color: "warning.dark", fontWeight: 700, letterSpacing: 0.8 }}>
+      <Paper variant="outlined" sx={{ borderColor: "divider", p: 3, borderRadius: 4 }}>
+        <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 700, letterSpacing: 0.8 }}>
           Platform snapshot
         </Typography>
         <Grid container spacing={2} sx={{ mt: 0.5 }}>
@@ -196,8 +196,8 @@ export default function DashboardPage() {
         </Grid>
       </Paper>
 
-      <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 3, borderRadius: 4 }}>
-        <Typography variant="overline" sx={{ color: "warning.dark", fontWeight: 700, letterSpacing: 0.8 }}>
+      <Paper variant="outlined" sx={{ borderColor: "divider", p: 3, borderRadius: 4 }}>
+        <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 700, letterSpacing: 0.8 }}>
           Endpoint health
         </Typography>
         <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} sx={{ mt: 1.5 }}>
@@ -217,8 +217,8 @@ export default function DashboardPage() {
           const links = section.items.filter((item) => item.href !== "/dashboard" && !item.href.startsWith("/admin"));
           return (
             <Grid key={section.title} size={{ xs: 12, xl: 6 }}>
-              <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 2.5, borderRadius: 4, height: "100%" }}>
-                <Typography variant="overline" sx={{ color: "warning.dark", fontWeight: 700, letterSpacing: 0.8 }}>
+              <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4, height: "100%" }}>
+                <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 700, letterSpacing: 0.8 }}>
                   {section.title}
                 </Typography>
                 <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>

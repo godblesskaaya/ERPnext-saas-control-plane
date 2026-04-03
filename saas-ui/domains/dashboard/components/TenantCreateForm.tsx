@@ -201,7 +201,7 @@ export function TenantCreateForm({ onCreated, canCreate = true, verificationNoti
           ) : null}
 
           <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" } }}>
-            <Paper variant="outlined" sx={{ p: 1.5, bgcolor: "#fdf7ee" }}>
+            <Paper variant="outlined" sx={{ p: 1.5, bgcolor: "rgba(37,99,235,0.05)" }}>
               <Typography variant="subtitle2" fontWeight={700}>
                 Request preview
               </Typography>

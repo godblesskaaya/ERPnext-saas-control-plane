@@ -12,10 +12,10 @@ type WorkspaceHeaderProps = {
 
 export function WorkspaceHeader({ overline, title, subtitle, actions }: WorkspaceHeaderProps) {
   return (
-    <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderColor: "warning.light" }}>
+    <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderColor: "divider" }}>
       <Stack direction={{ xs: "column", md: "row" }} spacing={2} justifyContent="space-between" alignItems={{ md: "center" }}>
         <Box>
-          <Typography variant="overline" sx={{ color: "warning.dark", fontWeight: 700, letterSpacing: 0.8 }}>
+          <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 700, letterSpacing: 0.8 }}>
             {overline}
           </Typography>
           <Typography variant="h4" sx={{ fontWeight: 700 }}>

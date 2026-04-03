@@ -35,7 +35,7 @@ function HealthCard({
   detail: string;
 }) {
   return (
-    <Card variant="outlined" sx={{ borderRadius: 3, borderColor: "warning.light", height: "100%" }}>
+    <Card variant="outlined" sx={{ borderRadius: 3, borderColor: "divider", height: "100%" }}>
       <CardContent>
         <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
           <Box>
@@ -97,7 +97,7 @@ export default function PlatformHealthPage() {
 
   return (
     <Stack spacing={3}>
-      <Paper variant="outlined" sx={{ borderRadius: 4, p: 3, borderColor: "warning.light" }}>
+      <Paper variant="outlined" sx={{ borderRadius: 4, p: 3, borderColor: "divider" }}>
         <Stack
           direction={{ xs: "column", sm: "row" }}
           spacing={2}
@@ -105,7 +105,7 @@ export default function PlatformHealthPage() {
           justifyContent="space-between"
         >
           <Box>
-            <Typography variant="overline" sx={{ color: "warning.dark", fontWeight: 700, letterSpacing: 0.8 }}>
+            <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 700, letterSpacing: 0.8 }}>
               Platform health
             </Typography>
             <Typography variant="h4" sx={{ fontWeight: 700, mt: 0.5 }}>
@@ -150,7 +150,7 @@ export default function PlatformHealthPage() {
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, lg: 7 }}>
-          <Paper variant="outlined" sx={{ borderRadius: 4, p: 3, borderColor: "warning.light", height: "100%" }}>
+          <Paper variant="outlined" sx={{ borderRadius: 4, p: 3, borderColor: "divider", height: "100%" }}>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
               What customers should do next
             </Typography>
@@ -169,7 +169,7 @@ export default function PlatformHealthPage() {
         </Grid>
 
         <Grid size={{ xs: 12, lg: 5 }}>
-          <Paper variant="outlined" sx={{ borderRadius: 4, p: 3, borderColor: "warning.light", height: "100%" }}>
+          <Paper variant="outlined" sx={{ borderRadius: 4, p: 3, borderColor: "divider", height: "100%" }}>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
               Quick actions
             </Typography>

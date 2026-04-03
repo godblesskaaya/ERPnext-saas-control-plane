@@ -111,8 +111,8 @@ export default function DashboardAccountPage() {
 
   return (
     <Stack spacing={3}>
-      <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 3, borderRadius: 4 }}>
-        <Typography variant="overline" sx={{ color: "warning.dark", fontWeight: 700, letterSpacing: 0.8 }}>
+      <Paper variant="outlined" sx={{ borderColor: "divider", p: 3, borderRadius: 4 }}>
+        <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 700, letterSpacing: 0.8 }}>
           Account workspace
         </Typography>
         <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 700 }}>
@@ -172,7 +172,7 @@ export default function DashboardAccountPage() {
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, lg: 6 }}>
-          <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 2.5, borderRadius: 4, height: "100%" }}>
+          <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4, height: "100%" }}>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
               Billing workspace
             </Typography>
@@ -199,7 +199,7 @@ export default function DashboardAccountPage() {
         </Grid>
 
         <Grid size={{ xs: 12, lg: 6 }}>
-          <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 2.5, borderRadius: 4, height: "100%" }}>
+          <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4, height: "100%" }}>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
               Latest invoice snapshot
             </Typography>

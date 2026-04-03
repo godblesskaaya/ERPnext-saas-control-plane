@@ -527,14 +527,14 @@ export function WorkspaceQueuePage({
                 {attentionSummary}
               </Typography>
               <Box sx={{ mt: 2, display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" } }}>
-                <Box sx={{ border: "1px solid", borderColor: "rgba(245,158,11,0.35)", bgcolor: "#fff7ed", borderRadius: 2, px: 1.5, py: 1 }}>
+                <Box sx={{ border: "1px solid", borderColor: "rgba(245,158,11,0.35)", bgcolor: "rgba(37,99,235,0.06)", borderRadius: 2, px: 1.5, py: 1 }}>
                   <Typography variant="caption" color="text.secondary">
-                    Failed workspaces: <Box component="span" sx={{ fontWeight: 700, color: "warning.dark" }}>{failedTenants}</Box>
+                    Failed workspaces: <Box component="span" sx={{ fontWeight: 700, color: "primary.main" }}>{failedTenants}</Box>
                   </Typography>
                 </Box>
-                <Box sx={{ border: "1px solid", borderColor: "rgba(245,158,11,0.35)", bgcolor: "#fff7ed", borderRadius: 2, px: 1.5, py: 1 }}>
+                <Box sx={{ border: "1px solid", borderColor: "rgba(245,158,11,0.35)", bgcolor: "rgba(37,99,235,0.06)", borderRadius: 2, px: 1.5, py: 1 }}>
                   <Typography variant="caption" color="text.secondary">
-                    Provisioning queue: <Box component="span" sx={{ fontWeight: 700, color: "warning.dark" }}>{provisioningTenants}</Box>
+                    Provisioning queue: <Box component="span" sx={{ fontWeight: 700, color: "primary.main" }}>{provisioningTenants}</Box>
                   </Typography>
                 </Box>
                 <Box sx={{ border: "1px solid", borderColor: "rgba(245,158,11,0.35)", bgcolor: "#f7fbf9", borderRadius: 2, px: 1.5, py: 1 }}>
@@ -552,7 +552,7 @@ export function WorkspaceQueuePage({
                 {isAdminScope ? "Ops pulse" : "Workspace pulse"}
               </Typography>
               <Stack spacing={1.25} sx={{ mt: 1.5 }}>
-                <Box sx={{ border: "1px solid", borderColor: "rgba(245,158,11,0.35)", bgcolor: "#fdf7ee", borderRadius: 2, p: 1.5 }}>
+                <Box sx={{ border: "1px solid", borderColor: "rgba(245,158,11,0.35)", bgcolor: "rgba(37,99,235,0.05)", borderRadius: 2, p: 1.5 }}>
                   <Typography variant="caption" sx={{ textTransform: "uppercase", letterSpacing: 0.6 }} color="text.secondary">
                     Last refresh
                   </Typography>
@@ -597,10 +597,10 @@ export function WorkspaceQueuePage({
           <Stack spacing={1.5}>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} justifyContent="space-between" alignItems={{ sm: "center" }}>
               <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "warning.dark" }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "primary.main" }}>
                   Email verification required
                 </Typography>
-                <Typography variant="caption" sx={{ color: "warning.dark" }}>
+                <Typography variant="caption" sx={{ color: "primary.main" }}>
                   Verify {currentUser.email} before creating a workspace. Check your inbox for the verification link.
                 </Typography>
               </Box>
@@ -618,7 +618,7 @@ export function WorkspaceQueuePage({
               </Button>
             </Stack>
             {verificationNotice ? (
-              <Typography variant="caption" sx={{ color: "warning.dark" }}>
+              <Typography variant="caption" sx={{ color: "primary.main" }}>
                 {verificationNotice}
               </Typography>
             ) : null}
@@ -645,7 +645,7 @@ export function WorkspaceQueuePage({
           <CardContent sx={{ p: 2.5 }}>
             <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1} alignItems={{ md: "center" }}>
               <Box>
-                <Typography variant="overline" sx={{ fontWeight: 700, color: "warning.dark", letterSpacing: 0.7 }}>
+                <Typography variant="overline" sx={{ fontWeight: 700, color: "primary.main", letterSpacing: 0.7 }}>
                   Action center
                 </Typography>
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
@@ -684,7 +684,7 @@ export function WorkspaceQueuePage({
         <Card variant="outlined" sx={{ borderRadius: 4, borderColor: "rgba(245,158,11,0.35)", bgcolor: "rgba(255,255,255,0.88)" }}>
           <CardContent sx={{ p: 2 }}>
             <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={1} alignItems={{ md: "center" }}>
-              <Typography variant="overline" sx={{ fontWeight: 700, color: "warning.dark", letterSpacing: 0.7 }}>
+              <Typography variant="overline" sx={{ fontWeight: 700, color: "primary.main", letterSpacing: 0.7 }}>
                 Queue handoff
               </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap">
@@ -753,7 +753,7 @@ export function WorkspaceQueuePage({
       <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "1.4fr 1fr" } }}>
         <Card variant="outlined" sx={{ borderRadius: 4, borderColor: "rgba(245,158,11,0.35)", bgcolor: "rgba(255,255,255,0.88)" }}>
           <CardContent sx={{ p: 2 }}>
-            <Typography variant="overline" sx={{ fontWeight: 700, color: "warning.dark", letterSpacing: 0.7 }}>
+            <Typography variant="overline" sx={{ fontWeight: 700, color: "primary.main", letterSpacing: 0.7 }}>
               Filter workspaces
             </Typography>
             <Box sx={{ mt: 1.5, display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" } }}>

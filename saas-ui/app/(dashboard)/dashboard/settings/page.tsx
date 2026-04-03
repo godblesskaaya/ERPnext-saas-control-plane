@@ -140,8 +140,8 @@ export default function DashboardSettingsPage() {
 
   return (
     <Stack spacing={3}>
-      <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 3, borderRadius: 4 }}>
-        <Typography variant="overline" sx={{ color: "warning.dark", fontWeight: 700, letterSpacing: 0.8 }}>
+      <Paper variant="outlined" sx={{ borderColor: "divider", p: 3, borderRadius: 4 }}>
+        <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 700, letterSpacing: 0.8 }}>
           Settings
         </Typography>
         <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 700 }}>
@@ -182,7 +182,7 @@ export default function DashboardSettingsPage() {
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, lg: 6 }}>
-          <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 2.5, borderRadius: 4, height: "100%" }}>
+          <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4, height: "100%" }}>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
               Email alerts
             </Typography>
@@ -204,7 +204,7 @@ export default function DashboardSettingsPage() {
         </Grid>
 
         <Grid size={{ xs: 12, lg: 6 }}>
-          <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 2.5, borderRadius: 4, height: "100%" }}>
+          <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4, height: "100%" }}>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
               SMS contact management
             </Typography>
@@ -235,7 +235,7 @@ export default function DashboardSettingsPage() {
         </Grid>
       </Grid>
 
-      <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 2.5, borderRadius: 4 }}>
+      <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4 }}>
         <Typography variant="h6" sx={{ fontWeight: 700 }}>
           Notification preferences
         </Typography>
@@ -277,7 +277,7 @@ export default function DashboardSettingsPage() {
         </Stack>
       </Paper>
 
-      <Paper variant="outlined" sx={{ borderColor: "warning.light", p: 2.5, borderRadius: 4 }}>
+      <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4 }}>
         <Typography variant="h6" sx={{ fontWeight: 700 }}>
           Workspace routing shortcuts
         </Typography>

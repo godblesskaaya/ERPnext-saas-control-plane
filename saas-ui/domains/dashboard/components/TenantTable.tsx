@@ -100,7 +100,7 @@ function rowTone(status: string): string | undefined {
 function planChipStyle(plan: string): Record<string, string> {
   const normalized = plan.toLowerCase();
   if (normalized === "enterprise") return { bgcolor: "#e2e8f0", color: "#334155" };
-  if (normalized === "business") return { bgcolor: "rgba(13,106,106,0.15)", color: "#0d6a6a" };
+  if (normalized === "business") return { bgcolor: "rgba(13,106,106,0.15)", color: "primary.main" };
   return { bgcolor: "#fef3c7", color: "#92400e" };
 }
 
@@ -274,7 +274,7 @@ export function TenantTable({
               component="a"
               href={actionHref}
               variant="contained"
-              sx={{ borderRadius: 999, bgcolor: "#0d6a6a", "&:hover": { bgcolor: "#0b5a5a" } }}
+              sx={{ borderRadius: 999, bgcolor: "primary.main", "&:hover": { bgcolor: "primary.dark" } }}
             >
               {actionLabel}
             </Button>
@@ -374,7 +374,7 @@ export function TenantTable({
       <TableContainer component={Card} variant="outlined" sx={{ borderRadius: 3 }}>
         <Table size="small" sx={{ minWidth: 960 }}>
           <TableHead>
-            <TableRow sx={{ bgcolor: "#fff7ed" }}>
+            <TableRow sx={{ bgcolor: "rgba(37,99,235,0.06)" }}>
               <TableCell sx={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6 }}>Workspace</TableCell>
               <TableCell sx={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6 }}>Package / focus</TableCell>
               <TableCell sx={{ fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6 }}>Health</TableCell>
@@ -663,7 +663,7 @@ export function TenantTable({
           <Button onClick={closePlanModal}>Cancel</Button>
           <Button
             variant="contained"
-            sx={{ bgcolor: "#0d6a6a", "&:hover": { bgcolor: "#0b5a5a" } }}
+            sx={{ bgcolor: "primary.main", "&:hover": { bgcolor: "primary.dark" } }}
             disabled={planBusy || (planActionTenant ? updatingTenantId === planActionTenant.id : false)}
             onClick={() => void submitPlanUpdate()}
           >

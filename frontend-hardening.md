@@ -562,6 +562,18 @@ Remaining gap:
 
 - Browser-driven E2E/visual shell checks are not yet part of this checkpoint; current protection is contract + policy test coverage.
 
+### Evaluation + Change-Log Pointers (2026-04-03)
+
+- Detailed evaluation: `docs/frontend-hardening-evaluation-2026-04-03.md`
+- Incremental change log: `docs/frontend-hardening-change-log.md`
+
+Concise remaining-gaps summary for next backlog:
+
+- Add browser-driven E2E coverage for critical workspace journeys (tenant detail, billing recovery, support handoff).
+- Add visual/shell rendering regression checks for workspace + tenant layout invariants.
+- Keep compatibility routes until E2E coverage confirms safe removal sequencing.
+
+
 ---
 
 ## Immediate Priorities

@@ -125,6 +125,37 @@ export default function SupportOverviewPage() {
       </Alert>
 
       <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Paper variant="outlined" sx={{ borderRadius: 3, p: 2.5, borderColor: "divider", height: "100%" }}>
+            <Typography variant="overline" sx={{ color: "primary.main", letterSpacing: 0.8, fontWeight: 700 }}>
+              Where you are
+            </Typography>
+            <Typography variant="subtitle1" sx={{ mt: 0.25, fontWeight: 700 }}>
+              Dashboard support guidance workspace
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+              Use this page to choose the right support route before opening detailed queue workflows.
+            </Typography>
+          </Paper>
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Paper variant="outlined" sx={{ borderRadius: 3, p: 2.5, borderColor: "divider", height: "100%" }}>
+            <Typography variant="overline" sx={{ color: "primary.main", letterSpacing: 0.8, fontWeight: 700 }}>
+              What to do next
+            </Typography>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 1 }}>
+              <Button href="/dashboard/support" variant="contained" sx={{ borderRadius: 999 }}>
+                Open support queue
+              </Button>
+              <Button href="/dashboard/incidents" variant="outlined" color="inherit" sx={{ borderRadius: 999 }}>
+                Review incidents
+              </Button>
+            </Stack>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 4 }}>
           <SupportCard
             eyebrow="Support channels"

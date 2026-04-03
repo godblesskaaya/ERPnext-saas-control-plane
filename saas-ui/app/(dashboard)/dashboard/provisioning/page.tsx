@@ -7,16 +7,16 @@ export default function DashboardProvisioningQueuePage() {
     <WorkspaceQueuePage
       routeScope="workspace"
       title="Provisioning queue"
-      description="Monitor workspaces in setup, upgrade, or restore so rollout blockers are resolved quickly."
+      description="You are in Dashboard → Provisioning. Focus on setup, upgrade, and restore blockers so new workspaces can go live quickly."
       statusFilter={["pending", "provisioning", "upgrading", "restoring"]}
       showMetrics
       showAttention
       showBillingAlert={false}
       showStatusFilter={false}
-      attentionNote="Prioritize provisioning blockers to keep onboarding momentum."
+      attentionNote="Prioritize blocked provisioning jobs first, then confirm each workspace has a clear next owner."
       callout={{
-        title: "Provisioning triage",
-        body: "Use this queue to follow in-flight provisioning and react when a workspace stalls or fails.",
+        title: "What to do next",
+        body: "Review stalled tenants, retry or escalate quickly, then hand off unresolved failures to the incidents queue.",
         tone: "default",
       }}
       handoffLinks={[

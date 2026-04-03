@@ -6,8 +6,8 @@ export default function DashboardSupportQueuePage() {
   return (
     <WorkspaceQueuePage
       routeScope="workspace"
-      title="Support escalations"
-      description="Customer escalation queue spanning failed, suspended, and payment-risk workspaces."
+      title="Support escalations queue"
+      description="You are in Dashboard → Support. Use this queue to triage customer-impacting incidents first, then hand off billing and suspension follow-up."
       statusFilter={["failed", "suspended", "suspended_admin", "suspended_billing"]}
       billingFilter={["failed", "past_due", "unpaid"]}
       billingFilterMode="or"
@@ -15,15 +15,16 @@ export default function DashboardSupportQueuePage() {
       showAttention
       showBillingAlert
       showStatusFilter={false}
-      attentionNote="Keep a clear owner and next update time on every open customer escalation."
+      attentionNote="Set owner, next action, and customer update ETA for each escalation before handoff."
       handoffLinks={[
         { label: "Incidents", href: "/dashboard/incidents" },
         { label: "Suspensions", href: "/dashboard/suspensions" },
         { label: "Billing recovery", href: "/dashboard/billing-recovery" },
+        { label: "Contact settings", href: "/dashboard/settings" },
       ]}
       callout={{
-        title: "Customer communication",
-        body: "Record contact channel and ETA so account teams can keep each customer informed.",
+        title: "What to do next",
+        body: "Start with failed workspaces, capture customer communication details, then route to incidents or billing recovery as needed.",
         tone: "warn",
       }}
       emptyStateTitle="No open support escalations"

@@ -133,6 +133,37 @@ export default function PlatformHealthPage() {
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 6 }}>
+          <Paper variant="outlined" sx={{ borderRadius: 3, p: 2.5, borderColor: "divider", height: "100%" }}>
+            <Typography variant="overline" sx={{ color: "primary.main", letterSpacing: 0.8, fontWeight: 700 }}>
+              Where you are
+            </Typography>
+            <Typography variant="subtitle1" sx={{ mt: 0.25, fontWeight: 700 }}>
+              Dashboard platform health readout
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+              This page gives a customer-safe status for sign-in and billing checks without exposing internal diagnostics.
+            </Typography>
+          </Paper>
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Paper variant="outlined" sx={{ borderRadius: 3, p: 2.5, borderColor: "divider", height: "100%" }}>
+            <Typography variant="overline" sx={{ color: "primary.main", letterSpacing: 0.8, fontWeight: 700 }}>
+              What to do next
+            </Typography>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 1 }}>
+              <Button href="/dashboard/support" variant="contained" sx={{ borderRadius: 999 }}>
+                Contact support
+              </Button>
+              <Button href="/billing" variant="outlined" color="inherit" sx={{ borderRadius: 999 }}>
+                Check billing center
+              </Button>
+            </Stack>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <HealthCard
             title="Sign-in and account access"
             health={authHealth}

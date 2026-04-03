@@ -7,16 +7,16 @@ export default function DashboardOnboardingQueuePage() {
     <WorkspaceQueuePage
       routeScope="workspace"
       title="Onboarding payments"
-      description="Track sign-ups waiting for payment confirmation before provisioning begins."
+      description="You are in Dashboard → Onboarding. Track sign-ups waiting for payment so provisioning can start without delay."
       statusFilter={["pending_payment"]}
       showMetrics
       showAttention
       showBillingAlert
       showStatusFilter={false}
-      attentionNote="Clear pending payments quickly to unblock new workspace launches."
+      attentionNote="Clear pending payments quickly, then hand each paid tenant to provisioning with clear ownership."
       callout={{
-        title: "Payment handoff",
-        body: "When payment is confirmed, continue in the provisioning queue to monitor activation progress.",
+        title: "What to do next",
+        body: "Confirm payment status, contact customers missing payment details, then move ready tenants into provisioning.",
         tone: "warn",
       }}
       emptyStateTitle="No pending onboarding payments"

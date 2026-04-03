@@ -7,21 +7,22 @@ export default function DashboardIncidentsQueuePage() {
     <WorkspaceQueuePage
       routeScope="workspace"
       title="Incident queue"
-      description="Failed or degraded workspaces requiring immediate customer-facing follow-up."
+      description="You are in Dashboard → Incidents. Use this queue for failed workspaces that need immediate recovery and customer communication."
       statusFilter={["failed"]}
       showMetrics
       showAttention
       showBillingAlert
       showStatusFilter={false}
-      attentionNote="Resolve failed workspaces first to reduce downtime and support pressure."
+      attentionNote="Resolve failed workspaces first, then post a customer-safe update with owner and next checkpoint."
       callout={{
-        title: "Fast-path recovery",
-        body: "Capture owner + next action on each failed workspace, then coordinate support updates.",
+        title: "What to do next",
+        body: "Assign owner, capture recovery step, and coordinate support updates before routing to suspension or billing flows.",
         tone: "warn",
       }}
       handoffLinks={[
         { label: "Suspensions", href: "/dashboard/suspensions" },
         { label: "Support", href: "/dashboard/support" },
+        { label: "Billing recovery", href: "/dashboard/billing-recovery" },
       ]}
       emptyStateTitle="No incident workspaces"
       emptyStateBody="There are no failed workspaces in this queue right now."

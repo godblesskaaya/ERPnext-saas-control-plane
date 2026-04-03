@@ -3,6 +3,7 @@
 import NextLink from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
+  Alert,
   Box,
   Button,
   Card,
@@ -152,6 +153,10 @@ export default function DashboardSettingsPage() {
         </Typography>
       </Paper>
 
+      <Alert severity="info" variant="outlined" sx={{ borderRadius: 3 }}>
+        You are in Dashboard → Settings. Keep contact channels current first, then confirm notification preferences for billing, provisioning, and support.
+      </Alert>
+
       {profileLoading ? <LoadingState label="Loading account settings..." /> : null}
 
       {!profileLoading && error && !profile ? (
@@ -279,7 +284,10 @@ export default function DashboardSettingsPage() {
 
       <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4 }}>
         <Typography variant="h6" sx={{ fontWeight: 700 }}>
-          Workspace routing shortcuts
+          What to do next
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+          After saving settings, continue with the workflow queue that needs attention.
         </Typography>
         <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: "wrap" }}>
           <Button component={NextLink} href="/billing" variant="outlined" size="small">

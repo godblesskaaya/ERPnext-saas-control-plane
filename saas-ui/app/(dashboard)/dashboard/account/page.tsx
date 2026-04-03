@@ -123,6 +123,24 @@ export default function DashboardAccountPage() {
         </Typography>
       </Paper>
 
+      <Alert severity="info" variant="outlined" sx={{ borderRadius: 3 }}>
+        You are in Dashboard → Account. Review identity and billing state first, then continue to settings or billing follow-up actions.
+      </Alert>
+
+      <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4 }}>
+        <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 700, letterSpacing: 0.8 }}>
+          What to do next
+        </Typography>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 1 }}>
+          <Button component={NextLink} href="/dashboard/settings" variant="contained" size="small">
+            Update contact settings
+          </Button>
+          <Button component={NextLink} href="/billing" variant="outlined" color="inherit" size="small">
+            Open payment center
+          </Button>
+        </Stack>
+      </Paper>
+
       {profileError ? <Alert severity="error" variant="outlined">{profileError}</Alert> : null}
 
       <Grid container spacing={2}>

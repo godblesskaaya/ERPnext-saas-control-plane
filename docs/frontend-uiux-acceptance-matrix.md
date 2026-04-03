@@ -50,3 +50,11 @@ Spec: `frontend-content-workflows-uiux.md`
 - [x] `npm run -s test:route-guards`
 - [x] `npm run -s test:contracts`
 - [x] `npm run -s e2e -- --list`
+
+## G. Public/Auth/Onboarding Alignment (Wave 6)
+
+- [x] Public shell language matches hardened app voice (clear hierarchy, restrained tokens).
+- [x] Auth routes explicitly communicate route purpose and next-step guidance.
+- [x] Onboarding flow exposes “where am I / what next” cues via step and status messaging.
+- [x] Public/auth/onboarding visual language remains coherent with the hardened shell style.
+

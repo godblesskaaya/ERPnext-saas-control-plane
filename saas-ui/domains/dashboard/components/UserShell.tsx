@@ -71,7 +71,7 @@ export function UserShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AppFrame backgroundColor="#f8f5ef" sidebar={<DashboardNav />}>
+    <AppFrame sidebar={<DashboardNav />}>
       <Box sx={{ display: "grid", gap: 3 }}>{children}</Box>
     </AppFrame>
   );

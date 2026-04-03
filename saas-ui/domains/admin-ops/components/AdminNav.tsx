@@ -40,12 +40,12 @@ export function AdminNav() {
 
   return (
     <WorkspaceSidebar
-      overline="Admin Shell"
-      title="Platform command"
-      caption="Privileged features only."
+      overline="Admin"
+      title="Control"
+      caption="Privileged operations."
       sections={sections}
       pathname={effectivePath}
-      tone="dark"
+      tone="light"
     />
   );
 }

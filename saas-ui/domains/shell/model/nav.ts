@@ -3,6 +3,7 @@ export type ShellNavItem = {
   label: string;
   hint?: string;
   match?: string[];
+  icon?: string;
 };
 
 export type ShellNavSection = {

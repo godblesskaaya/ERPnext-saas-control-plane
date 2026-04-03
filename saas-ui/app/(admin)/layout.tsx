@@ -102,7 +102,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AppFrame backgroundColor="#020617" textColor="grey.100" sidebar={<AdminNav />}>
+    <AppFrame sidebar={<AdminNav />}>
       <Box sx={{ display: "grid", gap: 3 }}>{children}</Box>
     </AppFrame>
   );

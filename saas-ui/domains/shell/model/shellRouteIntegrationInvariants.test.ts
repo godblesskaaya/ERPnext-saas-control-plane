@@ -5,6 +5,7 @@ import test from "node:test";
 
 import { adminNavSections } from "../../admin-ops/domain/adminNavigation";
 import { getDashboardNavSectionsByMode } from "../../dashboard/domain/navigation";
+import { workspaceDescriptors } from "./workspace";
 
 function readSource(pathFromRoot: string): string {
   return readFileSync(resolve(process.cwd(), pathFromRoot), "utf8");
@@ -35,7 +36,7 @@ test("workspace sidebar keeps sticky positioning guardrails", () => {
   const source = readSource("domains/shell/components/WorkspaceSidebar.tsx");
 
   assert.equal(/position:\s*"sticky"/.test(source), true, "sidebar should stay sticky");
-  assert.equal(/top:\s*96/.test(source), true, "sidebar sticky top offset should remain 96");
+  assert.equal(/top:\s*80/.test(source), true, "sidebar sticky top offset should remain 80");
 });
 
 test("dashboard workspace navigation never includes admin routes", () => {
@@ -50,6 +51,11 @@ test("dashboard workspace navigation never includes admin routes", () => {
       );
     }
   }
+});
+
+test("global workspace descriptors remain the compact top-level set", () => {
+  const labels = workspaceDescriptors.map((workspace) => workspace.label);
+  assert.deepEqual(labels, ["Overview", "Tenants", "Billing", "Support", "Platform", "Account"]);
 });
 
 test("admin navigation sections only expose admin-prefixed routes", () => {

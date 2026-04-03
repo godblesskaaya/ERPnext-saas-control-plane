@@ -121,6 +121,34 @@ Impact against plan:
 - Satisfies P1-2 acceptance criteria for representative overview/list/queue/settings shell primitive standardization.
 - Confirms route-level loading/empty/error rendering invariants through shell primitives with explicit contracts.
 
+### 2026-04-03 — P2-2 visual/a11y regression coverage completed (shell surfaces + CI)
+
+Implementation + test coverage landed (worker-1 + worker-2), reviewed/documented (worker-3):
+- Added browser-level shell visual + accessibility checks:
+  - `saas-ui/tests/e2e/shell-visual-a11y.spec.ts`
+- Added axe integration dependency:
+  - `saas-ui/package.json`
+  - `saas-ui/package-lock.json`
+- Coverage includes authenticated workspace shell surfaces for sidebar/header/overview frame style invariants plus critical a11y scan checks.
+- CI path already enforces Playwright E2E gate with browser dependency install:
+  - `.github/workflows/ci.yml` uses `npx playwright install --with-deps chromium`
+  - E2E gate runs `npm run e2e -- --project=chromium --max-failures=1 --workers=1`
+
+Verification evidence:
+- `cd saas-ui && npx --yes tsx --test domains/dashboard/application/pagePatternShellContracts.test.ts` → **PASS** (`4 passed, 0 failed`)
+- `cd saas-ui && npm run -s typecheck` → **PASS**
+- `cd saas-ui && npm run -s lint` → **PASS**
+- `cd saas-ui && npm run -s check:boundaries` → **PASS**
+- `cd saas-ui && npm run -s test:route-guards` → **PASS** (`12 passed, 0 failed`)
+- `cd saas-ui && npm run -s test:contracts` → **PASS** (`100 passed, 0 failed`)
+- `cd saas-ui && npm run -s e2e -- --list` includes shell visual/a11y spec discovery.
+
+Operational note:
+- Local browser execution inside this container may fail on missing system libraries (`libatk-1.0.so.0`), but CI installs dependencies via `playwright --with-deps`.
+
+Impact against plan:
+- Satisfies P2-2 acceptance criteria by adding automated shell visual checks and axe-based accessibility scanning within the CI-enforced authenticated E2E path.
+
 ## Remaining Gaps (Prioritized Backlog)
 
 ## P0
@@ -167,12 +195,13 @@ Acceptance criteria:
 
 ### P2-2: Add visual/a11y regression checks for critical shell surfaces
 
-Gap:
-- Existing checks validate behavior contracts, not visual and accessibility regressions.
+Status:
+- **Completed on 2026-04-03.**
+- Added shell visual regression assertions for key authenticated workspace shell surfaces.
+- Added axe-based accessibility checks in Playwright E2E and kept them in the CI-enforced E2E gate.
 
-Acceptance criteria:
-- Add automated checks for key shell pages (workspace sidebar/header/breadcrumb/page header).
-- Include at least one a11y scan (axe or equivalent) in CI for authenticated workspace shell pages.
+Remaining follow-up:
+- Expand visual/a11y assertions to additional authenticated pages beyond dashboard overview as new shell variants are introduced.
 
 ## Notes
 

@@ -2,7 +2,6 @@
 
 import {
   Alert,
-  Box,
   Button,
   Card,
   CardContent,
@@ -19,18 +18,21 @@ import {
   Typography,
 } from "@mui/material";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import {
   inviteTenantMember,
-  loadTenantMembers,
   removeTenantMember,
   toTenantDetailErrorMessage,
   updateTenantMemberRole,
 } from "../../../../../domains/tenant-ops/application/tenantDetailUseCases";
 import { TenantWorkspacePageLayout } from "../../../../../domains/tenant-ops/ui/tenant-detail/components/TenantWorkspacePageLayout";
-import { useTenantRouteContext } from "../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
-import type { TenantMember } from "../../../../../domains/shared/lib/types";
+import {
+  tenantDetailQueryKeys,
+  useTenantMembersData,
+  useTenantRouteContext,
+} from "../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 const memberRoles = ["owner", "admin", "billing", "technical"];
 
@@ -45,41 +47,71 @@ export default function TenantMembersPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   const { tenant, error } = useTenantRouteContext(id);
+  const queryClient = useQueryClient();
+  const { members, membersSupported, membersError: membersQueryError, membersLoading, refresh } = useTenantMembersData(id);
 
-  const [members, setMembers] = useState<TenantMember[]>([]);
-  const [membersSupported, setMembersSupported] = useState(true);
-  const [membersError, setMembersError] = useState<string | null>(null);
-  const [membersLoading, setMembersLoading] = useState(true);
+  const [membersActionError, setMembersActionError] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("admin");
-  const [inviting, setInviting] = useState(false);
   const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
-  const loadMembersData = useCallback(async () => {
+  const invalidateMembersAndRoute = useCallback(async () => {
     if (!id) return;
-    setMembersLoading(true);
-    try {
-      const result = await loadTenantMembers(id);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: tenantDetailQueryKeys.members(id) }),
+      queryClient.invalidateQueries({ queryKey: tenantDetailQueryKeys.tenant(id) }),
+    ]);
+    await refresh();
+  }, [id, queryClient, refresh]);
+
+  const inviteMutation = useMutation({
+    mutationFn: async (payload: { email: string; role: string }) => inviteTenantMember(id!, payload),
+    onSuccess: async (result) => {
       if (!result.supported) {
-        setMembersSupported(false);
-        setMembers([]);
-        setMembersError(null);
+        setMembersActionError("Team invitation endpoint is not available on this backend.");
         return;
       }
-      setMembersSupported(true);
-      setMembers(result.data);
-      setMembersError(null);
-    } catch (err) {
-      setMembersError(toTenantDetailErrorMessage(err, "Failed to load team members"));
-    } finally {
-      setMembersLoading(false);
-    }
-  }, [id]);
+      setInviteEmail("");
+      await invalidateMembersAndRoute();
+    },
+    onError: (err) => {
+      setMembersActionError(toTenantDetailErrorMessage(err, "Failed to invite member"));
+    },
+  });
 
-  useEffect(() => {
-    void loadMembersData();
-  }, [loadMembersData]);
+  const updateMutation = useMutation({
+    mutationFn: async (payload: { memberId: string; role: string }) =>
+      updateTenantMemberRole(id!, payload.memberId, payload.role),
+    onSuccess: async (result) => {
+      if (!result.supported) {
+        setMembersActionError("Member update endpoint is not available on this backend.");
+        return;
+      }
+      await invalidateMembersAndRoute();
+    },
+    onError: (err) => {
+      setMembersActionError(toTenantDetailErrorMessage(err, "Failed to update member role"));
+    },
+    onSettled: () => setUpdatingMemberId(null),
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async (memberId: string) => removeTenantMember(id!, memberId),
+    onSuccess: async (result) => {
+      if (!result.supported) {
+        setMembersActionError("Member removal endpoint is not available on this backend.");
+        return;
+      }
+      await invalidateMembersAndRoute();
+    },
+    onError: (err) => {
+      setMembersActionError(toTenantDetailErrorMessage(err, "Failed to remove member"));
+    },
+    onSettled: () => setRemovingMemberId(null),
+  });
+
+  const membersError = membersActionError ?? membersQueryError;
 
   if (!id) {
     return <Alert severity="error">Tenant id is missing from route.</Alert>;
@@ -101,7 +133,7 @@ export default function TenantMembersPage() {
             variant="outlined"
             size="small"
             onClick={() => {
-              void loadMembersData();
+              void refresh();
             }}
             sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
           >
@@ -146,31 +178,22 @@ export default function TenantMembersPage() {
                   <Button
                     variant="outlined"
                     color="success"
-                    disabled={inviting || !inviteEmail.trim()}
+                    disabled={inviteMutation.isPending || !inviteEmail.trim()}
                     onClick={async () => {
                       if (!id) return;
-                      setInviting(true);
-                      setMembersError(null);
+                      setMembersActionError(null);
                       try {
-                        const result = await inviteTenantMember(id, {
+                        await inviteMutation.mutateAsync({
                           email: inviteEmail.trim(),
                           role: inviteRole,
                         });
-                        if (!result.supported) {
-                          setMembersError("Team invitation endpoint is not available on this backend.");
-                          return;
-                        }
-                        setInviteEmail("");
-                        await loadMembersData();
-                      } catch (err) {
-                        setMembersError(toTenantDetailErrorMessage(err, "Failed to invite member"));
-                      } finally {
-                        setInviting(false);
+                      } catch {
+                        // handled via mutation onError
                       }
                     }}
                     sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
                   >
-                    {inviting ? "Inviting..." : "Invite"}
+                    {inviteMutation.isPending ? "Inviting..." : "Invite"}
                   </Button>
                 </Stack>
               </CardContent>
@@ -211,18 +234,11 @@ export default function TenantMembersPage() {
                                 if (!id) return;
                                 const nextRole = event.target.value;
                                 setUpdatingMemberId(member.id);
-                                setMembersError(null);
+                                setMembersActionError(null);
                                 try {
-                                  const result = await updateTenantMemberRole(id, member.id, nextRole);
-                                  if (!result.supported) {
-                                    setMembersError("Member update endpoint is not available on this backend.");
-                                    return;
-                                  }
-                                  await loadMembersData();
-                                } catch (err) {
-                                  setMembersError(toTenantDetailErrorMessage(err, "Failed to update member role"));
-                                } finally {
-                                  setUpdatingMemberId(null);
+                                  await updateMutation.mutateAsync({ memberId: member.id, role: nextRole });
+                                } catch {
+                                  // handled via mutation onError
                                 }
                               }}
                               disabled={updatingMemberId === member.id}
@@ -251,18 +267,11 @@ export default function TenantMembersPage() {
                               onClick={async () => {
                                 if (!id) return;
                                 setRemovingMemberId(member.id);
-                                setMembersError(null);
+                                setMembersActionError(null);
                                 try {
-                                  const result = await removeTenantMember(id, member.id);
-                                  if (!result.supported) {
-                                    setMembersError("Member removal endpoint is not available on this backend.");
-                                    return;
-                                  }
-                                  await loadMembersData();
-                                } catch (err) {
-                                  setMembersError(toTenantDetailErrorMessage(err, "Failed to remove member"));
-                                } finally {
-                                  setRemovingMemberId(null);
+                                  await removeMutation.mutateAsync(member.id);
+                                } catch {
+                                  // handled via mutation onError
                                 }
                               }}
                               sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}

@@ -14,20 +14,21 @@ import {
   Typography,
 } from "@mui/material";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import {
-  loadTenantCurrentUser,
-  loadTenantRecentJobs,
-  loadTenantSummary,
   retryTenantProvisioningAction,
   suspendTenantAccess,
   toTenantDetailErrorMessage,
   unsuspendTenantAccess,
 } from "../../../../../domains/tenant-ops/application/tenantDetailUseCases";
 import { TenantWorkspacePageLayout } from "../../../../../domains/tenant-ops/ui/tenant-detail/components/TenantWorkspacePageLayout";
-import { useTenantRouteContext } from "../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
-import type { Job, TenantSummary, UserProfile } from "../../../../../domains/shared/lib/types";
+import {
+  useTenantCurrentUserData,
+  useTenantRecentJobsData,
+  useTenantRouteContext,
+  useTenantSummaryData,
+} from "../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
 
 const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed", "deleted", "canceled", "cancelled"]);
 
@@ -57,13 +58,10 @@ export default function TenantOverviewPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   const { tenant, error, loadTenant } = useTenantRouteContext(id);
+  const { currentUser } = useTenantCurrentUserData();
+  const { recentJobs, recentJobsError, recentJobsSupported, refresh: refreshRecentJobs } = useTenantRecentJobsData(id, 40, 5);
+  const { tenantSummary, tenantSummaryError } = useTenantSummaryData(id);
 
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [recentJobs, setRecentJobs] = useState<Job[]>([]);
-  const [recentJobsError, setRecentJobsError] = useState<string | null>(null);
-  const [recentJobsSupported, setRecentJobsSupported] = useState(true);
-  const [tenantSummary, setTenantSummary] = useState<TenantSummary | null>(null);
-  const [tenantSummaryError, setTenantSummaryError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [actionReason, setActionReason] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
@@ -71,49 +69,6 @@ export default function TenantOverviewPage() {
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   const isAdmin = currentUser?.role === "admin";
-
-  const loadCurrentUser = useCallback(async () => {
-    try {
-      const user = await loadTenantCurrentUser();
-      setCurrentUser(user);
-    } catch {
-      setCurrentUser(null);
-    }
-  }, []);
-
-  const loadRecentJobsData = useCallback(async () => {
-    if (!id) return;
-    try {
-      const result = await loadTenantRecentJobs(id, 40, 5);
-      if (!result.supported) {
-        setRecentJobsSupported(false);
-        setRecentJobs([]);
-        setRecentJobsError(null);
-        return;
-      }
-      setRecentJobsSupported(true);
-      setRecentJobs(result.data ?? []);
-      setRecentJobsError(null);
-    } catch (err) {
-      setRecentJobsError(toTenantDetailErrorMessage(err, "Failed to load recent jobs"));
-    }
-  }, [id]);
-
-  const loadTenantSummaryData = useCallback(async () => {
-    if (!id) return;
-    try {
-      const result = await loadTenantSummary(id);
-      if (!result.supported) {
-        setTenantSummary(null);
-        setTenantSummaryError("Tenant summary endpoint not available.");
-        return;
-      }
-      setTenantSummary(result.data);
-      setTenantSummaryError(null);
-    } catch (err) {
-      setTenantSummaryError(toTenantDetailErrorMessage(err, "Failed to load tenant summary"));
-    }
-  }, [id]);
 
   const retryProvisioning = useCallback(async () => {
     if (!id) return;
@@ -126,19 +81,13 @@ export default function TenantOverviewPage() {
       }
       setActionNotice("Provisioning retry queued.");
       await loadTenant();
-      await loadRecentJobsData();
+      await refreshRecentJobs();
     } catch (err) {
       setActionError(toTenantDetailErrorMessage(err, "Failed to retry provisioning"));
     } finally {
       setRetrying(false);
     }
-  }, [id, loadRecentJobsData, loadTenant]);
-
-  useEffect(() => {
-    void loadCurrentUser();
-    void loadRecentJobsData();
-    void loadTenantSummaryData();
-  }, [loadCurrentUser, loadRecentJobsData, loadTenantSummaryData]);
+  }, [id, loadTenant, refreshRecentJobs]);
 
   const activeRecentJob = useMemo(
     () => recentJobs.find((job) => !TERMINAL_JOB_STATUSES.has((job.status || "").toLowerCase())),

@@ -63,6 +63,23 @@ Impact against plan:
 Remaining gap to fully close P0-1:
 - Expand Playwright coverage beyond guest redirect smoke checks to include admin vs non-admin branching, tenant overview convergence, and at least one loading/error shell fallback assertion; then wire `npm run e2e` as an enforced CI gate.
 
+### 2026-04-03 — P0-2 query-oriented tenant workspace data layer foundation completed
+
+Fresh implementation + verification run (worker-3):
+- Query provider foundation is now wired at app shell boundary (`saas-ui/app/layout.tsx`, `saas-ui/domains/shared/query/*`).
+- Tenant overview/members/billing route data now consumes query-backed hooks in `saas-ui/domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData.ts`.
+- Members page mutations now run through query mutation flow with explicit cache invalidation for both route context + members collection (`saas-ui/app/(dashboard)/tenants/[id]/members/page.tsx`).
+- Added regression contract coverage for query migration invariants:
+  - `saas-ui/domains/tenant-ops/application/tenantQueryMigrationContracts.test.ts`
+- Verification:
+  - `cd saas-ui && npm run -s typecheck` → **PASS**
+  - `cd saas-ui && npm run -s check:boundaries` → **PASS**
+  - `cd saas-ui && npm run -s test:route-guards` → **PASS** (`12 passed, 0 failed`)
+  - `cd saas-ui && npm run -s test:contracts` → **PASS** (`96 passed, 0 failed`)
+
+Impact against plan:
+- Closes P0-2 acceptance criteria by establishing shared query client/provider, query-keyed tenant workspace hooks, mutation-driven invalidation/refetch behavior, and contract-level regression evidence.
+
 ## Remaining Gaps (Prioritized Backlog)
 
 ## P0 (Do next)
@@ -76,16 +93,6 @@ Acceptance criteria:
 - Add Playwright (or equivalent) CI job for authenticated workspace flows.
 - Cover at minimum: login redirect behavior, admin/non-admin access branching, tenant overview route convergence, and one loading/error shell fallback path.
 - CI blocks merges on E2E failure for protected main branch.
-
-### P0-2: Introduce query-oriented data layer standardization for tenant workspace
-
-Gap:
-- Plan recommends query-oriented caching/invalidation; implementation still relies on use-case wrappers without a shared query cache contract.
-
-Acceptance criteria:
-- Add shared query client/provider at workspace shell boundary.
-- Migrate at least tenant overview + members + billing snapshots to query hooks with explicit cache keys and invalidation after mutations.
-- Tests verify stable loading/error transitions and mutation-driven refetch behavior.
 
 ## P1 (High value, after P0)
 

@@ -1,772 +1,872 @@
-# Frontend Content Analysis, Workflows, and UI/UX Refactor Plan
+# UI Direction Spec
 
-## Purpose
+## Goal
 
-This document extends the structural frontend hardening plan with a product-facing refactor plan focused on:
+Refine the SaaS control-plane frontend into a clearer, more intuitive, production-grade web app with a calmer shell, stronger hierarchy, better contrast, and a more restrained visual language inspired by Kinsta.
 
-- content hierarchy and information density
-- operator workflows
-- UI/UX interaction patterns
-- navigability and usability
-- screen-level decomposition for production robustness
+This is not a full redesign from scratch. It is a **UI hardening and polish pass** focused on:
 
-The goal is to move the control plane from a route-rich dashboard into a **clear operator product** with guided flows, better cognitive load management, and stronger task completion.
-
----
-
-## Reference Repositories
-
-Benchmark reference:
-- https://github.com/sourcefuse/arc-react-sass-ui
-
-Current frontend under review:
-- https://github.com/godblesskaaya/ERPnext-saas-control-plane/tree/main/saas-ui
+* app shell clarity
+* navigation simplicity
+* stronger visual hierarchy
+* higher contrast and better readability
+* less decorative, more operational styling
+* more consistent page structure
 
 ---
 
-## 1. Current Product Diagnosis
+## Core Design Direction
 
-The current frontend already has meaningful domain separation at the repository level. The `saas-ui` app is split into route groups and domains, including `app`, `domains`, and domain modules such as `tenant-ops` and `shared`. The dashboard route tree already includes many operational areas such as `account`, `active`, `activity`, `audit`, `billing-details`, `billing-ops`, `billing-recovery`, `billing`, `incidents`, `onboarding`, `overview`, `platform-health`, `provisioning`, `registry`, `settings`, `support-overview`, `support`, and `suspensions`. This proves the problem is **not lack of functionality coverage**; it is primarily a **content, workflow, and product experience problem**.
+The interface should feel:
 
-### What is currently working
+* technical
+* calm
+* premium
+* operational
+* high-trust
+* restrained
 
-- Good route coverage for control-plane concerns
-- Good early domain decomposition in the codebase
-- Useful queue-oriented operational thinking
-- A real attempt at journey-first routing and admin/workspace separation
+It should **not** feel:
 
-### What is currently breaking the experience
+* playful
+* bubbly
+* overly colorful
+* overly soft
+* overly rounded
+* like a generic dashboard template
 
-1. **Too many concepts are visible at the same level.**
-   The dashboard navigation currently mixes workspace pages, workflow queues, billing routing, support routing, account routing, and platform routing inside one navigation model. That makes the app feel broad but not guided.
+The product should communicate:
 
-2. **The app is overly queue-centric without enough task framing.**
-   The `WorkspaceQueuePage` is being reused across several dashboard pages. That helps implementation speed, but it also causes pages to feel structurally similar even when their operator intent is different.
-
-3. **Tenant detail is overloaded.**
-   The tenant detail page is carrying tenant data, members, domains, support notes, audit logs, backups, recent jobs, subscription state, restore actions, and admin actions in one page. That is the clearest source of usability strain.
-
-4. **The shell does not do enough product work.**
-   The current dashboard shell is very thin, and `UserShell` is still handling auth/session logic and dashboard layout concerns in one place. The shell is not yet acting like a full application frame with strong hierarchy, context, and flow guidance.
-
-5. **The content hierarchy is weak.**
-   Important content, urgent content, contextual content, and historical content are too close together. Operators are asked to interpret too much before they can act.
-
----
-
-## 2. Core UX Problem Statement
-
-The current UI has enough features to operate the SaaS control plane, but the product experience still behaves like:
-
-> “a dashboard containing many operational views”
-
-It needs to become:
-
-> “a suite of focused operator workspaces with clear next actions, progressive disclosure, and low-friction task completion.”
-
-That means the refactor should not only move files or routes. It should redesign:
-
-- what content appears first
-- what content is deferred
-- how the operator moves between contexts
-- where actions are initiated
-- how the app communicates urgency and system state
+* control
+* clarity
+* reliability
+* confidence
+* focus
 
 ---
 
-## 3. Content Analysis: What the App Should Contain
+## Primary Problems in the Current UI
 
-The frontend should be redesigned around **content layers**.
+### 1. The shell is too weak
 
-### Layer A — Decision content
-This is the content needed to decide what to do next.
+The current layout does not create a strong sense of orientation. The app frame is not doing enough work to guide the user.
 
-Examples:
-- number of failed workspaces
-- pending payments
-- provisioning queue backlog
-- incidents by severity
-- suspended tenants
-- tenants requiring support follow-up
+### 2. The sidebar feels too heavy
 
-This content belongs on:
-- overview workspace
-- billing workspace home
-- support workspace home
-- platform workspace home
-- tenant overview pages
+Too many concepts are visible at once, and the navigation model is carrying too much information.
 
-### Layer B — Action content
-This is the content needed to perform the next task.
+### 3. The visual style is too soft
 
-Examples:
-- retry provisioning
-- reset admin login
-- change plan
-- invite member
-- verify domain
-- restore backup
-- suspend / unsuspend tenant
-- open invoice
+The current use of rounded corners, warm colors, and Material-like defaults makes the app feel less like a serious control plane.
 
-This content should sit **close to the relevant object**, not inside giant general pages.
+### 4. Contrast is not strong enough
 
-### Layer C — Context content
-This helps an operator understand the case before acting.
+Text, surfaces, and action hierarchy need clearer separation.
 
-Examples:
-- tenant plan
-- billing status
-- payment channel
-- chosen app
-- owner or support contact
-- current tenant status
-- service health context
-- recent notes
+### 5. Pages do not have strong zones
 
-This should appear in side panels, summary cards, subheaders, and entity overview pages.
-
-### Layer D — Historical content
-This supports auditability but should not dominate primary flows.
-
-Examples:
-- audit logs
-- job logs
-- support note history
-- backup history
-- billing history
-
-This belongs in dedicated tabs, drawers, timelines, or expandable sections — not mixed into the top of primary action pages.
+Many screens feel like continuous blocks of UI instead of clearly structured sections.
 
 ---
 
-## 4. Recommended Product Workspaces
+## Design Inspiration
 
-The app should be redesigned into six primary workspaces.
+Kinsta should be used as inspiration for:
 
-## 4.1 Overview Workspace
-**Purpose:** executive and operator command center
+* restrained color usage
+* premium simplicity
+* clean page framing
+* strong hierarchy
+* minimal noise
+* focused navigation
+* clear sections
 
-### Primary user questions
-- What needs attention right now?
-- What has changed today?
-- What is blocking growth or service quality?
-- Which queue should I enter first?
-
-### Required content
-- KPI strip: total tenants, active tenants, failed tenants, pending payments, suspended tenants
-- action center cards
-- urgent alert stack
-- service health summary
-- recent jobs pulse
-- support pressure summary
-- billing recovery summary
-
-### UI recommendations
-- keep it light and directional
-- no dense tables on the first screen
-- use cards and ranked priority blocks
-- show no more than 5–7 key numbers
-- emphasize “next best actions” over raw data
+Do **not** copy Kinsta literally.
+Use it as a directional benchmark for tone and structure.
 
 ---
 
-## 4.2 Tenant Operations Workspace
-**Purpose:** search, inspect, and operate on tenant accounts
+# 1. App Shell Specification
 
-### Primary user questions
-- Which tenant am I looking for?
-- What state is this tenant in?
-- What action should I take next?
-- Is this a billing, provisioning, support, or domain issue?
+## Required App Frame
 
-### Required content
-- tenant registry/search
-- filter bar (status, plan, app, payment state, support state)
-- list/table of tenants
-- tenant summary cards
-- tenant detail workspace
+Every authenticated screen should follow a consistent app shell:
 
-### UX recommendations
-- registry should optimize for search and triage
-- keep bulk scanning easy
-- reduce visual noise in row actions
-- move destructive actions behind menus/drawers
-- reserve the detail route for deep work, not list screens
+1. **Top Header**
+2. **Left Sidebar / Navigation Rail**
+3. **Main Content Area**
+4. **Light Footer / Status Strip**
 
 ---
 
-## 4.3 Billing Workspace
-**Purpose:** recover revenue, explain payment state, and complete billing actions
+## 1.1 Top Header
 
-### Primary user questions
-- Who has unpaid or failed billing?
-- Who is blocked because of billing?
-- What should the operator or customer do next?
+### Purpose
 
-### Required content
-- billing recovery queue
-- unpaid invoices
-- payment blockers
-- billing status breakdown
-- open invoice links
-- direct customer recovery actions
+The top header should provide global orientation and lightweight utility access.
 
-### UX recommendations
-- billing pages should be simpler than ops pages
-- lead with status + next action
-- keep invoice detail readable and skimmable
-- distinguish “operator action needed” from “customer action needed”
+### It should contain
 
----
+* product logo / brand mark
+* current workspace name
+* optional global search
+* notifications
+* help / docs shortcut
+* user menu
 
-## 4.4 Support Workspace
-**Purpose:** resolve customer issues and coordinate follow-up
+### It should not contain
 
-### Primary user questions
-- Which cases are urgent?
-- Who owns this issue?
-- What is the latest note or promised follow-up?
-- What can I do immediately?
+* large page-specific action sets
+* long descriptive text
+* deep navigation trees
+* cluttered controls
 
-### Required content
-- support queue
-- case ownership / assignee visibility
-- due date and SLA indicators
-- support notes
-- escalations
-- linkage to tenant detail
+### Style direction
 
-### UX recommendations
-- support needs timeline thinking
-- use status + owner + due date as first-class elements
-- make note capture fast
-- surface unresolved items before verbose history
+* fixed/sticky at the top
+* slim height
+* white or near-white background
+* subtle bottom border
+* minimal shadow
+* dark text/icons
+* clear active state for search or utilities
+
+### Behavioral rules
+
+* remains visible while content scrolls
+* should not visually dominate the page
+* page-specific actions belong in the page header, not here
 
 ---
 
-## 4.5 Platform Workspace
-**Purpose:** monitor the internal health of the control plane and provisioning systems
+## 1.2 Sidebar / Navigation Rail
 
-### Primary user questions
-- Is the platform healthy?
-- Which jobs are failing?
-- Is provisioning delayed?
-- Is an issue local to a tenant or systemic?
+### Purpose
 
-### Required content
-- platform health summary
-- queue sizes
-- failed jobs
-- retries and incident routing
-- service dependency health
+The sidebar should provide only top-level workspace navigation.
 
-### UX recommendations
-- platform views can be denser
-- but should still separate alerting from deep diagnostics
-- show systemic issues first
-- avoid mixing platform health into customer-facing workspaces unless it directly affects the user’s task
+### The sidebar should be minimal
 
----
+Recommended top-level items:
 
-## 4.6 Account Workspace
-**Purpose:** operator profile, preferences, notification readiness
+* Overview
+* Tenants
+* Billing
+* Support
+* Platform
+* Account
 
-### Required content
-- current user profile
-- session and security settings
-- email verification state
-- notification preferences
-- account metadata
+### Sidebar rules
 
-### UX recommendations
-- keep this boring and small
-- do not over-invest here early
-- this workspace should reduce friction, not compete with operational workspaces
+* icon + short label only
+* no long helper text by default
+* no verbose descriptions
+* keep item count low
+* avoid long scrolling
+* keep hierarchy shallow
 
----
+### Do not place these as primary sidebar items
 
-## 5. Tenant Detail: Recommended Content Model
+These should move into local tabs or workspace-level sub-navigation:
 
-The tenant detail route should become a **mini-application** instead of a mega-page.
+* incidents
+* suspensions
+* billing recovery
+* provisioning jobs
+* onboarding workflows
+* activity logs
+* tenant subfunctions
 
-## 5.1 Route breakdown
+### Sidebar visual style
 
-```text
-/tenants/[id]/overview
-/tenants/[id]/members
-/tenants/[id]/domains
-/tenants/[id]/billing
-/tenants/[id]/jobs
-/tenants/[id]/audit
-/tenants/[id]/backups
-/tenants/[id]/support
-```
+* visually quiet
+* neutral background
+* active item highlighted with subtle fill or border accent
+* hover state understated
+* small spacing rhythm
+* compact but not cramped
 
-## 5.2 Content by subpage
+### Responsive behavior
 
-### Overview
-Purpose: operator snapshot and next action
-
-Include:
-- tenant status
-- plan
-- app/focus
-- billing state
-- latest invoice summary
-- latest backup summary
-- recent jobs summary
-- support note summary
-- recommended next action
-
-Do **not** include full tables for every subsystem.
-
-### Members
-Include:
-- members table
-- invite teammate flow
-- role change actions
-- remove member actions
-- member status or recent join state
-
-### Domains
-Include:
-- domain list
-- primary domain indication
-- verification state
-- add domain flow
-- verify domain action
-- remove domain action
-
-### Billing
-Include:
-- current subscription
-- invoice history
-- payment state
-- links to invoice / portal
-- billing notes or hold reasons
-
-### Jobs
-Include:
-- recent jobs
-- live job status
-- retry options where relevant
-- job logs and timestamps
-
-### Audit
-Include:
-- audit log list
-- filters by action type / actor / date
-- export later if needed
-
-### Backups
-Include:
-- latest backup state
-- backup history
-- restore actions
-- restore confirmations
-
-### Support
-Include:
-- support notes
-- open follow-ups
-- owner
-- due date
-- next promised action
+* desktop: persistent compact sidebar
+* tablet: collapsible sidebar
+* mobile: temporary drawer
 
 ---
 
-## 6. Workflow Analysis
+## 1.3 Main Content Area
 
-The app should prioritize a small number of high-frequency workflows.
+### Purpose
 
-## 6.1 Workflow: New tenant onboarding
+The main content area should be structured and easy to scan.
 
-### Current intent
-The app already includes onboarding, provisioning, payment, and registry routes.
+### Every page should follow this order
 
-### Desired operator flow
-1. open onboarding queue
-2. review tenant/payment readiness
-3. confirm next setup state
-4. move into provisioning or recovery path
-5. land on tenant overview when setup completes
+1. Breadcrumbs
+2. Page header
+3. Summary / KPI strip if needed
+4. Primary work area
+5. Secondary supporting sections
+6. Utility footer/status area if relevant
 
-### UX issues to solve
-- too much same-layout repetition across queues
-- status is visible, but action path is not guided strongly enough
-- handoff between payment and provisioning needs stronger UI cues
+### Content area rules
 
-### Recommended UI pattern
-- queue list on left / center
-- selected tenant preview on right or in drawer
-- explicit “next recommended action” module
-- action outcomes shown inline
+* generous whitespace
+* clear section separation
+* strong heading hierarchy
+* no giant uninterrupted pages
+* primary task should be visually obvious
 
 ---
 
-## 6.2 Workflow: Provisioning failure recovery
+## 1.4 Footer / Status Strip
 
-### Desired operator flow
-1. open incidents queue
-2. identify failed tenant(s)
-3. inspect recent job/log context
-4. retry or escalate
-5. confirm tenant returns to provisioning / active state
+### Purpose
 
-### UX recommendations
-- incidents queue should rank by severity and recency
-- use red state sparingly but clearly
-- make retry path visible without opening giant details first
-- deep logs should be expandable, not always visible
+A lightweight footer can provide utility information, not primary interaction.
 
----
+### Appropriate content
 
-## 6.3 Workflow: Billing recovery
+* app version
+* environment badge
+* system/API status
+* background job indicator
+* small legal/meta links
 
-### Desired operator flow
-1. open billing recovery queue
-2. identify blocked or unpaid accounts
-3. view invoice/payment context
-4. notify or direct customer to payment action
-5. confirm billing state recovery and reactivation
+### Should not contain
 
-### UX recommendations
-- keep payment center and operator billing views clearly separated
-- show customer-facing next action separately from internal ops note
-- invoice state should be scannable from list pages
+* core navigation
+* important actions
+* major summaries
+
+### Style direction
+
+* very subtle
+* compact
+* quiet typography
+* border-top instead of strong styling
 
 ---
 
-## 6.4 Workflow: Tenant support follow-up
+# 2. Navigation Model
 
-### Desired operator flow
-1. open support queue
-2. inspect owner, due date, and latest note
-3. open linked tenant
-4. add note / update case / escalate
-5. close or reschedule follow-up
+## Principle
 
-### UX recommendations
-- prioritize open and overdue work
-- timeline/ticket pattern is better than giant forms
-- note creation should be fast and lightweight
+The UI should move from a “big dashboard with many destinations” to a “suite of workspaces with local navigation”.
 
 ---
 
-## 6.5 Workflow: Routine tenant maintenance
+## 2.1 Global Navigation
 
-### Desired operator flow
-1. search tenant in registry
-2. open tenant overview
-3. branch into members / domains / billing / backups / jobs
-4. complete one task
-5. return to tenant overview or previous queue
+Global navigation should only represent major workspaces.
 
-### UX recommendations
-- tenant overview should act as the stable home
-- use secondary tabs for sub-sections
-- do not force repeated reorientation across pages
+Recommended:
 
----
-
-## 7. UI/UX Recommendations
-
-## 7.1 Reduce cognitive load through progressive disclosure
-
-Currently, too much operational data is gathered into single experiences. The redesign should enforce:
-
-- summary first
-- detail on demand
-- history last
-
-### Rule
-A page should answer this order:
-1. what is this thing?
-2. what state is it in?
-3. what should I do next?
-4. where do I go deeper?
+* Overview
+* Tenants
+* Billing
+* Support
+* Platform
+* Account
 
 ---
 
-## 7.2 Distinguish between overview pages and working pages
+## 2.2 Local Workspace Navigation
 
-### Overview pages
-- metrics
-- priorities
-- alerts
-- high-level summaries
-- next actions
+Inside each workspace, use tabs or local sub-navigation.
 
-### Working pages
-- tables
-- filters
-- forms
-- task execution
-- detailed records
+### Examples
 
-Do not mix both heavily on one screen.
+**Tenants**
 
----
+* Registry
+* Active
+* Suspended
+* Search
+* Imports / Bulk Actions
 
-## 7.3 Improve navigation clarity
+**Billing**
 
-### Global navigation should show only workspaces
-Recommended global nav:
-- Overview
-- Tenants
-- Billing
-- Support
-- Platform
-- Account
+* Invoices
+* Recovery
+* Payments
+* Plans
+* Exceptions
 
-### Local navigation should appear inside workspaces
-Examples:
-- Tenant workspace tabs: Overview / Members / Domains / Billing / Jobs / Audit / Backups / Support
-- Billing workspace tabs: Recovery / Invoices / Summary
-- Support workspace tabs: Queue / Overdue / Escalations
+**Platform**
 
-This is cleaner than exposing too many top-level route concepts at once.
+* Health
+* Provisioning
+* Jobs
+* Incidents
+* Capacity
+
+**Support**
+
+* Queue
+* Escalations
+* Notes
+* SLA / Metrics
 
 ---
 
-## 7.4 Reduce action clutter in tables
+## 2.3 Entity-Level Navigation
 
-The current tenant table exposes many actions directly in the row. That is useful, but it can become visually noisy.
+For complex objects like tenants, use sub-routes or local tabs.
 
-### Recommendation
-Use a priority model:
-- primary row action: open details
-- one high-frequency quick action if justified
-- remaining actions under an actions menu or drawer
+Recommended tenant navigation:
 
-### Example row actions
-Visible:
-- Details
-- Retry provisioning (only if failed)
+* Overview
+* Members
+* Domains
+* Billing
+* Jobs
+* Audit
+* Backups
+* Support
 
-Overflow menu:
-- Backup now
-- Reset admin login
-- Change plan
-- Delete workspace
+The tenant default page should be **Overview**, not an all-in-one operational dump.
 
 ---
 
-## 7.5 Use clearer state design
+# 3. Page Layout Standards
 
-Statuses already exist in the app, but they should be visually structured around meaning, not just color.
+## 3.1 Page Header Pattern
 
-### State groups
-- Healthy: active, ready
-- Transitional: pending, provisioning, upgrading, restoring
-- Needs attention: failed, overdue, unpaid
-- Restricted: suspended_admin, suspended_billing, suspended
-- Archived/final: deleted, pending_deletion
+Every page should have a dedicated header block.
 
-### Recommendation
-Each state presentation should include:
-- status label
-- one-line explanation
-- next recommended action
+### Page header contains
 
----
+* breadcrumbs
+* page title
+* short subtitle / context line
+* page-level actions
+* optional filters/search aligned cleanly
 
-## 7.6 Introduce better empty, loading, and degraded states
+### Page header rules
 
-The current code already accounts for unsupported endpoints and unavailable metrics in places. That is good operationally.
-
-The UX should go further:
-
-### Empty states
-- explain what is missing
-- explain why it matters
-- provide one primary action
-
-### Loading states
-- use section-level skeletons
-- preserve page structure while loading
-- avoid blank screens after auth checks
-
-### Degraded states
-- explain whether the issue is backend capability, temporary outage, or permission problem
-- preserve the rest of the workspace when possible
+* title must be obvious
+* subtitle must be brief and useful
+* keep actions focused
+* do not overload with buttons
+* primary action should be visually distinct
 
 ---
 
-## 7.7 Use page archetypes consistently
+## 3.2 Section Layout Pattern
 
-Create a small set of page patterns and reuse them.
+Each page should be broken into clear sections.
 
-### Archetype A — Command center page
-Used for: Overview, platform health, support overview
+### Recommended section anatomy
 
-Layout:
-- page title + actions
-- KPI row
-- alert stack
-- priority cards
-- recent activity summary
+* section title
+* optional short description
+* section content
+* local actions if relevant
 
-### Archetype B — Queue page
-Used for: onboarding, incidents, billing recovery, support queue
+### Section rules
 
-Layout:
-- page title + filters
-- queue summary strip
-- table/list
-- row detail preview or quick action drawer
-
-### Archetype C — Entity overview page
-Used for: tenant overview
-
-Layout:
-- entity header
-- summary cards
-- recommended actions
-- recent critical history
-- deep-link cards to subpages
-
-### Archetype D — Detail management page
-Used for: members, domains, billing, backups, audit
-
-Layout:
-- header + scoped actions
-- focused table/list/form
-- secondary insights in side panel or footer region
+* use spacing to separate sections
+* avoid stacking too many cards without grouping
+* prefer fewer, stronger blocks
+* long pages should be segmented clearly
 
 ---
 
-## 8. Content Prioritization Rules
+## 3.3 KPI / Summary Strip
 
-Use these rules when deciding what belongs on each page.
+Use summary cards only when they support decision making.
 
-### Must be top-level on page
-- current state
-- urgency
-- next best action
-- summary metrics
-- immediate blockers
+### Good KPI usage
 
-### Should be secondary
-- related context
-- short recent history
-- supporting metadata
+* status
+* plan
+* unpaid balance
+* active members
+* recent failures
+* storage / usage signals
 
-### Should be tertiary or hidden by default
-- verbose historical logs
-- destructive actions
-- dense diagnostics
-- long note history
+### Avoid
+
+* decorative metrics
+* too many equal-weight cards
+* dashboards with no clear next action
 
 ---
 
-## 9. Recommended Design Principles for This Product
+## 3.4 Tables and Dense Information
 
-1. **Action over exposition**
-   Operators should immediately know what they can do next.
+Operational apps often need tables, but they must remain easy to scan.
 
-2. **One dominant purpose per screen**
-   Every page should feel like it exists for one main job.
+### Table rules
 
-3. **Summary before depth**
-   Show the answer before showing the evidence.
+* strong headers
+* adequate row height
+* restrained zebra or border treatment
+* clear status cells
+* compact action menus
+* sticky header if needed
+* filters above table, not mixed into title
 
-4. **Context without crowding**
-   Keep enough context visible to act confidently, but avoid full-system dumps.
+### Dense content rule
 
-5. **Consistent wayfinding**
-   Keep workspace, entity, and queue navigation predictable.
+When information is dense, use:
 
-6. **Operational calm**
-   The UI should make urgent issues obvious without making the whole app feel alarming.
+* tabs
+* drawers
+* expanders
+* split views
+* details panels
 
----
-
-## 10. Implementation Priorities
-
-## Priority 1 — redesign content hierarchy
-Do first:
-- define workspace content contracts
-- define tenant overview content contract
-- decide what moves out of giant pages
-
-## Priority 2 — refactor tenant detail UX
-Do next:
-- split into nested sections
-- create tenant overview as the default landing page
-- move historical subsystems into dedicated tabs/routes
-
-## Priority 3 — redesign navigation experience
-Do next:
-- replace broad route-style navigation with workspace navigation
-- introduce local subnavigation inside workspaces
-- add breadcrumb and entity context layers
-
-## Priority 4 — standardize page archetypes
-Do next:
-- overview page pattern
-- queue page pattern
-- entity overview pattern
-- detail management pattern
-
-## Priority 5 — refine action surfaces
-Do next:
-- reduce row action clutter
-- move destructive actions behind confirmations/drawers
-- surface recommended actions near status
+Do not dump all secondary information into one page.
 
 ---
 
-## 11. Suggested Deliverables for Developer Execution
+# 4. Visual System Direction
 
-### Strategy deliverables
-- workspace sitemap
-- content inventory by page
-- workflow inventory by operator role
-- navigation map
-- page archetype map
+## 4.1 Color Philosophy
 
-### UX deliverables
-- low-fidelity wireframes for each workspace home
-- tenant overview wireframe
-- queue page wireframe
-- tenant subpage wireframes
-- action drawer patterns
+Move away from the current warm, soft palette.
 
-### Engineering deliverables
-- new route structure
-- shell refactor
-- tenant detail decomposition
-- shared page components for queue/entity/detail patterns
-- new navigation model
+Target a system based on:
+
+* neutral surfaces
+* deep text contrast
+* one primary accent color
+* semantic colors only for meaning
+
+### Desired feel
+
+* crisp
+* cool-neutral
+* professional
+* low-noise
 
 ---
 
-## 12. Final Position
+## 4.2 Suggested Color Token Strategy
 
-The frontend does not mainly need more screens; it needs **better product choreography**.
+### Neutrals
 
-The current app already proves the backend/control-plane concepts are present. The next leap in quality will come from:
+* background canvas: very light neutral
+* panel/card surface: white
+* elevated overlay: white
+* subtle border: cool light gray
+* muted surface: pale gray
 
-- reducing information density
-- separating work by operator intent
-- turning giant operational pages into guided sub-workspaces
-- moving history and low-frequency functions away from the main decision path
+### Text
 
-The result should feel less like a collection of admin routes and more like a reliable production control plane.
+* primary text: deep charcoal / ink
+* secondary text: medium neutral gray
+* muted text: lighter but still accessible
+
+### Accent
+
+* one strong blue for:
+
+  * primary buttons
+  * active nav state
+  * focused inputs
+  * selected tabs
+  * links when appropriate
+
+### Semantic colors
+
+* success: controlled green
+* warning: amber
+* error: red
+* info: blue variant
+
+### Rules
+
+* do not use brand colors everywhere
+* do not use multiple colorful fills in one screen
+* semantic colors must communicate state, not decoration
 
 ---
 
-## Repo-Specific Evidence Used
+## 4.3 Contrast Requirements
 
-This analysis is based on the current `saas-ui` repo structure and selected frontend files, including:
+All text and UI boundaries must have strong contrast.
 
-- dashboard route tree under `app/(dashboard)/dashboard`
-- dashboard navigation configuration in `domains/dashboard/domain/navigation.ts`
-- current shell implementation in `app/(dashboard)/layout.tsx` and `domains/dashboard/components/UserShell.tsx`
-- queue reuse in `domains/dashboard/components/WorkspaceQueuePage.tsx`
-- tenant table and action density in `domains/dashboard/components/TenantTable.tsx`
-- tenant detail complexity in `app/(dashboard)/tenants/[id]/page.tsx`
-- SourceFuse ARC React SaaS UI positioning as a production-ready multi-tenant SaaS control plane
+### Requirements
 
+* body text must be clearly readable on all backgrounds
+* helper text should still remain legible
+* active states must be obvious
+* borders on cards, inputs, and separators must be visible enough
+* avoid low-contrast gray-on-gray styling
+
+### Outcome
+
+The interface should feel sharper and more trustworthy immediately.
+
+---
+
+# 5. Shape, Radius, and Elevation
+
+## 5.1 Radius Strategy
+
+Current styling is too rounded.
+
+### Recommended radius scale
+
+* base radius: 8px
+* cards/panels: 10px
+* buttons/inputs: 8px
+* overlays/drawers/modals: 12px
+* chips/status pills: fully rounded allowed
+
+### Rules
+
+* keep rounding restrained
+* do not make every element feel pill-like
+* larger radius should be reserved for overlays or special emphasis
+
+---
+
+## 5.2 Shadows and Borders
+
+Use less decorative elevation.
+
+### Preferred approach
+
+* use borders first
+* use shadows lightly
+* reserve stronger elevation for overlays
+
+### Good defaults
+
+* cards: subtle border + minimal shadow or no shadow
+* modals/drawers: elevated but clean
+* hover: slight lift or border accent, not dramatic effect
+
+---
+
+# 6. Typography Standards
+
+## Typography goals
+
+* stronger hierarchy
+* less visual softness
+* better scanability
+* clearer distinction between title, section, and metadata
+
+## Recommended hierarchy
+
+* page title: strong and concise
+* page subtitle: smaller, muted, informative
+* section heading: clear and consistent
+* card title: compact and readable
+* metadata/helper text: subdued but accessible
+
+## Rules
+
+* avoid oversized marketing-style type inside the app
+* use compact spacing for operational content
+* keep labels crisp and short
+* reduce unnecessary decorative text
+
+---
+
+# 7. Component Styling Direction
+
+## 7.1 Buttons
+
+### Direction
+
+* less bubbly
+* more solid
+* cleaner shape
+* stronger hierarchy
+
+### Rules
+
+* primary button: strong accent fill
+* secondary button: neutral surface with border
+* tertiary/text action: low emphasis
+* avoid too many equal-strength buttons in one header
+
+---
+
+## 7.2 Cards and Panels
+
+### Direction
+
+Cards should feel structural, not decorative.
+
+### Rules
+
+* use cards to group meaningfully related content
+* avoid card soup
+* keep padding consistent
+* use titles and spacing to establish meaning
+* avoid colorful card backgrounds unless semantic
+
+---
+
+## 7.3 Inputs and Forms
+
+### Direction
+
+Forms should feel crisp and controlled.
+
+### Rules
+
+* high-contrast input borders
+* clear focus state using accent color
+* labels always visible
+* helper/error text legible
+* avoid oversized rounded fields
+
+---
+
+## 7.4 Tabs
+
+### Direction
+
+Tabs should handle local complexity cleanly.
+
+### Rules
+
+* use tabs for local section switching
+* keep labels short
+* selected state must be obvious
+* tabs belong below page header or entity header
+
+---
+
+## 7.5 Status Indicators
+
+### Direction
+
+Status needs fast readability.
+
+### Rules
+
+* use semantic colors sparingly and consistently
+* pair color with text label
+* avoid relying on color alone
+* make status chips compact and scannable
+
+---
+
+## 7.6 Drawers and Modals
+
+### Direction
+
+Use overlays for focused tasks, not as a substitute for structure.
+
+### Use for
+
+* confirmations
+* editing forms
+* focused review tasks
+* secondary details
+
+### Avoid using for
+
+* major navigation
+* huge workflows that should be routed pages
+
+---
+
+# 8. Workspace-Specific Layout Guidance
+
+## 8.1 Overview Workspace
+
+Should provide:
+
+* platform snapshot
+* urgent alerts
+* recent activity highlights
+* billing/support/platform health summaries
+* quick links to major areas
+
+It should feel like a command overview, not a noisy analytics wall.
+
+---
+
+## 8.2 Tenants Workspace
+
+Should prioritize:
+
+* tenant registry/search
+* status visibility
+* lifecycle operations
+* bulk actions
+* quick drill-down into tenant details
+
+The tenant detail experience must be split across sub-routes/tabs.
+
+---
+
+## 8.3 Billing Workspace
+
+Should prioritize:
+
+* invoices
+* overdue states
+* payment failures
+* recovery workflows
+* plan/subscription state
+
+This area should be financially clear and low-noise.
+
+---
+
+## 8.4 Support Workspace
+
+Should prioritize:
+
+* support queue
+* recent unresolved items
+* escalations
+* support notes and history
+* SLA visibility
+
+---
+
+## 8.5 Platform Workspace
+
+Should prioritize:
+
+* platform health
+* provisioning jobs
+* incidents
+* infrastructure-related status
+* operational timeline / logs
+
+---
+
+# 9. Specific Rules for Improving Intuitiveness
+
+## Rule 1
+
+Every screen must answer immediately:
+
+* where am I?
+* what is this page for?
+* what should I do next?
+
+## Rule 2
+
+Only one primary action should dominate at a time.
+
+## Rule 3
+
+Reduce sidebar choices and move complexity inward.
+
+## Rule 4
+
+Use progressive disclosure:
+
+* summary first
+* deeper detail second
+* advanced actions last
+
+## Rule 5
+
+Never let one page represent too many operational concerns equally.
+
+## Rule 6
+
+Use sections and local tabs instead of long unbroken pages.
+
+## Rule 7
+
+Design for scanability before decoration.
+
+---
+
+# 10. Recommended Theme Changes
+
+## Keep Material UI as an engine, not as the visual identity
+
+Do not rush to remove MUI.
+
+Instead:
+
+* heavily customize the theme
+* override defaults aggressively
+* create your own wrappers for shell and page-level components
+* reduce the obvious “default MUI” appearance
+
+## Immediate theme changes
+
+* replace warm beige background with neutral/cool canvas
+* replace teal/amber-heavy feel with one restrained primary accent
+* reduce border radius globally
+* increase text contrast
+* reduce colorful surfaces
+* rely more on borders than shadows
+
+---
+
+# 11. Rollout Plan
+
+## Phase 1 — App Shell Polish
+
+* build top header
+* simplify sidebar
+* add page header pattern
+* add footer/status strip
+* standardize content container
+
+## Phase 2 — Theme Hardening
+
+* new color tokens
+* new typography hierarchy
+* new radius scale
+* updated buttons/cards/inputs/tabs
+
+## Phase 3 — Page Structure Cleanup
+
+* refactor high-density pages into clearer sections
+* introduce local tabs where needed
+* reduce long vertical stacks
+
+## Phase 4 — Workspace Cleanup
+
+* align each workspace with a clear task model
+* remove misplaced items from global navigation
+* improve consistency across workspaces
+
+## Phase 5 — Tenant Experience Cleanup
+
+* overview-first tenant screen
+* move secondary operational concerns into sub-routes or tabs
+* reduce cognitive overload significantly
+
+---
+
+# 12. Definition of Success
+
+The redesign is successful when:
+
+* the app shell feels obvious and calm
+* the sidebar is short and easy to understand
+* the interface has stronger contrast and readability
+* the product feels more premium and less template-like
+* pages are clearly divided into meaningful sections
+* complex areas become easier to navigate
+* the UI feels closer to a mature infrastructure/control product
+
+---
+
+# 13. Summary
+
+The frontend should move away from a soft, generic dashboard feel and toward a more structured, premium, and production-ready control-plane experience.
+
+The key moves are:
+
+* simplify the shell
+* shorten the sidebar
+* strengthen page hierarchy
+* reduce roundness
+* improve contrast
+* use calmer colors
+* structure content into strong sections
+* use Kinsta as inspiration for restraint and clarity
+
+This is not just aesthetic polish. It is a usability improvement through better layout, hierarchy, and interface discipline.

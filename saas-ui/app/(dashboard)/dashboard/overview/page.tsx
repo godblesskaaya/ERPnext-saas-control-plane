@@ -33,7 +33,19 @@ export default function DashboardOverviewPage() {
     <WorkspaceQueuePage
       routeScope="workspace"
       title="Workspace overview"
-      description="Live workspace snapshot for Tanzania: payments, provisioning, and customer health in one console."
+      description="You are in Dashboard → Overview. Use this page to understand workspace health, then move into the queue that needs action next."
+      attentionNote="Start with payment and provisioning blockers, then route to incidents or billing recovery."
+      callout={{
+        title: "What to do next",
+        body: "Review diagnostics and action-center cards, then open the queue with the highest customer impact.",
+        tone: "default",
+      }}
+      handoffLinks={[
+        { label: "Onboarding", href: "/onboarding" },
+        { label: "Provisioning", href: "/dashboard/provisioning" },
+        { label: "Incidents", href: "/dashboard/incidents" },
+        { label: "Billing recovery", href: "/dashboard/billing-recovery" },
+      ]}
       extraContent={
         <Paper variant="outlined" sx={{ borderColor: "divider", p: 2, borderRadius: 4 }}>
           <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 700, letterSpacing: 0.8 }}>

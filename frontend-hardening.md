@@ -542,6 +542,26 @@ After the architecture and major UX issues are improved, strengthen robustness w
 ### Outcome
 Makes future changes safer and reduces regression risk.
 
+### Phase 6 checkpoint (2026-04-03)
+
+Production-quality regression hardening verification completed (worker-3):
+
+- `cd saas-ui && npx tsc --noEmit` → **PASS**
+- `cd saas-ui && npm run -s check:boundaries` → **PASS**
+- `cd saas-ui && npm run -s test:route-guards` → **PASS** (`12 passed, 0 failed`)
+- `cd saas-ui && npm run -s test:contracts` → **PASS** (`93 passed, 0 failed`)
+
+Checkpoint summary:
+
+- Shell rendering + route integration invariants are covered by tenant workspace pattern/convergence/compatibility tests.
+- Navigation regressions are covered by workspace-mode/navigation contract tests.
+- Permission behavior is covered by route-guard policy tests for unauthenticated, expired, non-admin, and admin access paths.
+- Loading/error resilience is covered by use-case contract tests asserting supported/unsupported/unavailable mapping behavior.
+
+Remaining gap:
+
+- Browser-driven E2E/visual shell checks are not yet part of this checkpoint; current protection is contract + policy test coverage.
+
 ---
 
 ## Immediate Priorities

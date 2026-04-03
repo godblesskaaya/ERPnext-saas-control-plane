@@ -205,3 +205,23 @@ Additional verification (post-merge):
 Reference review record:
 
 - `docs/frontend-hardening-phase5-tenant-page-pattern-standardization-review.md`
+
+## 8) Checkpoint — Phase 6 Production-Quality Hardening (2026-04-03)
+
+Verification run (worker-3):
+
+- `cd saas-ui && npx tsc --noEmit` → **PASS**
+- `cd saas-ui && npm run -s check:boundaries` → **PASS** (`Import boundary check passed for 74 app files (exceptions tracked: 0).`)
+- `cd saas-ui && npm run -s test:route-guards` → **PASS** (`12 passed, 0 failed`)
+- `cd saas-ui && npm run -s test:contracts` → **PASS** (`93 passed, 0 failed`)
+
+Regression protections confirmed in Phase 6:
+
+- Shell + route integration invariants are covered by tenant workspace contract tests (`tenantPagePatternStandardization`, `tenantRootConvergence`, `routeCompatibility`).
+- Navigation regression protections are covered by dashboard navigation-mode invariants (`every section has mode`, workspace filtering, workspace copy/route constraints).
+- Permission path protections are covered by route-guard policy tests (`admin/non-admin/expired/missing session` decision paths).
+- Loading/error fallback behavior is covered by use-case tests that assert unsupported/unavailable/error mapping across dashboard, billing, platform, onboarding, and auth snapshots.
+
+Remaining gaps (tracked):
+
+- No browser-driven E2E/visual shell assertions yet (current protection is strong domain/application contract and policy-level regression testing).

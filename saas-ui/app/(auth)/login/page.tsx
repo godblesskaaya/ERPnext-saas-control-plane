@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { loadAuthHealthSnapshot, loginWithPassword, safePostLoginRedirect } from "../../../domains/auth/application/authUseCases";
 import { clearToken, getToken } from "../../../domains/auth/auth";
+import { PublicRouteGuidance } from "../../../domains/auth/ui/PublicRouteGuidance";
 import { Badge, Button, Card, Input } from "../../../domains/shared/components/ui";
 
 export default function LoginPage() {
@@ -92,6 +93,13 @@ export default function LoginPage() {
         <h1 className="text-3xl font-semibold text-slate-900">Welcome back / Karibu tena</h1>
         <p className="text-sm text-slate-600">Sign in to continue tracking cashflow, inventory, and branch operations.</p>
       </div>
+
+      <PublicRouteGuidance
+        whereAmI="Sign in to your workspace"
+        whatNext="Enter your account email and password, then continue to your dashboard or requested page."
+        nextHref="/signup"
+        nextLabel="Need an account first? Create one"
+      />
 
       <div className="rounded-2xl border border-slate-200/90 bg-slate-50 p-4 text-sm text-slate-600">
         <p className="font-medium text-slate-900">Built for practical local operations</p>

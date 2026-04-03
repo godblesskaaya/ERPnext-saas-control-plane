@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { consumeImpersonationToken, toAuthErrorMessage } from "../../../domains/auth/application/authUseCases";
+import { PublicRouteGuidance } from "../../../domains/auth/ui/PublicRouteGuidance";
 
 export default function ImpersonatePage() {
   const router = useRouter();
@@ -43,6 +44,14 @@ export default function ImpersonatePage() {
       <div className="w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Support access</p>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">Impersonation handoff</h1>
+        <div className="mt-4">
+          <PublicRouteGuidance
+            whereAmI="One-time support session handoff"
+            whatNext="This token is verified automatically. On success you are redirected to workspace overview."
+            nextHref="/login"
+            nextLabel="Prefer normal access? Sign in manually"
+          />
+        </div>
         {status === "running" ? <p className="mt-3 text-sm text-slate-600">Verifying one-time token and signing you in…</p> : null}
         {status === "done" ? <p className="mt-3 text-sm text-emerald-700">Token accepted. Redirecting to dashboard…</p> : null}
         {status === "error" ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { loadAuthHealthSnapshot, requestPasswordReset } from "../../../domains/auth/application/authUseCases";
 import { getToken } from "../../../domains/auth/auth";
+import { PublicRouteGuidance } from "../../../domains/auth/ui/PublicRouteGuidance";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -62,6 +63,13 @@ export default function ForgotPasswordPage() {
           Enter your account email. If it exists, we will send a one-time token for password reset.
         </p>
       </div>
+
+      <PublicRouteGuidance
+        whereAmI="Password recovery"
+        whatNext="Submit your email, check your inbox for a one-time reset token, then set a new password."
+        nextHref="/login"
+        nextLabel="Back to sign in"
+      />
 
       <div className="rounded-2xl border border-slate-200/90 bg-white/80 p-4 text-sm text-slate-700">
         <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Diagnostics</p>

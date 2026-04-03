@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { confirmEmailVerification, loadAuthHealthSnapshot } from "../../../domains/auth/application/authUseCases";
+import { PublicRouteGuidance } from "../../../domains/auth/ui/PublicRouteGuidance";
 
 export default function VerifyEmailPage() {
   const searchParams = useSearchParams();
@@ -81,6 +82,13 @@ export default function VerifyEmailPage() {
         <h1 className="text-3xl font-semibold text-slate-900">Verify your email / Thibitisha barua pepe</h1>
         <p className="text-sm text-slate-600">Confirm your account email to unlock tenant creation and onboarding.</p>
       </div>
+
+      <PublicRouteGuidance
+        whereAmI="Email verification"
+        whatNext="Confirm your verification token, then continue to sign in and start onboarding."
+        nextHref="/login?verified=1"
+        nextLabel="Continue to sign in"
+      />
 
       <div className="rounded-2xl border border-slate-200/90 bg-white/80 p-4 text-sm text-slate-700">
         <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Diagnostics</p>

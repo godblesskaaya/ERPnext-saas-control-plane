@@ -94,6 +94,12 @@ export default function LandingPage() {
             Biashara Cloud is the calm, reliable layer above the daily noise. Your team sees what matters today,
             fixes issues faster, and keeps branches aligned without extra admin overhead.
           </p>
+          <div className="rounded-2xl border border-slate-200/90 bg-slate-50 p-4 text-sm text-slate-700">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Where am I</p>
+            <p className="mt-1 font-medium text-slate-900">Public product home</p>
+            <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">What next</p>
+            <p className="mt-1">Review pricing, then create your account to start guided workspace onboarding.</p>
+          </div>
           <div className="flex flex-wrap gap-3">
             <Link
               href="/signup"

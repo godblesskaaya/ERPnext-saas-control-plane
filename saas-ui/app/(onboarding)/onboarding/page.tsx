@@ -545,6 +545,13 @@ export default function OnboardingPage() {
         description="Set up once, then run daily sales, stock, and finance operations from office or mobile across Tanzania."
       />
 
+      <div className="rounded-2xl border border-slate-200/90 bg-slate-50 p-4 text-sm text-slate-700">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Where am I</p>
+        <p className="mt-1 font-medium text-slate-900">Workspace onboarding</p>
+        <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-slate-500">What next</p>
+        <p className="mt-1">Complete workspace details, choose package, complete checkout, then wait for provisioning to finish.</p>
+      </div>
+
       <OnboardingStepTracker steps={flow} labels={flowLabels} activeStep={step} />
 
       {notice ? <OnboardingNoticePanel tone="success">{notice}</OnboardingNoticePanel> : null}

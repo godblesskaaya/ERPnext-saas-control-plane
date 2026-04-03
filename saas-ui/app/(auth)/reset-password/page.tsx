@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { loadAuthHealthSnapshot, submitPasswordReset } from "../../../domains/auth/application/authUseCases";
+import { PublicRouteGuidance } from "../../../domains/auth/ui/PublicRouteGuidance";
 
 export default function ResetPasswordPage() {
   const searchParams = useSearchParams();
@@ -74,6 +75,13 @@ export default function ResetPasswordPage() {
         <h1 className="text-3xl font-semibold text-slate-900">Set new password / Weka nenosiri jipya</h1>
         <p className="text-sm text-slate-600">Use your one-time token and choose a new password for your account.</p>
       </div>
+
+      <PublicRouteGuidance
+        whereAmI="Confirm password reset"
+        whatNext="Enter the one-time token, set a new password, then continue back to sign in."
+        nextHref="/login"
+        nextLabel="Return to sign in"
+      />
 
       <div className="rounded-2xl border border-slate-200/90 bg-white/80 p-4 text-sm text-slate-700">
         <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Diagnostics</p>

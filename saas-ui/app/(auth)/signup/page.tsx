@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { loadAuthHealthSnapshot, signupAndLogin } from "../../../domains/auth/application/authUseCases";
 import { getToken } from "../../../domains/auth/auth";
+import { PublicRouteGuidance } from "../../../domains/auth/ui/PublicRouteGuidance";
 import { Badge, Button, Card, Input } from "../../../domains/shared/components/ui";
 
 export default function SignupPage() {
@@ -64,6 +65,13 @@ export default function SignupPage() {
         <h1 className="text-3xl font-semibold text-slate-900">Create your account / Fungua akaunti</h1>
         <p className="text-sm text-slate-600">Create your account, verify your email, then continue onboarding.</p>
       </div>
+
+      <PublicRouteGuidance
+        whereAmI="Create account"
+        whatNext="Complete account details, submit once, then verify your email before workspace setup."
+        nextHref="/login"
+        nextLabel="Already have an account? Sign in"
+      />
 
       <div className="rounded-2xl border border-slate-200/90 bg-slate-50 p-4 text-sm text-slate-600">
         <p className="font-medium text-slate-900">Before you continue</p>

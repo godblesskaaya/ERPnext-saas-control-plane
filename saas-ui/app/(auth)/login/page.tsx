@@ -93,7 +93,7 @@ export default function LoginPage() {
         <p className="text-sm text-slate-600">Sign in to continue tracking cashflow, inventory, and branch operations.</p>
       </div>
 
-      <div className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] p-4 text-sm text-slate-600">
+      <div className="rounded-2xl border border-slate-200/90 bg-slate-50 p-4 text-sm text-slate-600">
         <p className="font-medium text-slate-900">Built for practical local operations</p>
         <ul className="mt-2 space-y-1">
           <li>• Swahili/English-friendly product wording</li>
@@ -102,8 +102,8 @@ export default function LoginPage() {
         </ul>
       </div>
 
-      <div className="rounded-2xl border border-amber-200/70 bg-white/80 p-4 text-sm text-slate-700">
-        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Diagnostics</p>
+      <div className="rounded-2xl border border-slate-200/90 bg-white/80 p-4 text-sm text-slate-700">
+        <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Diagnostics</p>
         <div className="mt-2 grid gap-2 text-xs md:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
             API: <Badge className="ml-1">{apiHealth}</Badge>
@@ -117,7 +117,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {notice ? <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">{notice}</p> : null}
+      {notice ? <p className="rounded-2xl border border-slate-200 bg-blue-50 p-3 text-sm text-blue-800">{notice}</p> : null}
 
       <form className="space-y-4" onSubmit={submit}>
         <Input
@@ -146,14 +146,14 @@ export default function LoginPage() {
 
       <p className="text-sm text-slate-600">
         Forgot password?{" "}
-        <Link href="/forgot-password" className="text-[#0d6a6a] hover:text-[#0b5a5a]">
+        <Link href="/forgot-password" className="text-blue-700 hover:text-blue-600">
           Reset access
         </Link>
       </p>
 
       <p className="text-sm text-slate-600">
         Need an account to get started quickly?{" "}
-        <Link href="/signup" className="text-[#0d6a6a] hover:text-[#0b5a5a]">
+        <Link href="/signup" className="text-blue-700 hover:text-blue-600">
           Create account
         </Link>
       </p>

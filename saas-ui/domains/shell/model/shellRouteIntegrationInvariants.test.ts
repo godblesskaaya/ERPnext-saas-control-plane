@@ -18,6 +18,12 @@ test("dashboard shell layout composes UserShell", () => {
   assert.equal(/<UserShell>\s*\{children\}\s*<\/UserShell>/.test(source), true);
 });
 
+test("user shell mounts workspace-local navigation before route content", () => {
+  const source = readSource("domains/dashboard/components/UserShell.tsx");
+
+  assert.equal(source.includes("WorkspaceLocalNav"), true, "user shell should include workspace-local navigation");
+});
+
 test("admin shell layout composes AppFrame + AdminNav and applies route access policy in a hook", () => {
   const source = readSource("app/(admin)/layout.tsx");
 

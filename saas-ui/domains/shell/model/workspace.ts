@@ -87,3 +87,39 @@ export const workspaceLocalNavByKey: Record<WorkspaceKey, ShellNavSection> = {
 export const workspaceLocalNavSections: ShellNavSection[] = workspaceDescriptors.map(
   (workspace) => workspaceLocalNavByKey[workspace.key],
 );
+
+const workspaceRouteMatchers: Record<WorkspaceKey, string[]> = {
+  overview: ["/dashboard/overview", "/dashboard/activity"],
+  tenants: ["/dashboard/registry", "/dashboard/active", "/tenants"],
+  billing: ["/billing", "/dashboard/billing", "/dashboard/billing-recovery", "/dashboard/billing-details", "/dashboard/billing-ops"],
+  support: ["/dashboard/support", "/dashboard/support-overview"],
+  platform: ["/dashboard/platform-health", "/dashboard/provisioning", "/dashboard/incidents", "/dashboard/onboarding", "/dashboard/suspensions"],
+  account: ["/dashboard/account", "/dashboard/settings"],
+};
+
+function normalizeRoute(pathname: string): string {
+  const [pathOnly] = pathname.split(/[?#]/, 1);
+  const route = pathOnly.startsWith("/") ? pathOnly : `/${pathOnly}`;
+  if (route.length > 1 && route.endsWith("/")) {
+    return route.slice(0, -1);
+  }
+  return route || "/";
+}
+
+export function resolveWorkspaceKeyFromPath(pathname: string | null | undefined): WorkspaceKey {
+  if (!pathname) return "overview";
+  const normalized = normalizeRoute(pathname);
+
+  for (const descriptor of workspaceDescriptors) {
+    const matchers = workspaceRouteMatchers[descriptor.key];
+    if (matchers.some((matcher) => normalized === matcher || normalized.startsWith(`${matcher}/`))) {
+      return descriptor.key;
+    }
+  }
+
+  return "overview";
+}
+
+export function getWorkspaceLocalNavForPath(pathname: string | null | undefined): ShellNavSection {
+  return workspaceLocalNavByKey[resolveWorkspaceKeyFromPath(pathname)];
+}

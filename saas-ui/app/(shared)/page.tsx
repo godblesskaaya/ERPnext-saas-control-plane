@@ -82,9 +82,9 @@ const signalCards = [
 export default function LandingPage() {
   return (
     <div className="space-y-24 pb-12">
-      <section className="grid gap-10 rounded-[32px] border border-amber-200/70 bg-white/80 p-8 shadow-[0_30px_80px_rgba(13,106,106,0.15)] lg:grid-cols-[1.2fr_0.8fr] lg:p-12">
+      <section className="grid gap-10 rounded-2xl border border-slate-200/90 bg-white/80 p-8 shadow-[0_30px_80px_rgba(13,106,106,0.15)] lg:grid-cols-[1.2fr_0.8fr] lg:p-12">
         <div className="space-y-6 animate-rise">
-          <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-800">
+          <span className="inline-flex rounded-full border border-slate-200 bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-800">
             Built for Tanzania operating teams
           </span>
           <h1 className="font-display text-4xl leading-tight text-slate-900 md:text-5xl">
@@ -97,13 +97,13 @@ export default function LandingPage() {
           <div className="flex flex-wrap gap-3">
             <Link
               href="/signup"
-              className="rounded-full bg-[#0d6a6a] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#0b5a5a]"
+              className="rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
             >
               Start your control room
             </Link>
             <Link
               href="/#pricing"
-              className="rounded-full border border-amber-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-amber-300"
+              className="rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
             >
               View pricing
             </Link>
@@ -115,31 +115,31 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="space-y-4 rounded-2xl border border-amber-200/80 bg-[#fdf7ee] p-6 shadow-inner">
+        <div className="space-y-4 rounded-2xl border border-slate-200/90 bg-slate-50 p-6 shadow-inner">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Control room signals</p>
           {signalCards.map((card) => (
-            <div key={card.title} className="rounded-xl border border-amber-200/70 bg-white px-4 py-3">
+            <div key={card.title} className="rounded-xl border border-slate-200/90 bg-white px-4 py-3">
               <p className="text-sm font-semibold text-slate-900">{card.title}</p>
-              <p className="text-sm text-[#0d6a6a]">{card.value}</p>
+              <p className="text-sm text-blue-700">{card.value}</p>
               <p className="text-xs text-slate-500">{card.detail}</p>
             </div>
           ))}
-          <div className="rounded-xl border border-dashed border-amber-200/80 bg-white/80 px-4 py-3 text-xs text-slate-500">
+          <div className="rounded-xl border border-dashed border-slate-200/90 bg-white/80 px-4 py-3 text-xs text-slate-500">
             Setup guidance included. Your ops lead can follow a 3-minute checklist to get the first branch online.
           </div>
         </div>
       </section>
 
-      <section className="grid gap-4 rounded-3xl border border-amber-200/70 bg-white/70 p-6 lg:grid-cols-3">
+      <section className="grid gap-4 rounded-3xl border border-slate-200/90 bg-white/70 p-6 lg:grid-cols-3">
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ready in days</p>
           <p className="text-2xl font-semibold text-slate-900">Launch faster, reduce chaos, keep cash moving.</p>
         </div>
-        <div className="rounded-2xl border border-amber-200/70 bg-[#fff7ed] p-4 text-sm text-slate-600">
+        <div className="rounded-2xl border border-slate-200/90 bg-slate-50 p-4 text-sm text-slate-600">
           <p className="font-semibold text-slate-900">3-minute setup checklist</p>
           <p className="mt-1">Name your workspace, confirm business basics, invite key operators.</p>
         </div>
-        <div className="rounded-2xl border border-amber-200/70 bg-[#f7fbf9] p-4 text-sm text-slate-600">
+        <div className="rounded-2xl border border-slate-200/90 bg-slate-50 p-4 text-sm text-slate-600">
           <p className="font-semibold text-slate-900">Switch without disruption</p>
           <p className="mt-1">Keep branches running while you onboard in parallel.</p>
         </div>
@@ -149,7 +149,7 @@ export default function LandingPage() {
         <h2 className="font-display text-3xl text-slate-900">Outcomes your team feels quickly</h2>
         <div className="grid gap-4 md:grid-cols-3">
           {outcomeHighlights.map((item) => (
-            <article key={item.title} className="rounded-2xl border border-amber-200/70 bg-white/80 p-5 shadow-sm">
+            <article key={item.title} className="rounded-2xl border border-slate-200/90 bg-white/80 p-5 shadow-sm">
               <h3 className="text-lg font-semibold text-slate-900">{item.title}</h3>
               <p className="mt-2 text-sm text-slate-600">{item.description}</p>
             </article>
@@ -159,8 +159,8 @@ export default function LandingPage() {
 
       <section className="grid gap-4 md:grid-cols-3">
         {sectorFocus.map((item) => (
-          <article key={item.title} className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Built for</p>
+          <article key={item.title} className="rounded-2xl border border-slate-200/90 bg-slate-50 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Built for</p>
             <h3 className="mt-1 text-lg font-semibold text-slate-900">{item.title}</h3>
             <p className="mt-2 text-sm text-slate-600">{item.detail}</p>
           </article>
@@ -173,7 +173,7 @@ export default function LandingPage() {
         <h2 className="font-display text-3xl text-slate-900">A go-live flow built for operators</h2>
         <div className="grid gap-4 md:grid-cols-3">
           {goLiveSteps.map((pillar) => (
-            <article key={pillar.headline} className="rounded-2xl border border-amber-200/70 bg-white/80 p-5">
+            <article key={pillar.headline} className="rounded-2xl border border-slate-200/90 bg-white/80 p-5">
               <h3 className="text-lg font-semibold text-slate-900">{pillar.headline}</h3>
               <ul className="mt-3 space-y-2 text-sm text-slate-600">
                 {pillar.points.map((point) => (
@@ -185,19 +185,19 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="space-y-4 rounded-3xl border border-amber-200/80 bg-white/80 p-6">
+      <section className="space-y-4 rounded-3xl border border-slate-200/90 bg-white/80 p-6">
         <h2 className="font-display text-2xl text-slate-900">Local trust and practical language</h2>
         <div className="grid gap-3 md:grid-cols-3">
           {trustSignals.map((item) => (
-            <article key={item.role} className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] p-4">
-              <p className="text-sm font-semibold text-[#0d6a6a]">{item.role}</p>
+            <article key={item.role} className="rounded-2xl border border-slate-200/90 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-blue-700">{item.role}</p>
               <p className="mt-2 text-sm text-slate-600">{item.detail}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <footer className="border-t border-amber-200/70 pt-8 text-sm text-slate-500">
+      <footer className="border-t border-slate-200/90 pt-8 text-sm text-slate-500">
         <p>© {new Date().getFullYear()} Biashara Cloud. Built to help Tanzania teams move faster with less noise.</p>
       </footer>
     </div>

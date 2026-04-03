@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="relative min-h-screen">
-      <header className="border-b border-amber-100/70 bg-[#f7f2e9]/80 backdrop-blur">
+      <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <Link href="/" className="text-lg font-semibold tracking-tight text-slate-900">
             Biashara Cloud
@@ -12,13 +12,13 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-2 text-sm">
             <Link
               href="/login"
-              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-slate-700 transition hover:border-slate-300"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-slate-700 transition hover:border-slate-300"
             >
               Sign in
             </Link>
             <Link
               href="/signup"
-              className="rounded-full bg-[#0d6a6a] px-3 py-1.5 font-semibold text-white transition hover:bg-[#0b5a5a]"
+              className="rounded-lg bg-blue-600 px-3 py-1.5 font-semibold text-white transition hover:bg-blue-500"
             >
               Start now
             </Link>

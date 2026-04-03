@@ -8,7 +8,7 @@ import { Alert, Box, Button, Card, CardContent, Chip, MenuItem, Stack, TextField
 import { TenantCreateForm } from "./TenantCreateForm";
 import { TenantTable } from "./TenantTable";
 import { useNotifications } from "../../shared/components/NotificationsProvider";
-import { ErrorState, LoadingState } from "../../shell/components";
+import { ErrorState, LoadingState, PageHeader } from "../../shell/components";
 import type { Job, Tenant, TenantCreateResponse, UserProfile } from "../../shared/lib/types";
 import {
   deriveWorkspaceQueueSnapshot,
@@ -271,6 +271,10 @@ export function WorkspaceQueuePage({
       ? "All clear. No provisioning blockers right now."
       : `${needsAttentionCount} item(s) need attention in your queue.`);
   const isAdminScope = routeScope === "admin";
+  const rootCrumb = isAdminScope
+    ? { label: "Admin", href: "/admin/control/overview" }
+    : { label: "Dashboard", href: "/dashboard/overview" };
+  const headerCrumbs = [rootCrumb, { label: title }];
   const billingFollowUpHref = isAdminScope ? "/admin/billing" : "/billing";
   const billingFollowUpLabel = isAdminScope ? "Go to billing follow-ups" : "Open payment center";
   const statusOptions = isAdminScope
@@ -474,43 +478,34 @@ export function WorkspaceQueuePage({
 
   return (
     <Stack spacing={4}>
-      <Card
-        variant="outlined"
-        sx={{ borderRadius: 4, borderColor: "rgba(245,158,11,0.35)", bgcolor: "rgba(255,255,255,0.88)", boxShadow: 1 }}
-      >
+      <Card variant="outlined" sx={{ borderRadius: 3, borderColor: "divider", bgcolor: "background.paper" }}>
         <CardContent sx={{ p: 3 }}>
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2} justifyContent="space-between" alignItems={{ md: "center" }}>
-            <Box>
-              <Typography variant="overline" sx={{ fontWeight: 700, color: "warning.dark", letterSpacing: 0.8 }}>
-                {isAdminScope ? "Operations" : "Workspace"}
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                {title}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {description}
-              </Typography>
-            </Box>
-            <Stack direction="row" spacing={1} flexWrap="wrap">
-              {showCreate ? (
-                <Button component="a" href="#create-tenant" variant="contained" size="small" sx={{ borderRadius: 999 }}>
-                  New workspace
+          <PageHeader
+            overline={isAdminScope ? "Operations" : "Workspace"}
+            title={title}
+            subtitle={description}
+            breadcrumbs={headerCrumbs}
+            actions={
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                {showCreate ? (
+                  <Button component="a" href="#create-tenant" variant="contained" size="small" sx={{ borderRadius: 1.5 }}>
+                    New workspace
+                  </Button>
+                ) : null}
+                <Button
+                  variant="outlined"
+                  size="small"
+                  sx={{ borderRadius: 1.5 }}
+                  onClick={() => {
+                    void load();
+                  }}
+                  disabled={loading}
+                >
+                  {loading ? "Refreshing..." : "Refresh data"}
                 </Button>
-              ) : null}
-              <Button
-                variant="outlined"
-                color="warning"
-                size="small"
-                sx={{ borderRadius: 999 }}
-                onClick={() => {
-                  void load();
-                }}
-                disabled={loading}
-              >
-                {loading ? "Refreshing..." : "Refresh data"}
-              </Button>
-            </Stack>
-          </Stack>
+              </Stack>
+            }
+          />
         </CardContent>
       </Card>
 

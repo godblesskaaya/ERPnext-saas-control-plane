@@ -539,7 +539,7 @@ export default function OnboardingPage() {
   };
 
   return (
-    <section className="mx-auto max-w-5xl space-y-5 rounded-3xl border border-amber-200/70 bg-white/80 p-4 sm:p-6 lg:p-8">
+    <section className="mx-auto max-w-5xl space-y-5 rounded-3xl border border-slate-200/90 bg-white/80 p-4 sm:p-6 lg:p-8">
       <OnboardingPageHeader
         title="Get your team live faster"
         description="Set up once, then run daily sales, stock, and finance operations from office or mobile across Tanzania."
@@ -563,16 +563,16 @@ export default function OnboardingPage() {
       ) : null}
 
       <div className="grid gap-5 lg:grid-cols-[1.8fr_1fr]">
-        <div className="space-y-5 rounded-3xl border border-amber-200/70 bg-white/80 p-4">
+        <div className="space-y-5 rounded-3xl border border-slate-200/90 bg-white/80 p-4">
           {step === "details" ? (
             <div className="space-y-4">
-              <div className="rounded-2xl border border-amber-200 bg-[#fdf7ee] p-3 text-xs text-slate-600">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
                 Tell us who this workspace is for so your team can start with the right URL and ownership context.
               </div>
               <div>
                 <label className="mb-1 block text-sm text-slate-600">Company name</label>
                 <input
-                  className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-slate-900"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900"
                   value={companyName}
                   onChange={(event) => setCompanyName(event.target.value)}
                   placeholder="Mlimani Traders Ltd"
@@ -582,21 +582,21 @@ export default function OnboardingPage() {
               <div>
                 <label className="mb-1 block text-sm text-slate-600">Subdomain</label>
                 <input
-                  className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-slate-900"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900"
                   value={subdomain}
                   onChange={(event) => setSubdomain(event.target.value)}
                   placeholder="mlimani"
                   required
                 />
                 <p className="mt-2 text-sm text-slate-500">
-                  Preview: <span className="font-medium text-[#0d6a6a]">https://{previewDomain}</span>
+                  Preview: <span className="font-medium text-blue-700">https://{previewDomain}</span>
                 </p>
                 <p
                   className={`mt-1 text-xs ${
                     !cleanSubdomain
                       ? "text-slate-500"
                       : subdomainChecking
-                        ? "text-amber-700"
+                        ? "text-blue-700"
                         : subdomainAvailability?.available
                           ? "text-emerald-700"
                           : "text-red-600"
@@ -610,7 +610,7 @@ export default function OnboardingPage() {
                 </p>
               </div>
               <button
-                className="rounded-full bg-[#0d6a6a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0b5a5a] disabled:opacity-60"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
                 onClick={() => {
                   setError(null);
                   setStep("plan");
@@ -633,24 +633,24 @@ export default function OnboardingPage() {
                 businessAppOptions={businessAppOptions}
               />
 
-              <div className="rounded-2xl border border-amber-200 bg-[#fdf7ee] p-3 text-xs text-slate-600">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
                 Selected plan: <span className="text-slate-900">{plan}</span>
                 {plan.toLowerCase() === "business" ? (
                   <>
-                    {" · "}Business focus: <span className="text-[#0d6a6a]">{selectedBusinessApp?.label ?? chosenApp}</span>
+                    {" · "}Business focus: <span className="text-blue-700">{selectedBusinessApp?.label ?? chosenApp}</span>
                   </>
                 ) : null}
               </div>
 
               <div className="flex flex-wrap gap-3">
                 <button
-                  className="rounded-full border border-amber-200 px-4 py-2 text-sm text-slate-700 hover:border-amber-300"
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:border-slate-300"
                   onClick={() => setStep("details")}
                 >
                   Back
                 </button>
                 <button
-                  className="rounded-full bg-[#0d6a6a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0b5a5a] disabled:opacity-60"
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
                   onClick={() => {
                     void submitTenant();
                   }}
@@ -663,25 +663,25 @@ export default function OnboardingPage() {
           ) : null}
 
           {step === "payment" ? (
-            <div className="space-y-4 rounded-2xl border border-amber-200 bg-white/80 p-5">
+            <div className="space-y-4 rounded-2xl border border-slate-200 bg-white/80 p-5">
               <h2 className="text-xl font-semibold text-slate-900">Complete payment to unlock provisioning</h2>
               <p className="text-sm text-slate-600">
-                Checkout is ready for <span className="text-[#0d6a6a]">{tenant?.company_name}</span> on the{" "}
-                <span className="text-[#0d6a6a]">{plan}</span> plan.
+                Checkout is ready for <span className="text-blue-700">{tenant?.company_name}</span> on the{" "}
+                <span className="text-blue-700">{plan}</span> plan.
               </p>
               {plan.toLowerCase() === "business" ? (
                 <p className="text-xs text-emerald-700">Primary app: {selectedBusinessApp?.label ?? chosenApp}</p>
               ) : null}
               <div className="flex flex-wrap gap-3">
                 <button
-                  className="rounded-full bg-[#0d6a6a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0b5a5a]"
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
                   onClick={launchCheckout}
                   disabled={!checkoutUrl}
                 >
                   Open checkout
                 </button>
                 <button
-                  className="rounded-full border border-amber-200 px-4 py-2 text-sm text-slate-700 hover:border-amber-300 disabled:opacity-60"
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:border-slate-300 disabled:opacity-60"
                   onClick={() => {
                     void renewCheckout();
                   }}
@@ -690,14 +690,14 @@ export default function OnboardingPage() {
                   {renewBusy ? "Generating link..." : "Generate new checkout link"}
                 </button>
                 <button
-                  className="rounded-full border border-amber-200 px-4 py-2 text-sm text-slate-700 hover:border-amber-300"
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:border-slate-300"
                   onClick={() => setStep("waiting")}
                 >
                   I already completed payment
                 </button>
               </div>
               {!checkoutUrl ? (
-                <p className="text-xs text-amber-700">Checkout link has expired or is missing. Generate a new link.</p>
+                <p className="text-xs text-blue-700">Checkout link has expired or is missing. Generate a new link.</p>
               ) : null}
               {renewNotice ? <p className="text-xs text-emerald-700">{renewNotice}</p> : null}
               {renewError ? <p className="text-xs text-red-700">{renewError}</p> : null}
@@ -705,13 +705,13 @@ export default function OnboardingPage() {
           ) : null}
 
           {step === "waiting" ? (
-            <div className="space-y-4 rounded-2xl border border-amber-200 bg-white/80 p-5">
+            <div className="space-y-4 rounded-2xl border border-slate-200 bg-white/80 p-5">
               <h2 className="text-xl font-semibold text-slate-900">Workspace setup is in progress</h2>
               <p className="text-sm text-slate-600">
                 {provisioningProgressState}. Status refresh runs automatically every few seconds.
               </p>
-              <div className="h-2 overflow-hidden rounded-full bg-amber-100">
-                <div className="h-full rounded-full bg-[#0d6a6a] transition-all" style={{ width: `${progress}%` }} />
+              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-lg bg-blue-600 transition-all" style={{ width: `${progress}%` }} />
               </div>
               <p className="text-xs text-slate-500">Current status: {statusLabel(tenant?.status ?? null)}</p>
               {provisioningJobId ? (
@@ -727,14 +727,14 @@ export default function OnboardingPage() {
               {(tenant?.status ?? "").toLowerCase() === "failed" ? (
                 <div className="flex flex-wrap gap-2">
                   <button
-                    className="rounded-full bg-[#0d6a6a] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
                     onClick={() => void retryProvisioning()}
                     disabled={retryBusy}
                   >
                     {retryBusy ? "Retrying..." : "Retry provisioning"}
                   </button>
                   <button
-                    className="rounded-full border border-amber-200 px-3 py-1.5 text-xs text-slate-700 hover:border-amber-300"
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 hover:border-slate-300"
                     onClick={() => router.push("/dashboard/settings")}
                   >
                     Open workspace settings
@@ -744,7 +744,7 @@ export default function OnboardingPage() {
               ) : null}
               {checkoutUrl ? (
                 <button
-                  className="rounded-full border border-amber-200 px-3 py-1.5 text-xs text-slate-700 hover:border-amber-300"
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 hover:border-slate-300"
                   onClick={launchCheckout}
                 >
                   Re-open checkout
@@ -757,13 +757,13 @@ export default function OnboardingPage() {
             <div className="space-y-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
               <h2 className="text-xl font-semibold text-emerald-900">Workspace ready 🎉</h2>
               <p className="text-sm text-emerald-800">Share this URL with your team and start your first daily operations cycle.</p>
-              <div className="rounded-xl border border-emerald-200 bg-white p-3 text-sm text-[#0d6a6a]">{erpUrl}</div>
+              <div className="rounded-xl border border-emerald-200 bg-white p-3 text-sm text-blue-700">{erpUrl}</div>
               {readinessStatus ? (
                 <p
                   className={`rounded-2xl border p-3 text-xs ${
                     readinessStatus.ready
                       ? "border-emerald-200 bg-white text-emerald-800"
-                      : "border-amber-200 bg-amber-50 text-amber-900"
+                      : "border-slate-200 bg-blue-50 text-blue-900"
                   }`}
                 >
                   {readinessStatus.message}
@@ -775,7 +775,7 @@ export default function OnboardingPage() {
               ) : null}
               <div className="flex flex-wrap gap-3">
                 <button
-                  className="rounded-full border border-emerald-300 px-4 py-2 text-sm text-emerald-800 hover:border-emerald-400"
+                  className="rounded-lg border border-emerald-300 px-4 py-2 text-sm text-emerald-800 hover:border-emerald-400"
                   onClick={() => {
                     void copyUrl();
                   }}
@@ -791,7 +791,7 @@ export default function OnboardingPage() {
                   Open workspace
                 </a>
                 <button
-                  className="rounded-full border border-amber-200 px-4 py-2 text-sm text-slate-700 hover:border-amber-300"
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:border-slate-300"
                   onClick={() => router.push("/dashboard/overview")}
                 >
                   Go to operations dashboard
@@ -801,7 +801,7 @@ export default function OnboardingPage() {
           ) : null}
         </div>
 
-        <aside className="space-y-3 rounded-3xl border border-amber-200/70 bg-white/80 p-4 text-sm">
+        <aside className="space-y-3 rounded-3xl border border-slate-200/90 bg-white/80 p-4 text-sm">
           <h2 className="font-semibold text-slate-900">Setup snapshot</h2>
           <div className="space-y-2 text-xs text-slate-600">
             <p>
@@ -823,13 +823,13 @@ export default function OnboardingPage() {
               <span className="text-slate-500">Progress:</span> {provisioningProgressState}
             </p>
           </div>
-          <div className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] p-3 text-xs text-slate-600">
+          <div className="rounded-2xl border border-slate-200/90 bg-slate-50 p-3 text-xs text-slate-600">
             <p className="font-medium text-slate-900">Mobile-first tip</p>
             <p className="mt-1">
               Keep this URL accessible in your operations WhatsApp group so branch staff can quickly access the live environment.
             </p>
           </div>
-          <div className="rounded-2xl border border-amber-200/70 bg-white p-3 text-xs text-slate-600">
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-3 text-xs text-slate-600">
             <p className="font-medium text-slate-900">Compatibility note</p>
             <p className="mt-1">If chosen_app is unsupported on the backend version, submission retries in compatibility mode.</p>
           </div>

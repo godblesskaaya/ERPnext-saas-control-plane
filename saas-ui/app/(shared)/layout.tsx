@@ -45,8 +45,8 @@ export default async function SharedLayout({ children }: { children: ReactNode }
 
   return (
     <>
-      <header className="sticky top-0 z-20 border-b border-amber-100/70 bg-[#f7f2e9]/80 backdrop-blur">
-        <div className="border-b border-amber-100/70 bg-white/70 px-6 py-1.5 text-center text-[11px] text-slate-600">
+      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/90 backdrop-blur">
+        <div className="border-b border-slate-200/80 bg-white/70 px-6 py-1.5 text-center text-[11px] text-slate-600">
           TZS-first billing guidance • Mobile money friendly checkout • Support hours aligned to EAT
         </div>
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
@@ -54,7 +54,7 @@ export default async function SharedLayout({ children }: { children: ReactNode }
             <Link href="/" className="text-lg font-semibold tracking-tight text-slate-900">
               Biashara Cloud
             </Link>
-            <span className="hidden rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-medium text-amber-800 md:inline-flex">
+            <span className="hidden rounded-full border border-slate-200 bg-blue-50 px-3 py-1 text-[11px] font-medium text-blue-800 md:inline-flex">
               Tanzania operations control room
             </span>
             <nav className="hidden items-center gap-1 md:flex">
@@ -88,7 +88,7 @@ export default async function SharedLayout({ children }: { children: ReactNode }
                   </Link>
                 ) : null}
                 <NotificationBell />
-                <span className="hidden rounded-full border border-amber-200 bg-white/80 px-3 py-1 text-xs text-slate-600 md:inline-flex">
+                <span className="hidden rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs text-slate-600 md:inline-flex">
                   {userLabel ? `${userLabel}${role ? ` (${role})` : ""}` : "Signed in"}
                 </span>
                 <Link
@@ -105,7 +105,7 @@ export default async function SharedLayout({ children }: { children: ReactNode }
                 </Link>
                 <Link
                   href="/signup"
-                  className="rounded-full bg-[#0d6a6a] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#0b5a5a]"
+                  className="rounded-full bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
                 >
                   Start now
                 </Link>

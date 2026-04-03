@@ -34,7 +34,7 @@ test("queue shell uses LoadingState/ErrorState wrappers for route-level loading 
   const queueShellSource = readSource(queueShellPath);
 
   assert.equal(
-    queueShellSource.includes('import { ErrorState, LoadingState } from "../../shell/components";'),
+    /import\s+\{\s*ErrorState,\s*LoadingState(?:,\s*PageHeader)?\s*\}\s+from\s+"..\/..\/shell\/components";/.test(queueShellSource),
     true,
     "Queue shell should import LoadingState and ErrorState primitives.",
   );

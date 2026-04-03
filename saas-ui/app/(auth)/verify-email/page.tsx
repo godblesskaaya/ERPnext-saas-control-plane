@@ -76,14 +76,14 @@ export default function VerifyEmailPage() {
   };
 
   return (
-    <section className="mx-auto max-w-xl space-y-6 rounded-3xl border border-amber-200/70 bg-white/80 p-8">
+    <section className="mx-auto max-w-xl space-y-6 rounded-3xl border border-slate-200/90 bg-white/80 p-8">
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">Verify your email / Thibitisha barua pepe</h1>
         <p className="text-sm text-slate-600">Confirm your account email to unlock tenant creation and onboarding.</p>
       </div>
 
-      <div className="rounded-2xl border border-amber-200/70 bg-white/80 p-4 text-sm text-slate-700">
-        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Diagnostics</p>
+      <div className="rounded-2xl border border-slate-200/90 bg-white/80 p-4 text-sm text-slate-700">
+        <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Diagnostics</p>
         <div className="mt-2 grid gap-2 text-xs md:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
             API: <span className="font-semibold">{apiHealth}</span>
@@ -100,14 +100,14 @@ export default function VerifyEmailPage() {
       {!initialToken ? (
         <form className="space-y-4" onSubmit={submit}>
           <input
-            className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400"
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400"
             value={token}
             onChange={(event) => setToken(event.target.value)}
             placeholder="Verification token"
             required
           />
           <button
-            className="w-full rounded-full bg-[#0d6a6a] px-4 py-2 font-semibold text-white transition hover:bg-[#0b5a5a] disabled:opacity-60"
+            className="w-full rounded-full bg-blue-600 px-4 py-2 font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
             disabled={busy}
           >
             {busy ? "Verifying..." : "Verify email"}
@@ -123,7 +123,7 @@ export default function VerifyEmailPage() {
       {error ? <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
 
       <div className="text-sm text-slate-600">
-        <Link href="/login?verified=1" className="text-[#0d6a6a] hover:text-[#0b5a5a]">
+        <Link href="/login?verified=1" className="text-blue-700 hover:text-blue-600">
           Continue to sign in
         </Link>
       </div>

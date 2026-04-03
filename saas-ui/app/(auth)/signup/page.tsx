@@ -65,7 +65,7 @@ export default function SignupPage() {
         <p className="text-sm text-slate-600">Create your account, verify your email, then continue onboarding.</p>
       </div>
 
-      <div className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] p-4 text-sm text-slate-600">
+      <div className="rounded-2xl border border-slate-200/90 bg-slate-50 p-4 text-sm text-slate-600">
         <p className="font-medium text-slate-900">Before you continue</p>
         <ul className="mt-2 space-y-1">
           <li>• Pricing can be communicated with Tanzania-focused context, including TZS estimate wording.</li>
@@ -74,8 +74,8 @@ export default function SignupPage() {
         </ul>
       </div>
 
-      <div className="rounded-2xl border border-amber-200/70 bg-white/80 p-4 text-sm text-slate-700">
-        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Diagnostics</p>
+      <div className="rounded-2xl border border-slate-200/90 bg-white/80 p-4 text-sm text-slate-700">
+        <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Diagnostics</p>
         <div className="mt-2 grid gap-2 text-xs md:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
             API: <Badge className="ml-1">{apiHealth}</Badge>
@@ -126,7 +126,7 @@ export default function SignupPage() {
 
       <p className="text-sm text-slate-600">
         Already have an account?{" "}
-        <Link href="/login" className="text-[#0d6a6a] hover:text-[#0b5a5a]">
+        <Link href="/login" className="text-blue-700 hover:text-blue-600">
           Sign in now
         </Link>
       </p>

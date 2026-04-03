@@ -9,6 +9,7 @@ import { refreshAuthSession } from "../../auth/application/authUseCases";
 import { clearToken, getToken, saveToken } from "../../auth/auth";
 import { AppFrame } from "../../shell/components/AppFrame";
 import { DashboardNav } from "./DashboardNav";
+import { WorkspaceLocalNav } from "./WorkspaceLocalNav";
 
 function hasValidToken(token: string | null): boolean {
   if (!token) {
@@ -72,7 +73,10 @@ export function UserShell({ children }: { children: ReactNode }) {
 
   return (
     <AppFrame sidebar={<DashboardNav />}>
-      <Box sx={{ display: "grid", gap: 3 }}>{children}</Box>
+      <Box sx={{ display: "grid", gap: 3 }}>
+        <WorkspaceLocalNav />
+        {children}
+      </Box>
     </AppFrame>
   );
 }

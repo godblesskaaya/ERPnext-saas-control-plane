@@ -86,14 +86,14 @@ export default function DashboardSupportPage() {
         tone: "warn",
       }}
       extraContent={
-        <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-5">
+        <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Support notes</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Support notes</p>
               <p className="text-lg font-semibold text-slate-900">SLA tracking across tenants</p>
             </div>
             <button
-              className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-amber-300 disabled:opacity-60"
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
               onClick={() => void loadNotes()}
               disabled={notesLoading}
             >
@@ -110,7 +110,7 @@ export default function DashboardSupportPage() {
                 className={`rounded-full border px-3 py-1 ${
                   noteFilter === option
                     ? "border-[#0d6a6a] bg-[#0d6a6a] text-white"
-                    : "border-amber-200 bg-white text-slate-600 hover:border-amber-300"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                 }`}
                 onClick={() => setNoteFilter(option)}
               >
@@ -124,7 +124,7 @@ export default function DashboardSupportPage() {
               filteredNotes.map((note) => {
                 const tenant = tenants[note.tenant_id];
                 return (
-                  <div key={note.id} className="rounded-2xl border border-amber-200/70 bg-white p-4">
+                  <div key={note.id} className="rounded-2xl border border-slate-200/70 bg-white p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <p className="text-xs uppercase tracking-wide text-slate-500">
@@ -136,7 +136,7 @@ export default function DashboardSupportPage() {
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-2 text-xs">
-                        <span className="rounded-full border border-amber-200 px-3 py-1 text-amber-800">
+                        <span className="rounded-full border border-slate-200 px-3 py-1 text-slate-800">
                           {note.status ?? "open"}
                         </span>
                         <span className="rounded-full border border-slate-200 px-3 py-1 text-slate-600">
@@ -148,7 +148,7 @@ export default function DashboardSupportPage() {
                 );
               })
             ) : (
-              <div className="rounded-2xl border border-amber-200/70 bg-white p-4 text-sm text-slate-600">
+              <div className="rounded-2xl border border-slate-200/70 bg-white p-4 text-sm text-slate-600">
                 No support notes match this filter yet.
               </div>
             )}

@@ -52,10 +52,10 @@ export function AdminSupportView({
       </div>
       {impersonationError ? <p className="mt-2 text-sm text-red-400">{impersonationError}</p> : null}
       {impersonationLink ? (
-        <div className="mt-3 rounded border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100">
+        <div className="mt-3 rounded border border-slate-500/40 bg-slate-500/10 p-3 text-xs text-sky-100">
           <p className="font-semibold">Impersonation link ready</p>
           <p className="mt-1 break-all">{impersonationLink}</p>
-          {impersonationToken ? <p className="mt-1 break-all text-amber-200">Token: {impersonationToken}</p> : null}
+          {impersonationToken ? <p className="mt-1 break-all text-sky-100">Token: {impersonationToken}</p> : null}
         </div>
       ) : null}
     </div>

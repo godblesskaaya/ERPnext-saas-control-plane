@@ -28,7 +28,7 @@ function formatDate(value?: string | null): string {
 
 function metricCard(label: string, value: string | number, hint: string, tone: "default" | "warn" = "default") {
   const toneClass =
-    tone === "warn" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-slate-200 bg-white text-slate-900";
+    tone === "warn" ? "border-slate-200 bg-slate-50 text-slate-900" : "border-slate-200 bg-white text-slate-900";
 
   return (
     <article className={`rounded-2xl border p-4 ${toneClass}`}>
@@ -103,8 +103,8 @@ export default function DashboardAuditPage() {
 
   return (
     <section className="space-y-8">
-      <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Audit & policy</p>
+      <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Audit & policy</p>
         <h1 className="mt-2 text-3xl font-semibold text-slate-900">Audit, compliance, and policy checks</h1>
         <p className="mt-2 text-sm text-slate-600">
           Review operator actions, billing interventions, and system policy events for enterprise readiness.
@@ -124,13 +124,13 @@ export default function DashboardAuditPage() {
           {metricCard("Suspended tenants", metrics.suspended_tenants, "Policy + billing suspensions")}
         </div>
       ) : metricsSupported ? null : (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-900">
           Metrics are not enabled on this backend yet.
         </div>
       )}
 
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+        <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-sm font-semibold text-slate-900">Audit trail</p>
@@ -138,14 +138,14 @@ export default function DashboardAuditPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
-                className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-amber-300 disabled:opacity-60"
+                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
                 onClick={() => void load(audit.page)}
                 disabled={loading}
               >
                 {loading ? "Refreshing..." : "Refresh"}
               </button>
               <button
-                className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:border-amber-300 disabled:opacity-60"
+                className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 hover:border-slate-300 disabled:opacity-60"
                 onClick={() => {
                   void exportAudit();
                 }}
@@ -162,7 +162,7 @@ export default function DashboardAuditPage() {
           <div className="mt-4 space-y-3 text-sm text-slate-700">
             {latestEntries.length ? (
               latestEntries.map((entry) => (
-                <div key={entry.id} className="rounded-2xl border border-amber-200/70 bg-white p-4">
+                <div key={entry.id} className="rounded-2xl border border-slate-200/70 bg-white p-4">
                   <p className="text-xs uppercase tracking-wide text-slate-500">{formatDate(entry.created_at)}</p>
                   <p className="mt-1 text-sm font-semibold text-slate-900">{entry.action}</p>
                   <p className="mt-1 text-xs text-slate-600">
@@ -174,7 +174,7 @@ export default function DashboardAuditPage() {
                 </div>
               ))
             ) : (
-              <div className="rounded-2xl border border-amber-200/70 bg-white p-4 text-sm text-slate-600">
+              <div className="rounded-2xl border border-slate-200/70 bg-white p-4 text-sm text-slate-600">
                 Audit log entries will appear once policy actions start flowing.
               </div>
             )}
@@ -184,7 +184,7 @@ export default function DashboardAuditPage() {
             <span>Total entries: {audit.total}</span>
             <div className="flex items-center gap-2">
               <button
-                className="rounded-full border border-amber-200 bg-white px-3 py-1"
+                className="rounded-full border border-slate-200 bg-white px-3 py-1"
                 disabled={audit.page <= 1 || loading}
                 onClick={() => void load(audit.page - 1)}
               >
@@ -192,7 +192,7 @@ export default function DashboardAuditPage() {
               </button>
               <span>{pageLabel}</span>
               <button
-                className="rounded-full border border-amber-200 bg-white px-3 py-1"
+                className="rounded-full border border-slate-200 bg-white px-3 py-1"
                 disabled={audit.page >= totalPages || loading}
                 onClick={() => void load(audit.page + 1)}
               >
@@ -202,22 +202,22 @@ export default function DashboardAuditPage() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+        <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">
           <p className="text-sm font-semibold text-slate-900">Policy checklist</p>
           <p className="mt-2 text-sm text-slate-600">
             Track compliance guardrails for enterprise readiness across Tanzania deployments.
           </p>
           <ul className="mt-4 space-y-3 text-sm text-slate-700">
-            <li className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] p-3">
+            <li className="rounded-2xl border border-slate-200/70 bg-slate-50 p-3">
               ✅ HSTS enforced on tenant domains.
             </li>
-            <li className="rounded-2xl border border-amber-200/70 bg-white p-3">
+            <li className="rounded-2xl border border-slate-200/70 bg-white p-3">
               ✅ Audit log append-only events for admin actions.
             </li>
-            <li className="rounded-2xl border border-amber-200/70 bg-white p-3">
+            <li className="rounded-2xl border border-slate-200/70 bg-white p-3">
               ⏳ Verify backup retention and restore drills for regulated clients.
             </li>
-            <li className="rounded-2xl border border-amber-200/70 bg-white p-3">
+            <li className="rounded-2xl border border-slate-200/70 bg-white p-3">
               ⏳ Confirm support SLAs and escalation paths for enterprise accounts.
             </li>
           </ul>

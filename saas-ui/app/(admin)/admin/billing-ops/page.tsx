@@ -13,7 +13,7 @@ import type { DunningItem } from "../../../../domains/shared/lib/types";
 function statusTone(status: string): string {
   const normalized = status.toLowerCase();
   if (normalized.includes("suspended")) return "bg-red-100 text-red-700";
-  if (normalized.includes("pending")) return "bg-amber-100 text-amber-800";
+  if (normalized.includes("pending")) return "bg-slate-100 text-slate-800";
   return "bg-slate-100 text-slate-600";
 }
 
@@ -90,16 +90,16 @@ export default function BillingOpsPage() {
 
   return (
     <section className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-amber-200/70 bg-white/80 p-6 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm">
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Billing operations</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Billing operations</p>
           <h1 className="text-3xl font-semibold text-slate-900">Dunning queue</h1>
           <p className="text-sm text-slate-600">
             Track overdue subscriptions, pending payment confirmations, and billing suspensions.
           </p>
         </div>
         <button
-          className="rounded-full border border-amber-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-amber-300 disabled:opacity-60"
+          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
           onClick={() => void load()}
           disabled={loading}
         >
@@ -126,7 +126,7 @@ export default function BillingOpsPage() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <article className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+        <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-900">
           <p className="text-xs uppercase tracking-wide opacity-80">Pending payment</p>
           <p className="mt-1 text-2xl font-semibold">{pendingCount}</p>
           <p className="mt-1 text-xs opacity-80">Waiting for checkout confirmation</p>
@@ -143,7 +143,7 @@ export default function BillingOpsPage() {
         </article>
       </div>
 
-      <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+      <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-sm font-semibold text-slate-900">Billing follow-up list</p>
@@ -200,7 +200,7 @@ export default function BillingOpsPage() {
                     <td className="p-2 text-xs">
                       <Link
                         href={`/tenants/${tenant.tenant_id}#support`}
-                        className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-amber-200 hover:bg-amber-50"
+                        className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-200 hover:bg-slate-50"
                       >
                         Add note
                       </Link>

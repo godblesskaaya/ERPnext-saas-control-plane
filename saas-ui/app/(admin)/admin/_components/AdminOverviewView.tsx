@@ -22,7 +22,7 @@ function metricCard(label: string, value: number, hint: string, tone: "default" 
     tone === "good"
       ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
       : tone === "warn"
-      ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
+      ? "border-slate-500/30 bg-slate-500/10 text-sky-100"
       : "border-slate-700 bg-slate-900/70 text-slate-100";
 
   return (
@@ -54,7 +54,7 @@ export function AdminOverviewView({
           <p className="text-sm font-medium text-white">Attention lane</p>
           <span
             className={`rounded-full px-2 py-0.5 text-xs ${
-              failedCount || suspendedCount || deadLettersCount ? "bg-amber-500/20 text-amber-200" : "bg-emerald-500/20 text-emerald-200"
+              failedCount || suspendedCount || deadLettersCount ? "bg-sky-500/20 text-sky-100" : "bg-emerald-500/20 text-emerald-200"
             }`}
           >
             {failedCount || suspendedCount || deadLettersCount ? "Intervention recommended" : "Platform healthy"}
@@ -65,13 +65,13 @@ export function AdminOverviewView({
             Active tenants: <span className="font-semibold text-emerald-200">{activeCount}</span>
           </p>
           <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
-            Setup queue: <span className="font-semibold text-amber-200">{provisioningCount}</span>
+            Setup queue: <span className="font-semibold text-sky-100">{provisioningCount}</span>
           </p>
           <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
             Failed: <span className="font-semibold text-red-200">{failedCount}</span>
           </p>
           <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
-            Dead letters: <span className="font-semibold text-orange-200">{deadLettersCount}</span>
+            Dead letters: <span className="font-semibold text-rose-200">{deadLettersCount}</span>
           </p>
         </div>
       </div>

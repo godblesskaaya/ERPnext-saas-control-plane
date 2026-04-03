@@ -21,8 +21,8 @@ function formatDate(value?: string | null): string {
 function statusTone(status: string): string {
   const normalized = status.toLowerCase();
   if (normalized === "failed") return "bg-red-100 text-red-700";
-  if (normalized === "running") return "bg-amber-100 text-amber-800";
-  if (normalized === "queued") return "bg-amber-100 text-amber-800";
+  if (normalized === "running") return "bg-slate-100 text-slate-800";
+  if (normalized === "queued") return "bg-slate-100 text-slate-800";
   if (normalized === "succeeded") return "bg-emerald-100 text-emerald-800";
   return "bg-slate-100 text-slate-600";
 }
@@ -87,14 +87,14 @@ export default function DashboardProvisioningPage() {
       emptyStateActionHref="/admin/control/tenants"
       extraContent={
         <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-          <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-5">
+          <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Provisioning jobs</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Provisioning jobs</p>
                 <p className="text-sm text-slate-600">Queue view for provisioning/upgrade/restore tasks.</p>
               </div>
               <button
-                className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-amber-300 disabled:opacity-60"
+                className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
                 onClick={() => void loadJobs()}
                 disabled={loadingJobs}
               >
@@ -103,11 +103,11 @@ export default function DashboardProvisioningPage() {
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-900">
                 <p className="text-xs uppercase tracking-wide">Queued</p>
                 <p className="mt-1 text-2xl font-semibold">{queuedCount}</p>
               </div>
-              <div className="rounded-2xl border border-amber-200 bg-white p-3 text-xs text-amber-900">
+              <div className="rounded-2xl border border-slate-200 bg-white p-3 text-xs text-slate-900">
                 <p className="text-xs uppercase tracking-wide">Running</p>
                 <p className="mt-1 text-2xl font-semibold">{runningCount}</p>
               </div>
@@ -163,7 +163,7 @@ export default function DashboardProvisioningPage() {
                           </td>
                           <td className="p-2 text-xs">
                             <button
-                              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-amber-200 hover:bg-amber-50"
+                              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-200 hover:bg-slate-50"
                               onClick={() => setSelectedJobId(job.id)}
                             >
                               View logs
@@ -178,8 +178,8 @@ export default function DashboardProvisioningPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Job detail</p>
+          <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Job detail</p>
             {selectedJobId ? (
               <div className="mt-3 space-y-3">
                 <p className="text-sm text-slate-600">Streaming logs for job {selectedJobId}.</p>

@@ -141,7 +141,7 @@ export function AdminTenantsView({
                       <button
                         type="button"
                         disabled={busyTenantId === tenant.id}
-                        className="rounded bg-amber-700 px-2 py-1 text-xs hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
                         onClick={() =>
                           onOpenTenantAction({
                             type: "suspend",

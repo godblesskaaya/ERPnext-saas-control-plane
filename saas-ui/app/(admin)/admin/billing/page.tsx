@@ -52,8 +52,8 @@ export default function DashboardBillingPage() {
       }}
       extraContent={
         <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-          <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-4 text-sm text-slate-700">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Payment channel</p>
+          <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-4 text-sm text-slate-700">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Payment channel</p>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
               {channelFilters.map((channel) => (
                 <button
@@ -61,7 +61,7 @@ export default function DashboardBillingPage() {
                   className={`rounded-full border px-3 py-1 ${
                     channelFilter === channel
                       ? "border-[#0d6a6a] bg-[#0d6a6a] text-white"
-                      : "border-amber-200 bg-white text-slate-600 hover:border-amber-300"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                   }`}
                   onClick={() => setChannelFilter(channel)}
                 >
@@ -92,22 +92,22 @@ export default function DashboardBillingPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-4 text-sm text-slate-700">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Dunning checklist</p>
+          <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-4 text-sm text-slate-700">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Dunning checklist</p>
             <p className="mt-2 text-xs text-slate-600">
               Standardize follow-ups to reduce churn and keep provisioning moving.
             </p>
             <ul className="mt-3 space-y-2 text-xs text-slate-600">
-              <li className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] px-3 py-2">
+              <li className="rounded-2xl border border-slate-200/70 bg-slate-50 px-3 py-2">
                 ✅ Confirm payment channel and retry status with customer.
               </li>
-              <li className="rounded-2xl border border-amber-200/70 bg-white px-3 py-2">
+              <li className="rounded-2xl border border-slate-200/70 bg-white px-3 py-2">
                 ✅ Re-send invoice or payment link (email + WhatsApp).
               </li>
-              <li className="rounded-2xl border border-amber-200/70 bg-white px-3 py-2">
+              <li className="rounded-2xl border border-slate-200/70 bg-white px-3 py-2">
                 ⏳ Apply grace period before suspending production access.
               </li>
-              <li className="rounded-2xl border border-amber-200/70 bg-white px-3 py-2">
+              <li className="rounded-2xl border border-slate-200/70 bg-white px-3 py-2">
                 ⏳ Capture notes in support log when actioned.
               </li>
             </ul>

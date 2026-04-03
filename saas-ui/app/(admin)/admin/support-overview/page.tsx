@@ -9,7 +9,7 @@ import type { MetricsSummary } from "../../../../domains/shared/lib/types";
 
 function metricCard(label: string, value: number | string, hint: string, tone: "default" | "warn" = "default") {
   const toneClass =
-    tone === "warn" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-slate-200 bg-white text-slate-900";
+    tone === "warn" ? "border-slate-200 bg-slate-50 text-slate-900" : "border-slate-200 bg-white text-slate-900";
 
   return (
     <article className={`rounded-2xl border p-4 ${toneClass}`}>
@@ -50,16 +50,16 @@ export default function SupportOverviewPage() {
 
   return (
     <section className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-amber-200/70 bg-white/80 p-6 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm">
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Support overview</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Support overview</p>
           <h1 className="text-3xl font-semibold text-slate-900">Support readiness dashboard</h1>
           <p className="text-sm text-slate-600">
             Track support load, escalations, and SLA risks across Tanzania customer operations.
           </p>
         </div>
         <button
-          className="rounded-full border border-amber-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-amber-300 disabled:opacity-60"
+          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
           onClick={() => void load()}
           disabled={loading}
         >
@@ -87,41 +87,41 @@ export default function SupportOverviewPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+        <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">
           <p className="text-sm font-semibold text-slate-900">Support queues</p>
           <p className="mt-2 text-sm text-slate-600">
             Jump directly into the queue that needs attention. Prioritize failed provisioning first, then suspensions and
             billing follow-ups.
           </p>
           <div className="mt-4 grid gap-2 text-sm">
-            <Link href="/admin/incidents" className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
+            <Link href="/admin/incidents" className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
               Failed provisioning (Incidents)
             </Link>
-            <Link href="/admin/suspensions" className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
+            <Link href="/admin/suspensions" className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
               Account suspensions
             </Link>
-            <Link href="/admin/billing" className="rounded-2xl border border-amber-200 bg-white px-4 py-3">
+            <Link href="/admin/billing" className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
               Billing follow-ups
             </Link>
-            <Link href="/admin/support" className="rounded-2xl border border-amber-200 bg-[#fff7ed] px-4 py-3">
+            <Link href="/admin/support" className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               Support queue (all escalations)
             </Link>
           </div>
         </div>
 
-        <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+        <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">
           <p className="text-sm font-semibold text-slate-900">SLA guidance</p>
           <ul className="mt-3 space-y-3 text-sm text-slate-700">
-            <li className="rounded-2xl border border-amber-200/70 bg-[#fdf7ee] p-3">
+            <li className="rounded-2xl border border-slate-200/70 bg-slate-50 p-3">
               ✅ Always assign a primary owner for each escalation.
             </li>
-            <li className="rounded-2xl border border-amber-200/70 bg-white p-3">
+            <li className="rounded-2xl border border-slate-200/70 bg-white p-3">
               ✅ Confirm contact path (phone, WhatsApp, or email) for the tenant.
             </li>
-            <li className="rounded-2xl border border-amber-200/70 bg-white p-3">
+            <li className="rounded-2xl border border-slate-200/70 bg-white p-3">
               ⏳ Track promised resolution time and handoff notes.
             </li>
-            <li className="rounded-2xl border border-amber-200/70 bg-white p-3">
+            <li className="rounded-2xl border border-slate-200/70 bg-white p-3">
               ⏳ Escalate to engineering for provisioning failures &gt; 2 hours.
             </li>
           </ul>

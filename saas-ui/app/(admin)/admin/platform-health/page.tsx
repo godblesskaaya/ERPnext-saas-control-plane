@@ -87,14 +87,14 @@ export default function PlatformHealthPage() {
 
   return (
     <section className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-amber-200/70 bg-white/80 p-6 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm">
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Platform health</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Platform health</p>
           <h1 className="text-3xl font-semibold text-slate-900">Infrastructure readiness</h1>
           <p className="text-sm text-slate-600">Operational status for core services, queues, and tenant load.</p>
         </div>
         <button
-          className="rounded-full border border-amber-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-amber-300 disabled:opacity-60"
+          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
           onClick={() => void load()}
           disabled={loading}
         >
@@ -120,7 +120,7 @@ export default function PlatformHealthPage() {
           <p className="mt-1 text-2xl font-semibold text-slate-900">{billingHealth}</p>
           <p className="mt-1 text-xs text-slate-500">/api/billing/health</p>
         </article>
-        <article className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+        <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-900">
           <p className="text-xs uppercase tracking-wide opacity-80">Suspended tenants</p>
           <p className="mt-1 text-2xl font-semibold">{suspendedTenants}</p>
           <p className="mt-1 text-xs opacity-80">Billing/Admin suspensions</p>
@@ -128,15 +128,15 @@ export default function PlatformHealthPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-        <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+        <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">
           <h2 className="text-lg font-semibold text-slate-900">Queue health</h2>
           <p className="mt-1 text-sm text-slate-600">Job backlog and failure signal across the platform.</p>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <article className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+            <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-900">
               <p className="text-xs uppercase tracking-wide opacity-80">Queued jobs</p>
               <p className="mt-1 text-2xl font-semibold">{queuedJobs.length}</p>
             </article>
-            <article className="rounded-2xl border border-amber-200 bg-white p-4 text-amber-900">
+            <article className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900">
               <p className="text-xs uppercase tracking-wide opacity-80">Running jobs</p>
               <p className="mt-1 text-2xl font-semibold">{runningJobs.length}</p>
             </article>
@@ -164,7 +164,7 @@ export default function PlatformHealthPage() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+          <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">
             <h2 className="text-lg font-semibold text-slate-900">Core service checks</h2>
             <p className="mt-1 text-sm text-slate-600">Postgres and Redis health from the API node.</p>
             <div className="mt-4 space-y-2 text-sm text-slate-700">
@@ -183,28 +183,28 @@ export default function PlatformHealthPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+          <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">
             <h2 className="text-lg font-semibold text-slate-900">Maintenance actions</h2>
             <p className="mt-1 text-sm text-slate-600">
               Run platform fixes for tenant TLS certificates and ERP assets when customers report 404s.
             </p>
             <div className="mt-4 space-y-2">
               <button
-                className="w-full rounded-full border border-amber-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-amber-300 disabled:opacity-60"
+                className="w-full rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
                 onClick={() => void runMaintenance("assets")}
                 disabled={maintenanceBusy}
               >
                 Rebuild ERP assets
               </button>
               <button
-                className="w-full rounded-full border border-amber-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-amber-300 disabled:opacity-60"
+                className="w-full rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
                 onClick={() => void runMaintenance("tls")}
                 disabled={maintenanceBusy}
               >
                 Sync tenant TLS routes
               </button>
               <button
-                className="w-full rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-800 hover:border-amber-300 disabled:opacity-60"
+                className="w-full rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-800 hover:border-slate-300 disabled:opacity-60"
                 onClick={() => void runMaintenance("tls-prime")}
                 disabled={maintenanceBusy}
               >

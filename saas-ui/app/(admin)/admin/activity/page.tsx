@@ -19,7 +19,7 @@ function formatDate(value?: string | null): string {
 function statusTone(status: string): string {
   const normalized = status.toLowerCase();
   if (normalized === "failed") return "bg-red-100 text-red-700";
-  if (normalized === "running") return "bg-amber-100 text-amber-800";
+  if (normalized === "running") return "bg-slate-100 text-slate-800";
   if (normalized === "succeeded") return "bg-emerald-100 text-emerald-800";
   return "bg-slate-100 text-slate-600";
 }
@@ -62,16 +62,16 @@ export default function DashboardActivityPage() {
 
   return (
     <section className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-amber-200/70 bg-white/80 p-6 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm">
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Operations timeline</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Operations timeline</p>
           <h1 className="text-3xl font-semibold text-slate-900">Jobs & activity</h1>
           <p className="text-sm text-slate-600">
             Chronological feed of provisioning, upgrades, backups, and admin actions across all tenants.
           </p>
         </div>
         <button
-          className="rounded-full border border-amber-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-amber-300 disabled:opacity-60"
+          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
           onClick={() => void load()}
           disabled={loading}
         >
@@ -85,12 +85,12 @@ export default function DashboardActivityPage() {
           <p className="mt-1 text-2xl font-semibold text-slate-900">{jobs.length}</p>
           <p className="mt-1 text-xs text-slate-500">Last 50 operations</p>
         </article>
-        <article className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+        <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-900">
           <p className="text-xs uppercase tracking-wide opacity-80">Queued</p>
           <p className="mt-1 text-2xl font-semibold">{queuedCount}</p>
           <p className="mt-1 text-xs opacity-80">Waiting for worker capacity</p>
         </article>
-        <article className="rounded-2xl border border-amber-200 bg-white p-4 text-amber-900">
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900">
           <p className="text-xs uppercase tracking-wide opacity-80">Running</p>
           <p className="mt-1 text-2xl font-semibold">{runningCount}</p>
           <p className="mt-1 text-xs opacity-80">Live operations in progress</p>
@@ -102,7 +102,7 @@ export default function DashboardActivityPage() {
         </article>
       </div>
 
-      <div className="rounded-3xl border border-amber-200/70 bg-white/80 p-6">
+      <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-sm font-semibold text-slate-900">Ops timeline</p>
@@ -117,7 +117,7 @@ export default function DashboardActivityPage() {
             jobs.map((job) => {
               const tenant = tenantMap[job.tenant_id];
               return (
-                <div key={job.id} className="rounded-2xl border border-amber-200/70 bg-white p-4">
+                <div key={job.id} className="rounded-2xl border border-slate-200/70 bg-white p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="text-xs uppercase tracking-wide text-slate-500">{formatDate(job.created_at)}</p>
@@ -135,7 +135,7 @@ export default function DashboardActivityPage() {
               );
             })
           ) : (
-            <div className="rounded-2xl border border-amber-200/70 bg-white p-4 text-sm text-slate-600">
+            <div className="rounded-2xl border border-slate-200/70 bg-white p-4 text-sm text-slate-600">
               No recent jobs yet. Provisioning and backups will appear here once scheduled.
             </div>
           )}

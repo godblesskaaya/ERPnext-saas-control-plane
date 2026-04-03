@@ -4,11 +4,11 @@ export function statusBadgeClass(status: string): string {
   if (
     ["provisioning", "pending", "deleting", "upgrading", "restoring", "pending_deletion"].includes(normalized)
   ) {
-    return "bg-amber-500/20 text-amber-300";
+    return "bg-sky-500/20 text-sky-200";
   }
   if (normalized === "failed") return "bg-red-500/20 text-red-300";
   if (normalized === "deleted") return "bg-slate-500/20 text-slate-300";
-  if (["suspended", "suspended_admin", "suspended_billing"].includes(normalized)) return "bg-orange-500/20 text-orange-300";
+  if (["suspended", "suspended_admin", "suspended_billing"].includes(normalized)) return "bg-rose-500/20 text-rose-200";
   return "bg-sky-500/20 text-sky-300";
 }
 

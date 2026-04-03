@@ -192,7 +192,16 @@ Completed decomposition items (verified in route tree):
 - Compatibility route remains present: `/tenants/[id]` (`app/(dashboard)/tenants/[id]/page.tsx`).
 - Route-guard behavior remains green after convergence verification.
 
-Remaining gaps / pending integration:
+Phase-5 layout-pattern checkpoint (post-merge):
 
-- Root tenant route convergence to overview-only behavior is still pending worker task completion and merge validation.
-- Tenant section link active-route UX convergence is still pending worker task completion and merge validation.
+- Root tenant route convergence is complete (`/tenants/[id]` forwards to overview).
+- Tenant section link active-route behavior is covered by convergence tests and compatibility tests.
+- Shared `TenantWorkspacePageLayout` now standardizes title/context + section links + footer error shell across all tenant subpages.
+
+Additional verification (post-merge):
+
+- `cd saas-ui && npx --yes tsx --test domains/tenant-ops/application/tenantPagePatternStandardization.test.ts domains/tenant-ops/application/tenantRootConvergence.test.ts domains/tenant-ops/ui/tenant-detail/routeCompatibility.test.ts` → **PASS** (`6 passed, 0 failed`)
+
+Reference review record:
+
+- `docs/frontend-hardening-phase5-tenant-page-pattern-standardization-review.md`

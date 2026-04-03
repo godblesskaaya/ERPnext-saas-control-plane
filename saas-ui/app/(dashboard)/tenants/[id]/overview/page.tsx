@@ -25,8 +25,8 @@ import {
   toTenantDetailErrorMessage,
   unsuspendTenantAccess,
 } from "../../../../../domains/tenant-ops/application/tenantDetailUseCases";
+import { TenantWorkspacePageLayout } from "../../../../../domains/tenant-ops/ui/tenant-detail/components/TenantWorkspacePageLayout";
 import { useTenantRouteContext } from "../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
-import { TenantSectionLinks } from "../../../../../domains/tenant-ops/ui/tenant-detail/sections";
 import type { Job, TenantSummary, UserProfile } from "../../../../../domains/shared/lib/types";
 
 const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed", "deleted", "canceled", "cancelled"]);
@@ -154,18 +154,12 @@ export default function TenantOverviewPage() {
   }
 
   return (
-    <Box sx={{ display: "grid", gap: 3, pb: 4 }}>
-      <Stack spacing={0.5}>
-        <Typography component="h1" variant="h5" sx={{ fontWeight: 800 }}>
-          Overview
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {tenant.company_name} ({tenant.domain})
-        </Typography>
-      </Stack>
-
-      <TenantSectionLinks tenantId={id} />
-
+    <TenantWorkspacePageLayout
+      tenantId={id}
+      title="Overview"
+      tenantContext={`${tenant.company_name} (${tenant.domain})`}
+      footerError={error}
+    >
       <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderColor: "warning.light", backgroundColor: "background.paper" }}>
         <Stack direction={{ xs: "column", md: "row" }} spacing={2} justifyContent="space-between">
           <Stack spacing={1}>
@@ -412,7 +406,6 @@ export default function TenantOverviewPage() {
         </Card>
       </Paper>
 
-      {error ? <Alert severity="error">{error}</Alert> : null}
-    </Box>
+    </TenantWorkspacePageLayout>
   );
 }

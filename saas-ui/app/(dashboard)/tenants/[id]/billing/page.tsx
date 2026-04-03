@@ -1,11 +1,11 @@
 "use client";
 
-import { Alert, Box, Stack, Typography } from "@mui/material";
+import { Alert } from "@mui/material";
 import { useParams } from "next/navigation";
 import {
-  TenantSectionLinks,
   TenantSubscriptionSection,
 } from "../../../../../domains/tenant-ops/ui/tenant-detail/sections";
+import { TenantWorkspacePageLayout } from "../../../../../domains/tenant-ops/ui/tenant-detail/components/TenantWorkspacePageLayout";
 import {
   useTenantRouteContext,
   useTenantSubscriptionData,
@@ -29,18 +29,12 @@ export default function TenantBillingPage() {
   }
 
   return (
-    <Box sx={{ display: "grid", gap: 3, pb: 4 }}>
-      <Stack spacing={0.5}>
-        <Typography component="h1" variant="h5" sx={{ fontWeight: 800 }}>
-          Billing & subscription
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {tenant ? `${tenant.company_name} (${tenant.domain})` : "Loading tenant context..."}
-        </Typography>
-      </Stack>
-
-      <TenantSectionLinks tenantId={id} />
-
+    <TenantWorkspacePageLayout
+      tenantId={id}
+      title="Billing & subscription"
+      tenantContext={tenant ? `${tenant.company_name} (${tenant.domain})` : "Loading tenant context..."}
+      footerError={error}
+    >
       <TenantSubscriptionSection
         subscriptionError={subscriptionError}
         subscriptionSupported={subscriptionSupported}
@@ -50,8 +44,6 @@ export default function TenantBillingPage() {
         }}
         formatTimestamp={formatTimestamp}
       />
-
-      {error ? <Alert severity="error">{error}</Alert> : null}
-    </Box>
+    </TenantWorkspacePageLayout>
   );
 }

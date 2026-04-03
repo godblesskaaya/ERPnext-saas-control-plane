@@ -28,8 +28,8 @@ import {
   toTenantDetailErrorMessage,
   verifyTenantDomain,
 } from "../../../../../domains/tenant-ops/application/tenantDetailUseCases";
+import { TenantWorkspacePageLayout } from "../../../../../domains/tenant-ops/ui/tenant-detail/components/TenantWorkspacePageLayout";
 import { useTenantRouteContext } from "../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
-import { TenantSectionLinks } from "../../../../../domains/tenant-ops/ui/tenant-detail/sections";
 import type { DomainMapping } from "../../../../../domains/shared/lib/types";
 
 function formatTimestamp(value?: string | null): string {
@@ -83,18 +83,12 @@ export default function TenantDomainsPage() {
   }
 
   return (
-    <Box sx={{ display: "grid", gap: 3, pb: 4 }}>
-      <Stack spacing={0.5}>
-        <Typography component="h1" variant="h5" sx={{ fontWeight: 800 }}>
-          Custom domains
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {tenant ? `${tenant.company_name} (${tenant.domain})` : "Loading tenant context..."}
-        </Typography>
-      </Stack>
-
-      <TenantSectionLinks tenantId={id} />
-
+    <TenantWorkspacePageLayout
+      tenantId={id}
+      title="Custom domains"
+      tenantContext={tenant ? `${tenant.company_name} (${tenant.domain})` : "Loading tenant context..."}
+      footerError={error}
+    >
       <Paper variant="outlined" sx={{ p: 3, borderRadius: 4, borderColor: "warning.light", backgroundColor: "background.paper" }}>
         <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
           <Typography component="h2" variant="h6" sx={{ fontWeight: 700 }}>
@@ -268,7 +262,6 @@ export default function TenantDomainsPage() {
         )}
       </Paper>
 
-      {error ? <Alert severity="error">{error}</Alert> : null}
-    </Box>
+    </TenantWorkspacePageLayout>
   );
 }

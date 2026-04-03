@@ -19,4 +19,6 @@ test("isExactOrChildPath matches exact and nested paths", () => {
   assert.equal(isExactOrChildPath("/tenants/abc/jobs", "/tenants/abc/jobs"), true);
   assert.equal(isExactOrChildPath("/tenants/abc/jobs/current", "/tenants/abc/jobs"), true);
   assert.equal(isExactOrChildPath("/tenants/abc/job", "/tenants/abc/jobs"), false);
+  assert.equal(isExactOrChildPath("/tenants/abc/jobs-archive", "/tenants/abc/jobs"), false);
+  assert.equal(isExactOrChildPath("/tenants/abc/jobs///", "/tenants/abc/jobs"), true);
 });

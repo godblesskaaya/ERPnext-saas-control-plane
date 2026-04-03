@@ -518,6 +518,14 @@ Create reusable patterns for:
 ### Outcome
 Makes the application feel like one product instead of many custom screens.
 
+### Phase 5 checkpoint (2026-04-02)
+
+Tenant detail page-shell pattern standardization was verified across all `/tenants/[id]/*` subroutes.
+
+Verification + review record:
+
+- `docs/frontend-hardening-phase5-tenant-page-pattern-standardization-review.md`
+
 ---
 
 ## Phase 6 — Harden production quality

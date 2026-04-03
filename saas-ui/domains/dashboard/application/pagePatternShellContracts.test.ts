@@ -55,6 +55,16 @@ test("queue shell uses LoadingState/ErrorState wrappers for route-level loading 
   );
 });
 
+test("queue shell composes page header anatomy with breadcrumbs and action zone", () => {
+  const queueShellSource = readSource(queueShellPath);
+
+  assert.equal(queueShellSource.includes("const headerCrumbs = [rootCrumb, { label: title }];"), true);
+  assert.equal(queueShellSource.includes("<PageHeader"), true);
+  assert.equal(queueShellSource.includes("breadcrumbs={headerCrumbs}"), true);
+  assert.equal(queueShellSource.includes("actions={"), true);
+  assert.equal(queueShellSource.includes("<TenantTable"), true);
+});
+
 test("list shell uses EmptyState primitive for empty wrapper", () => {
   const listShellSource = readSource(listShellPath);
 

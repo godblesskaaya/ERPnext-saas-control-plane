@@ -78,6 +78,27 @@ Fresh implementation + verification run (worker-3):
 Impact against plan:
 - Closes P0-2 acceptance criteria by establishing shared query client/provider, query-keyed tenant workspace hooks, mutation-driven invalidation/refetch behavior, and contract-level regression evidence.
 
+### 2026-04-03 — P1-1 workspace navigation separation completed (implementation + contracts + review)
+
+Implementation landed (worker-1 + worker-2), reviewed and verified (worker-3):
+- Workspace-local navigation is explicit for each workspace key in `saas-ui/domains/shell/model/workspace.ts`:
+  - `overview`, `tenants`, `billing`, `support`, `platform`, `account`
+- Dashboard sidebar now consumes explicit workspace-local sections in `saas-ui/domains/dashboard/components/DashboardNav.tsx` instead of implicit route filtering.
+- Dashboard workspace navigation sections are grouped by workspace sets in `saas-ui/domains/dashboard/domain/navigation.ts`, while preserving compatibility matching for `/tenants/*` and `/dashboard/billing-ops`.
+- Contract coverage was extended in:
+  - `saas-ui/domains/dashboard/domain/navigation.test.ts` (extended)
+
+Verification (independent review run):
+- `cd saas-ui && npm run -s typecheck` → **PASS**
+- `cd saas-ui && npm run -s lint` → **PASS**
+- `cd saas-ui && npm run -s check:boundaries` → **PASS**
+- `cd saas-ui && npm run -s test:contracts` → **PASS** (`96 passed, 0 failed`)
+- `cd saas-ui && npm run -s test:route-guards` → **PASS** (`12 passed, 0 failed`)
+
+Impact against plan:
+- Satisfies P1-1 acceptance criteria for explicit workspace-local nav sets, no admin routes in workspace navigation, and mode-filter regression coverage.
+- Leaves P1-2 standardization work unchanged.
+
 ## Remaining Gaps (Prioritized Backlog)
 
 ## P0
@@ -93,13 +114,12 @@ Status:
 
 ### P1-1: Complete workspace-level navigation separation beyond tenant detail
 
-Gap:
-- Tenant detail nav is structured, but route-space still mixes dashboard compatibility routes and workspace concerns.
+Status:
+- **Completed on 2026-04-03.**
+- Explicit workspace-local nav sets now exist for Overview/Tenants/Billing/Support/Platform/Account with contract assertions and mode-filter invariants.
 
-Acceptance criteria:
-- Workspace-local navigation config is explicit per workspace (Overview/Tenants/Billing/Support/Platform/Account).
-- No workspace nav item points to admin routes.
-- Contract tests assert each workspace nav set and mode-filter behavior.
+Remaining follow-up:
+- Run UX walkthrough checks for label clarity and section ordering while compatibility aliases remain active.
 
 ### P1-2: Standardize page patterns outside tenant detail flows
 

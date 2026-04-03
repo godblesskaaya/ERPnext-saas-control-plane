@@ -43,8 +43,8 @@ test("resolve mode strips query/hash when matching", () => {
 test("sections can be filtered by mode", () => {
   const workspaceSections = getDashboardNavSectionsByMode("workspace");
   assert.ok(workspaceSections.length > 0);
-  assert.ok(workspaceSections.some((section) => section.title === "Workspace home"));
-  assert.ok(workspaceSections.some((section) => section.title === "Account routing"));
+  assert.ok(workspaceSections.some((section) => section.title === "Overview workspace"));
+  assert.ok(workspaceSections.some((section) => section.title === "Account workspace"));
 });
 
 test("workspace navigation excludes admin-only concepts and ops-centric routes", () => {

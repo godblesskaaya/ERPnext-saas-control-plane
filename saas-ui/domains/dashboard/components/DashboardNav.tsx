@@ -2,33 +2,14 @@
 
 import { usePathname } from "next/navigation";
 
-import { getDashboardNavSectionsByMode } from "../domain/navigation";
 import { WorkspaceSidebar } from "../../shell/components/WorkspaceSidebar";
 import type { ShellNavSection } from "../../shell/model/nav";
-import { workspaceDescriptors } from "../../shell/model/workspace";
+import { workspaceDescriptors, workspaceLocalNavSections } from "../../shell/model/workspace";
 
-const workspaceSections = getDashboardNavSectionsByMode("workspace");
-const keyWorkspaceRoutes = new Set([
-  "/dashboard/overview",
-  "/dashboard/registry",
-  "/dashboard/active",
-  "/dashboard/onboarding",
-  "/dashboard/provisioning",
-  "/dashboard/incidents",
-  "/dashboard/suspensions",
-  "/dashboard/support",
-  "/dashboard/billing-recovery",
-  "/billing",
-  "/dashboard/billing-details",
-  "/dashboard/account",
-  "/dashboard/settings",
-]);
-
-const keyFeatureWorkspaceSections: ShellNavSection[] = workspaceSections
+const keyFeatureWorkspaceSections: ShellNavSection[] = workspaceLocalNavSections
   .map((section) => ({
-    title: section.title,
-    description: section.description,
-    items: section.items.filter((item) => keyWorkspaceRoutes.has(item.href) && !item.href.startsWith("/admin")),
+    ...section,
+    items: section.items.filter((item) => !item.href.startsWith("/admin")),
   }))
   .filter((section) => section.items.length > 0);
 
@@ -52,7 +33,7 @@ export function DashboardNav() {
     <WorkspaceSidebar
       overline="User Workspace"
       title="Workspace navigation"
-      caption="Customer-facing routes only: queues, workspaces, billing, account, and settings."
+      caption="Customer-facing routes only: overview, tenants, billing, support, platform, and account."
       sections={sidebarSections}
       pathname={pathname}
       tone="light"

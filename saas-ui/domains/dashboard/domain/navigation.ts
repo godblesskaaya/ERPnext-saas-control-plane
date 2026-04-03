@@ -32,29 +32,32 @@ export const dashboardNavSections: DashboardNavSection[] = [
   },
   {
     mode: "workspace",
-    title: "Workspace home",
-    description: "Navigate customer-facing workspace views from one place.",
+    title: "Overview workspace",
+    description: "Workspace snapshot, live activity, and customer-facing health signals.",
     items: [
       { href: "/dashboard/overview", label: "Overview", hint: "Workspace snapshot and priorities" },
+      { href: "/dashboard/active", label: "Active workspaces", hint: "Live customers and workspace health" },
+      { href: "/dashboard/activity", label: "Activity feed", hint: "Recent workspace lifecycle changes" },
+    ],
+  },
+  {
+    mode: "workspace",
+    title: "Tenants workspace",
+    description: "Find tenants, review status, and continue workspace detail journeys.",
+    items: [
       {
         href: "/dashboard/registry",
         label: "Workspace registry",
         hint: "Search workspaces and open workspace details",
         match: ["/tenants"],
       },
-      { href: "/dashboard/active", label: "Active workspaces", hint: "Live customers and workspace health" },
     ],
   },
   {
     mode: "workspace",
-    title: "Customer journey queues",
-    description: "Follow queue-specific customer flows in the workspace journey.",
+    title: "Billing workspace",
+    description: "Customer payment recovery and invoice visibility.",
     items: [
-      { href: "/dashboard/onboarding", label: "Onboarding queue", hint: "Payment onboarding and activation readiness" },
-      { href: "/dashboard/provisioning", label: "Provisioning queue", hint: "Deployments and pending upgrades" },
-      { href: "/dashboard/incidents", label: "Incidents queue", hint: "Provisioning failures and rescue actions" },
-      { href: "/dashboard/suspensions", label: "Suspensions queue", hint: "Workspace and billing suspension status" },
-      { href: "/dashboard/support", label: "Support queue", hint: "Customer support handoff and resolution tracking" },
       {
         href: "/dashboard/billing-recovery",
         label: "Billing recovery",
@@ -62,6 +65,7 @@ export const dashboardNavSections: DashboardNavSection[] = [
         match: ["/dashboard/billing-ops"],
       },
       { href: "/dashboard/billing-details", label: "Invoice analytics", hint: "Invoice and provider-level breakdown" },
+      { href: "/billing", label: "Payment center", hint: "Resume checkout and review subscription invoices" },
     ],
   },
   {
@@ -75,9 +79,12 @@ export const dashboardNavSections: DashboardNavSection[] = [
   },
   {
     mode: "workspace",
-    title: "Billing workspace",
-    description: "Customer payment recovery and invoice visibility.",
-    items: [{ href: "/billing", label: "Payment center", hint: "Resume checkout and review subscription invoices" }],
+    title: "Support workspace",
+    description: "Support case routing, escalation readiness, and customer handoff.",
+    items: [
+      { href: "/dashboard/support", label: "Support queue", hint: "Customer support handoff and resolution tracking" },
+      { href: "/dashboard/support-overview", label: "Support overview", hint: "Triage guidance and escalation checks" },
+    ],
   },
   {
     mode: "operations",
@@ -91,7 +98,18 @@ export const dashboardNavSections: DashboardNavSection[] = [
   },
   {
     mode: "workspace",
-    title: "Account routing",
+    title: "Platform workspace",
+    description: "Provisioning, incident recovery, onboarding flow, and suspension tracking.",
+    items: [
+      { href: "/dashboard/onboarding", label: "Onboarding queue", hint: "Payment onboarding and activation readiness" },
+      { href: "/dashboard/provisioning", label: "Provisioning queue", hint: "Deployments and pending upgrades" },
+      { href: "/dashboard/incidents", label: "Incidents queue", hint: "Provisioning failures and rescue actions" },
+      { href: "/dashboard/suspensions", label: "Suspensions queue", hint: "Workspace and billing suspension status" },
+    ],
+  },
+  {
+    mode: "workspace",
+    title: "Account workspace",
     description: "User profile, notification readiness, and account settings.",
     items: [
       { href: "/dashboard/account", label: "Account summary", hint: "Identity and billing profile" },

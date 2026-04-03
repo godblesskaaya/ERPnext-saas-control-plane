@@ -36,18 +36,17 @@ Spec: `frontend-content-workflows-uiux.md`
 
 ## E. Workspace Readability
 
-- [ ] Overview answers “what needs attention now?”
-- [ ] Tenants workspace prioritizes registry + drilldown.
-- [ ] Billing workspace emphasizes invoices/recovery/exceptions.
-- [ ] Support workspace emphasizes queue/escalation/SLA.
-- [ ] Platform workspace emphasizes health/provisioning/incidents.
+- [x] Overview answers “what needs attention now?”
+- [x] Tenants workspace prioritizes registry + drilldown.
+- [x] Billing workspace emphasizes invoices/recovery/exceptions.
+- [x] Support workspace emphasizes queue/escalation/SLA.
+- [x] Platform workspace emphasizes health/provisioning/incidents.
 
 ## F. Quality Gates
 
-- [ ] `npm run -s typecheck`
-- [ ] `npm run -s lint`
-- [ ] `npm run -s check:boundaries`
-- [ ] `npm run -s test:route-guards`
-- [ ] `npm run -s test:contracts`
-- [ ] `npm run -s e2e -- --list`
-
+- [x] `npm run -s typecheck`
+- [x] `npm run -s lint`
+- [x] `npm run -s check:boundaries`
+- [x] `npm run -s test:route-guards`
+- [x] `npm run -s test:contracts`
+- [x] `npm run -s e2e -- --list`

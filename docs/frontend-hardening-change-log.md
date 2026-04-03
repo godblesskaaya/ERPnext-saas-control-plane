@@ -5,7 +5,7 @@ Source plan: `frontend-hardening.md`
 
 ## Executive Status
 
-Frontend hardening has delivered core architectural progress (IA baseline, tenant route decomposition, shared tenant page shell, and regression hardening checks), but the plan is not fully complete yet. The largest remaining gaps are browser-level E2E coverage and query-layer/data orchestration standardization.
+Frontend hardening has delivered IA baseline, tenant route decomposition, shared tenant page shell, production verification, P0-2 query-layer orchestration, and P0-1 browser E2E closure with CI enforcement. Remaining work is now in P1/P2 architecture and UX consistency gaps.
 
 ## Dated Change Log
 
@@ -46,7 +46,7 @@ Fresh verification run (worker-2):
 Impact against plan:
 - Confirms stability of route access policy, navigation invariants, shell composition invariants, and tenant-page pattern contracts.
 
-### 2026-04-03 — P0-1 browser E2E harness + route guard smoke coverage landed
+### 2026-04-03 — P0-1 browser E2E coverage + CI gate closure completed
 
 Fresh implementation + verification run (worker-3):
 - Added Playwright dev dependency and npm scripts in `saas-ui/package.json` (`e2e`, `e2e:headed`, `e2e:report`).
@@ -55,13 +55,11 @@ Fresh implementation + verification run (worker-3):
 - `cd saas-ui && npm run -s check:boundaries` → **PASS**
 - `cd saas-ui && npm run -s test:route-guards` → **PASS** (`12 passed, 0 failed`)
 - `cd saas-ui && npm run -s test:contracts` → **PASS** (`93 passed, 0 failed`)
-- `cd saas-ui && npx playwright test --list` → **PASS** (`2 tests in 1 file`)
+- `cd saas-ui && npx playwright test --list` → **PASS** (`7 tests in 3 files`)
 
 Impact against plan:
-- Delivers the initial browser E2E shell/route regression harness with authenticated-route redirect coverage wired into repository scripts.
-
-Remaining gap to fully close P0-1:
-- Expand Playwright coverage beyond guest redirect smoke checks to include admin vs non-admin branching, tenant overview convergence, and at least one loading/error shell fallback assertion; then wire `npm run e2e` as an enforced CI gate.
+- Delivers browser checks for guest redirect behavior, admin vs non-admin branching, tenant overview route convergence, and dashboard fallback rendering.
+- Enforces Playwright E2E as a CI gate in `.github/workflows/ci.yml` (`npx playwright install --with-deps chromium` + fail-fast `npm run e2e`).
 
 ### 2026-04-03 — P0-2 query-oriented tenant workspace data layer foundation completed
 
@@ -82,17 +80,14 @@ Impact against plan:
 
 ## Remaining Gaps (Prioritized Backlog)
 
-## P0 (Do next)
+## P0
 
-### P0-1: Add browser E2E shell + route regression coverage
+### P0-1: Browser E2E shell + CI gating
 
-Gap:
-- Current hardening relies on TypeScript + contract/policy tests; no browser-driven shell/navigation/permission smoke checks exist yet.
-
-Acceptance criteria:
-- Add Playwright (or equivalent) CI job for authenticated workspace flows.
-- Cover at minimum: login redirect behavior, admin/non-admin access branching, tenant overview route convergence, and one loading/error shell fallback path.
-- CI blocks merges on E2E failure for protected main branch.
+Status:
+- **Completed on 2026-04-03.**
+- Coverage now includes login redirect behavior, admin/non-admin branching, tenant overview convergence, and a dashboard fallback assertion.
+- CI now executes Playwright E2E as a required frontend-quality gate.
 
 ## P1 (High value, after P0)
 

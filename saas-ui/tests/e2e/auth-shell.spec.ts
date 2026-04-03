@@ -34,4 +34,25 @@ test.describe("auth shell route guards", () => {
 
     await expect(page).toHaveURL(/\/dashboard\/overview/);
   });
+
+  test("shows dashboard shell fallback when metrics endpoint is unavailable", async ({ page }) => {
+    await page.route("**/api/admin/metrics", async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "Not Found" }),
+      });
+    });
+
+    await page.addInitScript((token: string) => {
+      window.localStorage.setItem("erp_saas_token", token);
+    }, createFakeJwt({ role: "member" }));
+
+    await page.goto("/dashboard");
+
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(
+      page.getByText("Metrics endpoint is unavailable on this deployment. Navigation and workspace actions remain available."),
+    ).toBeVisible();
+  });
 });

@@ -102,6 +102,18 @@ jobs:
           cd saas-ui
           npm ci
 
+      - name: Install Playwright Chromium runtime
+        run: |
+          cd saas-ui
+          npx playwright install --with-deps chromium
+
+      - name: Frontend E2E gate (Playwright, fail-fast)
+        env:
+          CI: "true"
+        run: |
+          cd saas-ui
+          npm run e2e -- --project=chromium --max-failures=1 --workers=1
+
       - name: Frontend lint (non-interactive)
         run: |
           cd saas-ui

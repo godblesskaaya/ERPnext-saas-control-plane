@@ -12,7 +12,10 @@
     "lint:next": "next lint",
     "typecheck": "tsc --noEmit",
     "test:contracts": "npx --yes tsx --test \"domains/**/*.test.ts\" \"domains/**/*.contract.test.ts\"",
-    "test:route-guards": "npx --yes tsx --test middleware.route-guard.test.ts domains/auth/domain/adminRouteAccessPolicy.test.ts"
+    "test:route-guards": "npx --yes tsx --test middleware.route-guard.test.ts domains/auth/domain/adminRouteAccessPolicy.test.ts",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "e2e:report": "playwright show-report"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -25,6 +28,7 @@
     "react-dom": "19.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/node": "22.15.21",
     "@types/react": "19.1.6",
     "@types/react-dom": "19.1.5",

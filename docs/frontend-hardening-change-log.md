@@ -46,6 +46,23 @@ Fresh verification run (worker-2):
 Impact against plan:
 - Confirms stability of route access policy, navigation invariants, shell composition invariants, and tenant-page pattern contracts.
 
+### 2026-04-03 — P0-1 browser E2E harness + route guard smoke coverage landed
+
+Fresh implementation + verification run (worker-3):
+- Added Playwright dev dependency and npm scripts in `saas-ui/package.json` (`e2e`, `e2e:headed`, `e2e:report`).
+- Added browser test run instructions in `saas-ui/tests/e2e/README.md`.
+- `cd saas-ui && npm run -s typecheck` → **PASS**
+- `cd saas-ui && npm run -s check:boundaries` → **PASS**
+- `cd saas-ui && npm run -s test:route-guards` → **PASS** (`12 passed, 0 failed`)
+- `cd saas-ui && npm run -s test:contracts` → **PASS** (`93 passed, 0 failed`)
+- `cd saas-ui && npx playwright test --list` → **PASS** (`2 tests in 1 file`)
+
+Impact against plan:
+- Delivers the initial browser E2E shell/route regression harness with authenticated-route redirect coverage wired into repository scripts.
+
+Remaining gap to fully close P0-1:
+- Expand Playwright coverage beyond guest redirect smoke checks to include admin vs non-admin branching, tenant overview convergence, and at least one loading/error shell fallback assertion; then wire `npm run e2e` as an enforced CI gate.
+
 ## Remaining Gaps (Prioritized Backlog)
 
 ## P0 (Do next)

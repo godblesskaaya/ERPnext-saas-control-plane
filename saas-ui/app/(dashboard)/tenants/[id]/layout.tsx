@@ -5,15 +5,17 @@ import { TenantEntityNav } from "../../../../domains/tenant-ops/ui/tenant-detail
 
 type TenantDetailShellLayoutProps = {
   children: ReactNode;
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
-export default function TenantDetailShellLayout({ children, params }: TenantDetailShellLayoutProps) {
+export default async function TenantDetailShellLayout({ children, params }: TenantDetailShellLayoutProps) {
+  const { id } = await params;
+
   return (
     <Box sx={{ display: "grid", gap: 2 }}>
-      <TenantEntityNav id={params.id} />
+      <TenantEntityNav id={id} />
       {children}
     </Box>
   );

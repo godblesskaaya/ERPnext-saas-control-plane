@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { consumeImpersonationToken, toAuthErrorMessage } from "../../../domains/auth/application/authUseCases";
 import { PublicRouteGuidance } from "../../../domains/auth/ui/PublicRouteGuidance";
+import { Badge, Card } from "../../../domains/shared/components/ui";
 
 export default function ImpersonatePage() {
   const router = useRouter();
@@ -41,21 +42,25 @@ export default function ImpersonatePage() {
 
   return (
     <section className="mx-auto flex min-h-[60vh] max-w-lg items-center justify-center px-4">
-      <div className="w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <Card className="w-full space-y-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Support access</p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">Impersonation handoff</h1>
-        <div className="mt-4">
-          <PublicRouteGuidance
-            whereAmI="One-time support session handoff"
-            whatNext="This token is verified automatically. On success you are redirected to workspace overview."
-            nextHref="/login"
-            nextLabel="Prefer normal access? Sign in manually"
-          />
+        <h1 className="text-2xl font-semibold text-slate-900">Impersonation handoff</h1>
+        <PublicRouteGuidance
+          whereAmI="One-time support session handoff"
+          whatNext="This token is verified automatically. On success you are redirected to workspace overview."
+          nextHref="/login"
+          nextLabel="Prefer normal access? Sign in manually"
+        />
+        {status === "running" ? <p className="text-sm text-slate-600">Verifying one-time token and signing you in…</p> : null}
+        {status === "done" ? <p className="text-sm text-emerald-700">Token accepted. Redirecting to dashboard…</p> : null}
+        {status === "error" ? <p className="text-sm text-red-700">{error}</p> : null}
+        <div className="pt-1 text-xs text-slate-600">
+          Status:
+          <Badge className="ml-2">
+            {status === "running" ? "in-progress" : status}
+          </Badge>
         </div>
-        {status === "running" ? <p className="mt-3 text-sm text-slate-600">Verifying one-time token and signing you in…</p> : null}
-        {status === "done" ? <p className="mt-3 text-sm text-emerald-700">Token accepted. Redirecting to dashboard…</p> : null}
-        {status === "error" ? <p className="mt-3 text-sm text-red-700">{error}</p> : null}
-      </div>
+      </Card>
     </section>
   );
 }

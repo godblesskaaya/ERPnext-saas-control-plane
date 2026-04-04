@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { confirmEmailVerification, loadAuthHealthSnapshot } from "../../../domains/auth/application/authUseCases";
 import { PublicRouteGuidance } from "../../../domains/auth/ui/PublicRouteGuidance";
+import { Badge, Button, Card, Input } from "../../../domains/shared/components/ui";
 
 export default function VerifyEmailPage() {
   const searchParams = useSearchParams();
@@ -77,7 +78,7 @@ export default function VerifyEmailPage() {
   };
 
   return (
-    <section className="mx-auto max-w-xl space-y-6 rounded-3xl border border-slate-200/90 bg-white/80 p-8">
+    <Card className="mx-auto max-w-xl space-y-6">
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">Verify your email / Thibitisha barua pepe</h1>
         <p className="text-sm text-slate-600">Confirm your account email to unlock tenant creation and onboarding.</p>
@@ -94,32 +95,29 @@ export default function VerifyEmailPage() {
         <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Diagnostics</p>
         <div className="mt-2 grid gap-2 text-xs md:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-            API: <span className="font-semibold">{apiHealth}</span>
+            API: <Badge className="ml-1">{apiHealth}</Badge>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-            Auth: <span className="font-semibold">{authHealth}</span>
+            Auth: <Badge className="ml-1">{authHealth}</Badge>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-            Billing: <span className="font-semibold">{billingHealth}</span>
+            Billing: <Badge className="ml-1">{billingHealth}</Badge>
           </div>
         </div>
       </div>
 
       {!initialToken ? (
         <form className="space-y-4" onSubmit={submit}>
-          <input
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400"
+          <Input
+            label="Verification token"
             value={token}
             onChange={(event) => setToken(event.target.value)}
             placeholder="Verification token"
             required
           />
-          <button
-            className="w-full rounded-full bg-blue-600 px-4 py-2 font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
-            disabled={busy}
-          >
+          <Button className="w-full" loading={busy}>
             {busy ? "Verifying..." : "Verify email"}
-          </button>
+          </Button>
         </form>
       ) : (
         <p className="text-sm text-slate-600">{busy ? "Verifying token..." : "Verification check complete."}</p>
@@ -135,6 +133,6 @@ export default function VerifyEmailPage() {
           Continue to sign in
         </Link>
       </div>
-    </section>
+    </Card>
   );
 }

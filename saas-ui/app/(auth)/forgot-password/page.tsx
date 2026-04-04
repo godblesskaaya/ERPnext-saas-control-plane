@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { loadAuthHealthSnapshot, requestPasswordReset } from "../../../domains/auth/application/authUseCases";
 import { getToken } from "../../../domains/auth/auth";
 import { PublicRouteGuidance } from "../../../domains/auth/ui/PublicRouteGuidance";
+import { Badge, Button, Card, Input } from "../../../domains/shared/components/ui";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -56,7 +57,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <section className="mx-auto max-w-xl space-y-6 rounded-3xl border border-slate-200/90 bg-white/80 p-8">
+    <Card className="mx-auto max-w-xl space-y-6">
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">Reset access / Rekebisha nenosiri</h1>
         <p className="text-sm text-slate-600">
@@ -75,32 +76,29 @@ export default function ForgotPasswordPage() {
         <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Diagnostics</p>
         <div className="mt-2 grid gap-2 text-xs md:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-            API: <span className="font-semibold">{apiHealth}</span>
+            API: <Badge className="ml-1">{apiHealth}</Badge>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-            Auth: <span className="font-semibold">{authHealth}</span>
+            Auth: <Badge className="ml-1">{authHealth}</Badge>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-            Billing: <span className="font-semibold">{billingHealth}</span>
+            Billing: <Badge className="ml-1">{billingHealth}</Badge>
           </div>
         </div>
       </div>
 
       <form className="space-y-4" onSubmit={submit}>
-        <input
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400"
+        <Input
+          label="Email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="Email"
           type="email"
           required
         />
-        <button
-          className="w-full rounded-full bg-blue-600 px-4 py-2 font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
-          disabled={busy}
-        >
+        <Button className="w-full" loading={busy}>
           {busy ? "Sending..." : "Send reset instructions"}
-        </button>
+        </Button>
       </form>
 
       {notice ? (
@@ -114,6 +112,6 @@ export default function ForgotPasswordPage() {
           Back to sign in
         </Link>
       </p>
-    </section>
+    </Card>
   );
 }

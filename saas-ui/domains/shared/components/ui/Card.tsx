@@ -14,8 +14,8 @@ export function Card({
   return (
     <article
       className={cn(
-        "rounded-card-lg border p-5",
-        tone === "accent" ? "border-amber-200 bg-[#fdf7ee]" : "border-amber-200/70 bg-white/80",
+        "rounded-card-md border p-5",
+        tone === "accent" ? "border-sky-200 bg-sky-50/60" : "border-slate-200 bg-white",
         className
       )}
     >
@@ -23,4 +23,3 @@ export function Card({
     </article>
   );
 }
-

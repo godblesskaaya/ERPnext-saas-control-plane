@@ -16,7 +16,7 @@ export function Input({ className, label, error, hint, id, ...rest }: Props) {
       <input
         id={inputId}
         className={cn(
-          "focus-ring w-full rounded-card-md border border-amber-200 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400",
+          "focus-ring w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400",
           error ? "border-red-300 bg-red-50/40" : "",
           className
         )}
@@ -26,4 +26,3 @@ export function Input({ className, label, error, hint, id, ...rest }: Props) {
     </label>
   );
 }
-

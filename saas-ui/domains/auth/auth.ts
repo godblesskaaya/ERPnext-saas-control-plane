@@ -54,15 +54,19 @@ export function saveToken(token: string) {
     setCookie(TOKEN_KEY, token, maxAge);
 
     if (payload?.role) {
+      localStorage.setItem(ROLE_KEY, payload.role);
       setCookie(ROLE_KEY, payload.role, maxAge);
     } else {
+      localStorage.removeItem(ROLE_KEY);
       clearCookie(ROLE_KEY);
     }
 
     const user = payload?.email ?? payload?.sub;
     if (user) {
+      localStorage.setItem(USER_KEY, user);
       setCookie(USER_KEY, user, maxAge);
     } else {
+      localStorage.removeItem(USER_KEY);
       clearCookie(USER_KEY);
     }
   }
@@ -73,9 +77,16 @@ export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY) ?? getCookie(TOKEN_KEY);
 }
 
+export function getSessionRole(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(ROLE_KEY) ?? getCookie(ROLE_KEY);
+}
+
 export function clearToken() {
   if (typeof window !== "undefined") {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(ROLE_KEY);
+    localStorage.removeItem(USER_KEY);
     clearCookie(TOKEN_KEY);
     clearCookie(ROLE_KEY);
     clearCookie(USER_KEY);

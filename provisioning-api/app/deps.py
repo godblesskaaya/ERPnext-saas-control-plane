@@ -46,3 +46,9 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return user
+
+
+def require_admin_or_support(user: User = Depends(get_current_user)) -> User:
+    if user.role not in {"admin", "support"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin or support access required")
+    return user

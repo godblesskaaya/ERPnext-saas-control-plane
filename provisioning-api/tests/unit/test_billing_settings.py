@@ -54,6 +54,9 @@ def test_settings_default_stripe_values_allow_offline_tests(monkeypatch) -> None
     assert settings.resolved_mail_provider == "mailersend"
     assert settings.mock_billing_allowed is True
     assert settings.default_billing_webhook_enabled is True
+    assert settings.trial_lifecycle_enabled is True
+    assert settings.trial_default_days == 14
+    assert settings.trial_scheduler_auto_enabled is True
 
     get_settings.cache_clear()
 

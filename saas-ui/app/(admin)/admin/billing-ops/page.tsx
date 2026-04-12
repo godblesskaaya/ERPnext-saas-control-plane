@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
+import { getSessionRole } from "../../../../domains/auth/auth";
 import {
   loadBillingDunningQueue,
   queueBillingDunningCycle,
@@ -25,12 +26,19 @@ function formatDateTime(value?: string | null): string {
 }
 
 export default function BillingOpsPage() {
+  const [operatorRole, setOperatorRole] = useState("user");
   const [tenants, setTenants] = useState<DunningItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [runningCycle, setRunningCycle] = useState(false);
   const [cycleNotice, setCycleNotice] = useState<string | null>(null);
   const [cycleError, setCycleError] = useState<string | null>(null);
+  const canRunAdminOnlyActions = operatorRole === "admin";
+
+  useEffect(() => {
+    const role = getSessionRole() ?? "user";
+    setOperatorRole(role);
+  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -54,6 +62,10 @@ export default function BillingOpsPage() {
   }, []);
 
   const runCycle = async (dryRun = false) => {
+    if (!canRunAdminOnlyActions) {
+      setCycleError("Only admin role can run billing dunning cycles.");
+      return;
+    }
     setRunningCycle(true);
     setCycleNotice(null);
     setCycleError(null);
@@ -105,24 +117,32 @@ export default function BillingOpsPage() {
         >
           {loading ? "Refreshing..." : "Refresh data"}
         </button>
-        <button
-          className="rounded-full border border-slate-300 bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-          onClick={() => {
-            void runCycle(false);
-          }}
-          disabled={runningCycle}
-        >
-          {runningCycle ? "Queuing..." : "Run dunning cycle"}
-        </button>
-        <button
-          className="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 disabled:opacity-60"
-          onClick={() => {
-            void runCycle(true);
-          }}
-          disabled={runningCycle}
-        >
-          Dry run
-        </button>
+        {canRunAdminOnlyActions ? (
+          <>
+            <button
+              className="rounded-full border border-slate-300 bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+              onClick={() => {
+                void runCycle(false);
+              }}
+              disabled={runningCycle}
+            >
+              {runningCycle ? "Queuing..." : "Run dunning cycle"}
+            </button>
+            <button
+              className="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 disabled:opacity-60"
+              onClick={() => {
+                void runCycle(true);
+              }}
+              disabled={runningCycle}
+            >
+              Dry run
+            </button>
+          </>
+        ) : (
+          <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500">
+            Read-only billing queue (support scope)
+          </span>
+        )}
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">

@@ -82,7 +82,7 @@ export default async function SharedLayout({ children }: { children: ReactNode }
                 <Link href="/billing" className={navLinkClass}>
                   Billing
                 </Link>
-                {role === "admin" ? (
+                {role === "admin" || role === "support" ? (
                   <Link href="/admin" className={navLinkClass}>
                     Admin
                   </Link>

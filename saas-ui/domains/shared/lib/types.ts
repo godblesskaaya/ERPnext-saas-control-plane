@@ -264,6 +264,10 @@ export type MetricsSummary = {
   failed_tenants: number;
   provisioning_tenants: number;
   pending_payment_tenants: number;
+  trialing_tenants: number;
+  trial_converted_tenants: number;
+  trial_expired_past_due_tenants: number;
+  trial_cancelled_tenants: number;
   jobs_last_24h: number;
   provisioning_success_rate_7d: number;
   dead_letter_count: number;

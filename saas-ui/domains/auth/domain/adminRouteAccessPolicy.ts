@@ -41,7 +41,7 @@ export function hasLiveSession(payload: SessionPayload | null, nowMs = Date.now(
 }
 
 export function isAdminSession(payload: SessionPayload | null): boolean {
-  return payload?.role === "admin";
+  return payload?.role === "admin" || payload?.role === "support";
 }
 
 export function buildLoginRedirectPath(nextPath: string, sessionExpired: boolean): string {

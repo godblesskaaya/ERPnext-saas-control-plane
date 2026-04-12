@@ -264,12 +264,18 @@ async def billing_webhook_default_provider(
     db: Session = Depends(get_db),
 ) -> MessageResponse:
     settings = get_settings()
+    route_provider: str | None = None
     if not settings.default_billing_webhook_enabled:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+        # AGENT-NOTE: keep /billing/webhook operational in production as a safe alias to the
+        # configured provider-specific webhook so gateway misconfiguration does not hard-fail with 404.
+        configured_provider = (settings.active_payment_provider or "").strip().lower()
+        route_provider = configured_provider or None
+        if route_provider is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
 
     payload = await request.body()
     return handle_gateway_webhook(
-        route_provider=None,
+        route_provider=route_provider,
         request=request,
         background_tasks=background_tasks,
         db=db,

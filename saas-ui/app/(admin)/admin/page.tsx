@@ -98,6 +98,7 @@ export function AdminConsolePage({ forcedView }: AdminConsolePageProps) {
           tenants={controller.tenants}
           busyTenantId={controller.busyTenantId}
           onOpenTenantAction={controller.openTenantAction}
+          canManageTenantLifecycle={true}
           tenantPage={controller.tenantPage}
           tenantTotalPages={controller.tenantTotalPages}
           tenantTotal={controller.tenantTotal}
@@ -134,6 +135,7 @@ export function AdminConsolePage({ forcedView }: AdminConsolePageProps) {
           impersonationReason={controller.impersonationReason}
           onImpersonationReasonChange={controller.setImpersonationReason}
           impersonationBusy={controller.impersonationBusy}
+          canIssueImpersonationLink={controller.canRunAdminOnlyActions}
           onIssueImpersonationLink={() => {
             void controller.issueImpersonationLink();
           }}
@@ -149,6 +151,7 @@ export function AdminConsolePage({ forcedView }: AdminConsolePageProps) {
           deadLetterError={controller.deadLetterError}
           deadLetters={controller.deadLetters}
           requeueJobId={controller.requeueJobId}
+          canRequeueDeadLetters={true}
           onRefreshDeadLetters={() => {
             void controller.loadDeadLetters();
           }}
@@ -177,4 +180,3 @@ export function AdminConsolePage({ forcedView }: AdminConsolePageProps) {
 export default function AdminPage() {
   return <AdminConsolePage />;
 }
-

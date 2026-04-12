@@ -15,9 +15,10 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
-from app.deps import require_admin
+from app.deps import require_admin, require_admin_or_support
 from app.models import AuditLog, Job, SupportNote, Tenant, User
 from app.modules.subscription.models import Plan, Subscription
+from app.modules.subscription.trial_lifecycle import trial_funnel_bucket
 from app.queue.enqueue import get_dlq, get_queue
 from app.rate_limits import authenticated_default_rate_limit
 from app.schemas import (
@@ -54,7 +55,8 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 settings = get_settings()
 
 AUTH_401_RESPONSE = {"description": "Unauthorized: missing, invalid, or revoked access token."}
-FORBIDDEN_403_RESPONSE = {"description": "Forbidden: admin role is required."}
+FORBIDDEN_403_RESPONSE = {"description": "Forbidden: admin or support role is required."}
+FORBIDDEN_ADMIN_ONLY_403_RESPONSE = {"description": "Forbidden: admin role is required."}
 NOT_FOUND_404_RESPONSE = {"description": "Requested admin resource was not found."}
 CONFLICT_409_RESPONSE = {"description": "Conflict with current tenant state transition."}
 VALIDATION_422_RESPONSE = {"description": "Request validation failed."}
@@ -109,14 +111,14 @@ def compute_sla_state(note: SupportNote, now: datetime) -> str:
     dependencies=[Depends(authenticated_default_rate_limit)],
     responses={
         status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
-        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_ADMIN_ONLY_403_RESPONSE,
         status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
     },
 )
 def list_all_tenants(
     request: Request,
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_admin_or_support),
 ) -> list[TenantOut]:
     tenants = db.query(Tenant).order_by(Tenant.created_at.desc()).all()
     record_audit_event(
@@ -136,7 +138,7 @@ def list_all_tenants(
     dependencies=[Depends(authenticated_default_rate_limit)],
     responses={
         status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
-        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_ADMIN_ONLY_403_RESPONSE,
         status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
     },
 )
@@ -151,7 +153,7 @@ def list_all_tenants_paginated(
     filter_mode: str = Query(default="and", pattern="^(and|or)$"),
     search: str | None = Query(default=None),
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_admin_or_support),
 ) -> PaginatedTenantResponse:
     query = (
         db.query(Tenant)
@@ -232,14 +234,14 @@ def list_all_tenants_paginated(
     dependencies=[Depends(authenticated_default_rate_limit)],
     responses={
         status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
-        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_ADMIN_ONLY_403_RESPONSE,
         status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
     },
 )
 def list_billing_dunning(
     request: Request,
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_admin_or_support),
 ) -> list[DunningItemOut]:
     flagged = (
         db.query(Tenant)
@@ -408,7 +410,7 @@ def list_audit_log(
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_admin_or_support),
 ) -> PaginatedAuditLogResponse:
     total = db.query(AuditLog).count()
     rows = (
@@ -447,7 +449,7 @@ def export_audit_log(
     request: Request,
     limit: int = Query(default=500, ge=1, le=2000),
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_admin_or_support),
 ) -> StreamingResponse:
     rows = (
         db.query(AuditLog, User.email)
@@ -495,7 +497,7 @@ def export_audit_log(
     dependencies=[Depends(authenticated_default_rate_limit)],
     responses={
         status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
-        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_ADMIN_ONLY_403_RESPONSE,
         status.HTTP_404_NOT_FOUND: {"description": "Target user was not found."},
         status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
         status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
@@ -573,7 +575,7 @@ def list_support_notes(
     request: Request,
     tenant_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_admin_or_support),
 ) -> list[SupportNoteOut]:
     query = db.query(SupportNote, User.email).outerjoin(User, SupportNote.author_id == User.id)
     if tenant_id:
@@ -620,7 +622,7 @@ def create_support_note(
     request: Request,
     payload: SupportNoteCreateRequest,
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_admin_or_support),
 ) -> SupportNoteOut:
     tenant = db.get(Tenant, payload.tenant_id)
     if not tenant:
@@ -683,7 +685,7 @@ def update_support_note(
     note_id: str,
     payload: SupportNoteUpdateRequest,
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_admin_or_support),
 ) -> SupportNoteOut:
     note = db.get(SupportNote, note_id)
     if not note:
@@ -742,7 +744,7 @@ def update_support_note(
 def get_admin_metrics(
     request: Request,
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_admin_or_support),
 ) -> MetricsSummary:
     total_tenants = db.query(Tenant).count()
     active_tenants = db.query(Tenant).filter(Tenant.status == "active").count()
@@ -752,6 +754,21 @@ def get_admin_metrics(
         Tenant.status.in_(["pending", "provisioning", "upgrading", "restoring"])
     ).count()
     pending_payment_tenants = db.query(Tenant).filter(Tenant.status == "pending_payment").count()
+    trial_funnel_counts = {
+        "trialing": 0,
+        "converted_paid": 0,
+        "expired_past_due": 0,
+        "cancelled": 0,
+    }
+    trial_rows = (
+        db.query(Subscription.status, Subscription.trial_ends_at)
+        .filter(or_(Subscription.status == "trialing", Subscription.trial_ends_at.isnot(None)))
+        .all()
+    )
+    for status_value, trial_ends_at in trial_rows:
+        bucket = trial_funnel_bucket(subscription_status=status_value, trial_ends_at=trial_ends_at)
+        if bucket in trial_funnel_counts:
+            trial_funnel_counts[bucket] += 1
 
     since_24h = utcnow() - timedelta(hours=24)
     jobs_last_24h = db.query(Job).filter(Job.created_at >= since_24h).count()
@@ -790,6 +807,10 @@ def get_admin_metrics(
         failed_tenants=failed_tenants,
         provisioning_tenants=provisioning_tenants,
         pending_payment_tenants=pending_payment_tenants,
+        trialing_tenants=trial_funnel_counts["trialing"],
+        trial_converted_tenants=trial_funnel_counts["converted_paid"],
+        trial_expired_past_due_tenants=trial_funnel_counts["expired_past_due"],
+        trial_cancelled_tenants=trial_funnel_counts["cancelled"],
         jobs_last_24h=jobs_last_24h,
         provisioning_success_rate_7d=provisioning_success_rate_7d,
         dead_letter_count=dead_letter_count,
@@ -817,7 +838,7 @@ def suspend_tenant(
     background_tasks: BackgroundTasks,
     reason: str | None = Query(default=None, max_length=255),
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_admin_or_support),
 ) -> MessageResponse:
     tenant = db.get(Tenant, tenant_id)
     if not tenant:
@@ -869,7 +890,7 @@ def unsuspend_tenant(
     background_tasks: BackgroundTasks,
     reason: str | None = Query(default=None, max_length=255),
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_admin_or_support),
 ) -> MessageResponse:
     tenant = db.get(Tenant, tenant_id)
     if not tenant:
@@ -918,7 +939,7 @@ def unsuspend_tenant(
 def list_dead_letter_jobs(
     request: Request,
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_admin_or_support),
 ) -> list[DeadLetterJobOut]:
     queue = get_dlq()
     results: list[DeadLetterJobOut] = []
@@ -961,7 +982,7 @@ def requeue_dead_letter_job(
     job_id: str,
     reason: str | None = Query(default=None, max_length=255),
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_admin_or_support),
 ) -> MessageResponse:
     queue = get_dlq()
     job = queue.fetch_job(job_id)
@@ -996,7 +1017,7 @@ def list_recent_jobs(
     request: Request,
     limit: int = Query(default=50, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_admin_or_support),
 ) -> list[JobOut]:
     jobs = db.query(Job).order_by(Job.created_at.desc()).limit(limit).all()
     record_audit_event(
@@ -1025,7 +1046,7 @@ def get_job_logs(
     request: Request,
     job_id: str,
     db: Session = Depends(get_db),
-    current_admin: User = Depends(require_admin),
+    current_admin: User = Depends(require_admin_or_support),
 ) -> JobOut:
     job = db.get(Job, job_id)
     if not job:

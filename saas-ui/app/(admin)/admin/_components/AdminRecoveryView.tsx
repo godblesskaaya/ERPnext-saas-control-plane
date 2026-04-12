@@ -8,6 +8,7 @@ type AdminRecoveryViewProps = {
   deadLetterError: string | null;
   deadLetters: DeadLetterJob[];
   requeueJobId: string | null;
+  canRequeueDeadLetters?: boolean;
   onRefreshDeadLetters: () => void;
   onRequeueDeadLetter: (jobId: string) => void;
 };
@@ -17,6 +18,7 @@ export function AdminRecoveryView({
   deadLetterError,
   deadLetters,
   requeueJobId,
+  canRequeueDeadLetters = true,
   onRefreshDeadLetters,
   onRequeueDeadLetter,
 }: AdminRecoveryViewProps) {
@@ -55,13 +57,17 @@ export function AdminRecoveryView({
                     <code>{JSON.stringify(job.args).slice(0, 120)}</code>
                   </td>
                   <td className="p-2 text-xs">
-                    <button
-                      className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
-                      disabled={requeueJobId === job.id}
-                      onClick={() => onRequeueDeadLetter(job.id)}
-                    >
-                      {requeueJobId === job.id ? "Requeueing..." : "Requeue"}
-                    </button>
+                    {canRequeueDeadLetters ? (
+                      <button
+                        className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
+                        disabled={requeueJobId === job.id}
+                        onClick={() => onRequeueDeadLetter(job.id)}
+                      >
+                        {requeueJobId === job.id ? "Requeueing..." : "Requeue"}
+                      </button>
+                    ) : (
+                      <span className="rounded border border-slate-700 px-2 py-1 text-[11px] text-slate-400">Read-only scope</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -74,4 +80,3 @@ export function AdminRecoveryView({
     </div>
   );
 }
-

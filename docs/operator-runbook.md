@@ -12,6 +12,23 @@ This runbook is for on-call engineers operating the ERP SaaS control plane in `/
 
 > Use this runbook with `docker compose` from repo root unless otherwise stated.
 
+### Canonical API routing rule (important)
+
+The API is mounted behind the `/api` prefix in production routing.
+
+- Use `/api/auth/*`, `/api/tenants/*`, `/api/admin/*`, `/api/billing/*`
+- Do **not** treat `/auth/*` or `/billing/*` 404 responses as API failure indicators
+- Preferred payment webhook target: `/api/billing/webhook/{provider}` (`azampay`, `selcom`, `stripe`, `dpo`)
+- Compatibility alias: `/api/billing/webhook` (routes to active provider verification path)
+
+Recommended canonical probe command:
+
+```bash
+tests/smoke/test_api_prefix_routes.sh
+```
+
+This probe validates route-prefix health and fails fast when expected `/api/*` contracts regress.
+
 ---
 
 ## 2) Inspect a stuck provisioning job

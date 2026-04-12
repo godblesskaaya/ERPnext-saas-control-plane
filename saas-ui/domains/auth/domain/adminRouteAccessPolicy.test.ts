@@ -21,10 +21,11 @@ test("parseSessionToken decodes JWT payloads and handles invalid input", () => {
   assert.equal(parseSessionToken(null), null);
 });
 
-test("hasLiveSession and isAdminSession reflect auth state", () => {
+test("hasLiveSession and isAdminSession reflect operator auth state", () => {
   assert.equal(hasLiveSession({ exp: 2_000_000_000 }, 1_700_000_000_000), true);
   assert.equal(hasLiveSession({ exp: 1 }, 1_700_000_000_000), false);
   assert.equal(isAdminSession({ role: "admin" }), true);
+  assert.equal(isAdminSession({ role: "support" }), true);
   assert.equal(isAdminSession({ role: "user" }), false);
 });
 
@@ -33,6 +34,17 @@ test("decideAdminRouteAccess allows live admin sessions on admin routes", () => 
     payload: { role: "admin", exp: 2_000_000_000 },
     hadToken: true,
     nextPath: "/admin/control/overview",
+    nowMs: 1_700_000_000_000,
+  });
+
+  assert.deepEqual(decision, { allow: true });
+});
+
+test("decideAdminRouteAccess allows live support sessions on admin routes", () => {
+  const decision = decideAdminRouteAccess({
+    payload: { role: "support", exp: 2_000_000_000 },
+    hadToken: true,
+    nextPath: "/admin/control/support",
     nowMs: 1_700_000_000_000,
   });
 

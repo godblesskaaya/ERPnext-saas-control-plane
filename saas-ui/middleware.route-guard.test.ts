@@ -21,14 +21,22 @@ test("redirects unauthenticated admin access to login with next param", () => {
   assert.equal(response.headers.get("location"), "http://localhost/login?next=%2Fadmin%2Fcontrol%2Foverview");
 });
 
-test("returns 403 html for authenticated non-admin access to /admin/*", async () => {
+test("returns 403 html for authenticated non-operator access to /admin/*", async () => {
   const token = createJwt({ role: "member", exp: Math.floor(Date.now() / 1000) + 3600 });
   const response = middleware(request("/admin/control/tenants", `erp_saas_token=${token}; erp_saas_role=member`));
 
   assert.equal(response.status, 403);
   assert.equal(response.headers.get("content-type"), "text/html; charset=utf-8");
   const body = await response.text();
-  assert.match(body, /403 — Admin access required/);
+  assert.match(body, /403 — Admin or support access required/);
+});
+
+test("allows support-role sessions on /admin/* routes", () => {
+  const token = createJwt({ role: "support", exp: Math.floor(Date.now() / 1000) + 3600 });
+  const response = middleware(request("/admin/control/overview", `erp_saas_token=${token}; erp_saas_role=support`));
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("location"), null);
 });
 
 test("keeps non-admin workspace route flow accessible", () => {

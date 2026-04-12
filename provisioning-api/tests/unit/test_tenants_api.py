@@ -62,6 +62,17 @@ def _admin_headers(client, db_session):
     return {"Authorization": f"Bearer {token}"}
 
 
+def _support_headers(client, db_session):
+    client.post("/auth/signup", json={"email": "support@example.com", "password": "Secret123!"})
+    support_user = db_session.query(User).filter(User.email == "support@example.com").one()
+    support_user.role = "support"
+    db_session.add(support_user)
+    db_session.commit()
+    login = client.post("/auth/login", json={"email": "support@example.com", "password": "Secret123!"})
+    token = login.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 def _unverified_headers(client):
     client.post("/auth/signup", json={"email": "unverified@example.com", "password": "Secret123!"})
     login = client.post("/auth/login", json={"email": "unverified@example.com", "password": "Secret123!"})
@@ -81,7 +92,7 @@ def test_create_and_list_tenant_returns_checkout(_, client, db_session):
     payload = create.json()
     assert payload["tenant"]["domain"] == "acme.erp.blenkotechnologies.co.tz"
     assert payload["tenant"]["status"] == "pending"
-    assert payload["tenant"]["billing_status"] == "pending"
+    assert payload["tenant"]["billing_status"] == "paid"
     assert payload["tenant"]["chosen_app"] is None
     assert payload["tenant"]["payment_provider"] == "stripe"
     assert payload["job"] is None
@@ -94,7 +105,8 @@ def test_create_and_list_tenant_returns_checkout(_, client, db_session):
     tenant_id = payload["tenant"]["id"]
     subscription = db_session.query(Subscription).filter(Subscription.tenant_id == tenant_id).one()
     assert subscription.plan.slug == "starter"
-    assert subscription.status == "pending"
+    assert subscription.status == "trialing"
+    assert subscription.trial_ends_at is not None
     assert subscription.provider_checkout_session_id == "cs_mock_123"
     reset = client.post(
         f"/tenants/{tenant_id}/reset-admin-password",
@@ -745,6 +757,80 @@ def test_admin_can_queue_billing_dunning_cycle(mock_get_queue, client, db_sessio
 
     actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
     assert "admin.run_billing_dunning_cycle" in actions
+
+
+def test_support_role_can_access_scoped_admin_reads_and_interventions(client, db_session):
+    owner = User(email="owner-support-scope@example.com", password_hash="hash", role="user")
+    db_session.add(owner)
+    db_session.commit()
+    db_session.refresh(owner)
+
+    tenant = Tenant(
+        owner_id=owner.id,
+        subdomain="support-scope",
+        domain="support-scope.erp.blenkotechnologies.co.tz",
+        site_name="support-scope.erp.blenkotechnologies.co.tz",
+        company_name="Support Scope Ltd",
+        plan="starter",
+        status="active",
+        billing_status="paid",
+    )
+    db_session.add(tenant)
+    db_session.commit()
+    db_session.refresh(tenant)
+
+    headers = _support_headers(client, db_session)
+
+    listed = client.get("/admin/tenants", headers=headers)
+    assert listed.status_code == 200
+
+    jobs = client.get("/admin/jobs?limit=5", headers=headers)
+    assert jobs.status_code == 200
+
+    audit_log = client.get("/admin/audit-log?page=1&limit=5", headers=headers)
+    assert audit_log.status_code == 200
+
+    created = client.post(
+        "/admin/support-notes",
+        headers=headers,
+        json={"tenant_id": tenant.id, "category": "support", "note": "Scoped support intervention note."},
+    )
+    assert created.status_code == 201
+    note_id = created.json()["id"]
+
+    updated = client.patch(
+        f"/admin/support-notes/{note_id}",
+        headers=headers,
+        json={"status": "resolved"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["status"] == "resolved"
+
+    suspend = client.post(f"/admin/tenants/{tenant.id}/suspend", headers=headers)
+    assert suspend.status_code == 200
+
+    unsuspend = client.post(f"/admin/tenants/{tenant.id}/unsuspend", headers=headers)
+    assert unsuspend.status_code == 200
+
+
+def test_support_role_cannot_access_admin_only_controls(client, db_session):
+    headers = _support_headers(client, db_session)
+
+    dunning_run = client.post("/admin/billing/dunning/run?dry_run=true", headers=headers)
+    assert dunning_run.status_code == 403
+
+    assets_build = client.post("/admin/maintenance/assets/build", headers=headers)
+    assert assets_build.status_code == 403
+
+    tls_sync = client.post("/admin/maintenance/tls/sync", headers=headers)
+    assert tls_sync.status_code == 403
+
+    impersonation = client.post(
+        "/admin/impersonation-links",
+        headers=headers,
+        json={"target_email": "owner@example.com", "reason": "support-debug"},
+    )
+    assert impersonation.status_code == 403
 
 
 def test_owner_job_view_records_audit(client, db_session):

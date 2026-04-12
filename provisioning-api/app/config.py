@@ -143,6 +143,12 @@ class Settings(BaseSettings):
     billing_dunning_auto_interval_minutes: int = 30
     billing_dunning_auto_startup_delay_seconds: int = 20
     billing_dunning_auto_lock_seconds: int = 90
+    trial_lifecycle_enabled: bool = True
+    trial_default_days: int = 14
+    trial_scheduler_auto_enabled: bool = True
+    trial_scheduler_auto_interval_minutes: int = 30
+    trial_scheduler_auto_startup_delay_seconds: int = 25
+    trial_scheduler_auto_lock_seconds: int = 90
 
     @property
     def allowed_plan_set(self) -> set[str]:

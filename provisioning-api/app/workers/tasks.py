@@ -14,6 +14,7 @@ from app.db import SessionLocal
 from app.modules.observability.logging import get_logger
 from app.models import BackupManifest, Job, Tenant, User
 from app.modules.subscription.models import Subscription
+from app.modules.subscription.trial_lifecycle import resolve_trial_subscription_status
 from app.schemas import BillingPayload
 from app.modules.audit.service import record_audit_event
 from app.modules.tenant.policy import tenant_subscription_status
@@ -556,6 +557,107 @@ def sync_tenant_tls_routes_task(admin_id: str | None = None, prime_certs: bool =
         task_log.info("maintenance.tls_sync.completed", result=result.message, succeeded=result.succeeded)
         if not result.succeeded:
             raise RuntimeError(result.message)
+    finally:
+        db.close()
+
+
+def run_trial_lifecycle_cycle(admin_id: str | None = None, dry_run: bool = False) -> None:
+    db = SessionLocal()
+    task_log = log.bind(task="run_trial_lifecycle_cycle", actor_id=admin_id, dry_run=dry_run)
+    task_log.info("billing.trial_cycle.start")
+    admin = db.get(User, admin_id) if admin_id else None
+    now = utcnow()
+    summary = {
+        "checked": 0,
+        "expired": 0,
+        "past_due": 0,
+        "tenant_pending_payment": 0,
+        "tenant_suspended": 0,
+        "dry_run": dry_run,
+    }
+
+    try:
+        candidates = (
+            db.query(Subscription)
+            .filter(
+                Subscription.status == "trialing",
+                Subscription.trial_ends_at.isnot(None),
+                Subscription.trial_ends_at <= now,
+            )
+            .order_by(Subscription.trial_ends_at.asc())
+            .all()
+        )
+        summary["checked"] = len(candidates)
+
+        for subscription in candidates:
+            tenant = db.get(Tenant, subscription.tenant_id)
+            if tenant is None:
+                continue
+            summary["expired"] += 1
+
+            next_status = resolve_trial_subscription_status(
+                current_status=subscription.status,
+                event_type="trial.expired",
+                trial_ends_at=subscription.trial_ends_at,
+                now=now,
+            )
+            if next_status != "past_due":
+                continue
+
+            summary["past_due"] += 1
+            if dry_run:
+                continue
+
+            subscription.status = next_status
+            db.add(subscription)
+
+            if tenant.status in {"pending", "pending_payment", "failed"}:
+                try:
+                    transition_tenant_status(tenant, "pending_payment")
+                    summary["tenant_pending_payment"] += 1
+                except InvalidTenantStatusTransition:
+                    pass
+            elif tenant.status not in {"suspended_billing", "deleted", "deleting", "pending_deletion"}:
+                # AGENT-NOTE: once a provisioned trial expires, suspend service immediately
+                # so lifecycle state remains aligned with past_due subscription status.
+                try:
+                    transition_tenant_status(tenant, "suspended_billing")
+                    summary["tenant_suspended"] += 1
+                except InvalidTenantStatusTransition:
+                    pass
+            tenant.updated_at = now
+            db.add(tenant)
+
+            record_audit_event(
+                db,
+                action="billing.trial_expired",
+                resource="tenants",
+                actor=admin,
+                actor_role="system" if admin is None else None,
+                resource_id=tenant.id,
+                metadata={
+                    "subscription_status": subscription.status,
+                    "trial_ends_at": subscription.trial_ends_at.isoformat() if subscription.trial_ends_at else None,
+                },
+            )
+
+            owner = db.get(User, tenant.owner_id) if tenant.owner_id else None
+            if owner and tenant.status == "suspended_billing":
+                notification_service.send_tenant_suspended(
+                    owner.email,
+                    tenant.domain,
+                    "Trial expired without payment",
+                    owner.phone,
+                )
+
+        if not dry_run:
+            db.commit()
+        task_log.info("billing.trial_cycle.completed", **summary)
+    except Exception:
+        if not dry_run:
+            db.rollback()
+        task_log.exception("billing.trial_cycle.failed")
+        raise
     finally:
         db.close()
 

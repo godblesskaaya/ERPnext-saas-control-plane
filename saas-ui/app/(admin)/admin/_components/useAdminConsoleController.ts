@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { getSessionRole } from "../../../../domains/auth/auth";
 import {
   executeTenantLifecycleAction,
   exportAdminAuditCsv,
@@ -37,6 +38,7 @@ type UseAdminConsoleControllerArgs = {
 };
 
 export function useAdminConsoleController({ forcedView }: UseAdminConsoleControllerArgs) {
+  const [operatorRole, setOperatorRole] = useState<string>("user");
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [tenantsError, setTenantsError] = useState<string | null>(null);
   const [busyTenantId, setBusyTenantId] = useState<string | null>(null);
@@ -84,6 +86,7 @@ export function useAdminConsoleController({ forcedView }: UseAdminConsoleControl
   const { addNotification } = useNotifications();
   const lastMetricsKey = useRef<string | null>(null);
   const pathname = usePathname();
+  const canRunAdminOnlyActions = operatorRole === "admin";
 
   const currentView = useMemo<AdminView>(() => {
     if (forcedView) {
@@ -205,6 +208,11 @@ export function useAdminConsoleController({ forcedView }: UseAdminConsoleControl
     } catch (err) {
       setJobsError(toAdminErrorMessage(err, "Failed to load job logs"));
     }
+  }, []);
+
+  useEffect(() => {
+    const role = getSessionRole() ?? "user";
+    setOperatorRole(role);
   }, []);
 
   useEffect(() => {
@@ -353,6 +361,10 @@ export function useAdminConsoleController({ forcedView }: UseAdminConsoleControl
   }, []);
 
   const issueImpersonationLink = useCallback(async () => {
+    if (!canRunAdminOnlyActions) {
+      setImpersonationError("Only admin role can issue impersonation links.");
+      return;
+    }
     const email = impersonationEmail.trim().toLowerCase();
     const reason = impersonationReason.trim();
     if (!email || !reason) {
@@ -383,12 +395,14 @@ export function useAdminConsoleController({ forcedView }: UseAdminConsoleControl
     } finally {
       setImpersonationBusy(false);
     }
-  }, [addNotification, impersonationEmail, impersonationReason]);
+  }, [addNotification, canRunAdminOnlyActions, impersonationEmail, impersonationReason]);
 
   return {
     currentView,
     buildViewHref,
     controlLaneLinks,
+    operatorRole,
+    canRunAdminOnlyActions,
     activeCount,
     failedCount,
     suspendedCount,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from email.message import EmailMessage
 from email.utils import formataddr
 import smtplib
@@ -350,6 +351,60 @@ class NotificationService:
                 text=(
                     f"Tenant {domain} has been deleted.\n\n"
                     "If this was unexpected, contact support immediately."
+                ),
+            )
+        )
+
+    def send_trial_started(self, email: str, domain: str, trial_ends_at: datetime, phone: str | None = None) -> bool:
+        return self.send(
+            NotificationMessage(
+                to_email=email,
+                to_phone=phone,
+                subject="Trial started",
+                text=(
+                    f"Your trial for {domain} is now active.\n\n"
+                    f"Trial end: {trial_ends_at.isoformat()}\n"
+                    "We'll notify you before access is affected."
+                ),
+            )
+        )
+
+    def send_trial_expiring(self, email: str, domain: str, trial_ends_at: datetime, phone: str | None = None) -> bool:
+        return self.send(
+            NotificationMessage(
+                to_email=email,
+                to_phone=phone,
+                subject="Trial ending soon",
+                text=(
+                    f"Your trial for {domain} is ending soon.\n\n"
+                    f"Trial end: {trial_ends_at.isoformat()}\n"
+                    "Add or confirm payment details to avoid interruption."
+                ),
+            )
+        )
+
+    def send_trial_converted(self, email: str, domain: str, phone: str | None = None) -> bool:
+        return self.send(
+            NotificationMessage(
+                to_email=email,
+                to_phone=phone,
+                subject="Trial converted to paid",
+                text=(
+                    f"Your trial for {domain} has been converted to a paid subscription.\n\n"
+                    "Billing is active and your workspace remains available."
+                ),
+            )
+        )
+
+    def send_trial_expired_past_due(self, email: str, domain: str, phone: str | None = None) -> bool:
+        return self.send(
+            NotificationMessage(
+                to_email=email,
+                to_phone=phone,
+                subject="Trial expired — payment required",
+                text=(
+                    f"Your trial for {domain} has ended and billing is now past due.\n\n"
+                    "Complete payment to restore normal billing status."
                 ),
             )
         )

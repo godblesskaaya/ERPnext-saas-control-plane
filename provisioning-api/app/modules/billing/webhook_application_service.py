@@ -9,6 +9,7 @@ from app.modules.billing.webhook_normalization import build_outbox_dedup_key
 from app.modules.notifications.service import notification_service
 from app.modules.subscription.models import Subscription
 from app.modules.subscription.service import get_plan_by_slug, upsert_subscription_for_tenant
+from app.modules.subscription.trial_lifecycle import resolve_trial_subscription_status
 from app.modules.tenant.service import enqueue_provisioning_for_paid_tenant
 from app.modules.tenant.state import InvalidTenantStatusTransition, transition_tenant_status
 from app.schemas import MessageResponse
@@ -166,7 +167,15 @@ def handle_payment_confirmed(
         tenant.payment_channel = str(channel).lower() if channel else (tenant.payment_channel or "mobile_money")
         provider_checkout_session_id = tenant.dpo_transaction_token
     subscription = ensure_subscription(db, tenant)
-    subscription.status = "active"
+    previous_subscription_status = (subscription.status or "").strip().lower()
+    subscription.status = resolve_trial_subscription_status(
+        current_status=subscription.status,
+        event_type="payment.confirmed",
+        trial_ends_at=subscription.trial_ends_at,
+        now=utcnow(),
+    )
+    if previous_subscription_status == "trialing":
+        subscription.trial_ends_at = None
     subscription.payment_provider = tenant.payment_provider
     subscription.provider_checkout_session_id = provider_checkout_session_id or subscription.provider_checkout_session_id
     subscription.provider_subscription_id = subscription_id or subscription.provider_subscription_id
@@ -216,12 +225,24 @@ def handle_payment_failed(
     if tenant.payment_provider in {"dpo", "selcom", "azampay"}:
         default_channel = "mobile_money"
     tenant.payment_channel = tenant.payment_channel or default_channel
+    # AGENT-NOTE: failed payments during pre-provisioning should return to pending_payment,
+    # while post-provisioning failures should move to suspended_billing for explicit service gating.
+    target_tenant_status = "pending_payment" if tenant.status in {"pending", "pending_payment"} else "suspended_billing"
     try:
-        transition_tenant_status(tenant, "pending_payment")
+        transition_tenant_status(tenant, target_tenant_status)
     except InvalidTenantStatusTransition:
-        pass
+        if target_tenant_status != "pending_payment":
+            try:
+                transition_tenant_status(tenant, "pending_payment")
+            except InvalidTenantStatusTransition:
+                pass
     subscription = ensure_subscription(db, tenant)
-    subscription.status = "past_due"
+    subscription.status = resolve_trial_subscription_status(
+        current_status=subscription.status,
+        event_type="payment.failed",
+        trial_ends_at=subscription.trial_ends_at,
+        now=utcnow(),
+    )
     subscription.payment_provider = tenant.payment_provider
     subscription.provider_subscription_id = subscription_id or subscription.provider_subscription_id
     db.add(subscription)
@@ -263,7 +284,12 @@ def handle_subscription_cancelled(
     except InvalidTenantStatusTransition:
         tenant.status = "suspended_billing"
     subscription = ensure_subscription(db, tenant)
-    subscription.status = "cancelled"
+    subscription.status = resolve_trial_subscription_status(
+        current_status=subscription.status,
+        event_type="subscription.cancelled",
+        trial_ends_at=subscription.trial_ends_at,
+        now=utcnow(),
+    )
     if subscription.cancelled_at is None:
         subscription.cancelled_at = utcnow()
     subscription.payment_provider = tenant.payment_provider

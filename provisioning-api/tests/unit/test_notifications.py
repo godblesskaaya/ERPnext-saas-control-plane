@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from app.config import get_settings
 from app.modules.notifications.service import NotificationMessage, NotificationService
 
@@ -297,3 +299,31 @@ def test_notification_service_sms_failure_does_not_fail_email(monkeypatch):
     assert ok is True
     assert sent["email_to"] == "owner@example.com"
     get_settings.cache_clear()
+
+
+def test_trial_notification_hooks_render_expected_messages(monkeypatch):
+    captured: list[NotificationMessage] = []
+
+    def _capture(message: NotificationMessage) -> bool:
+        captured.append(message)
+        return True
+
+    service = NotificationService()
+    monkeypatch.setattr(service, "send", _capture)
+    trial_end = datetime(2026, 4, 20, 12, 0, 0, tzinfo=timezone.utc)
+
+    assert service.send_trial_started("owner@example.com", "trial.erp.example.com", trial_end) is True
+    assert service.send_trial_expiring("owner@example.com", "trial.erp.example.com", trial_end) is True
+    assert service.send_trial_converted("owner@example.com", "trial.erp.example.com") is True
+    assert service.send_trial_expired_past_due("owner@example.com", "trial.erp.example.com") is True
+
+    assert [message.subject for message in captured] == [
+        "Trial started",
+        "Trial ending soon",
+        "Trial converted to paid",
+        "Trial expired — payment required",
+    ]
+    assert trial_end.isoformat() in captured[0].text
+    assert trial_end.isoformat() in captured[1].text
+    assert "converted to a paid subscription" in captured[2].text
+    assert "billing is now past due" in captured[3].text

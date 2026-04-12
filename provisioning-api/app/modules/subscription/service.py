@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, selectinload
 
@@ -10,6 +12,7 @@ from app.modules.subscription.models import Plan, PlanEntitlement, Subscription
 from app.modules.subscription.schemas import PlanDetailOut, SubscriptionOut
 
 SUBSCRIPTION_STATUSES = {"pending", "trialing", "active", "past_due", "cancelled", "paused"}
+_UNSET = object()
 DEFAULT_PLAN_CATALOG = {
     "starter": {
         "display_name": "Starter",
@@ -212,6 +215,7 @@ def upsert_subscription_for_tenant(
     provider_subscription_id: str | None = None,
     provider_customer_id: str | None = None,
     provider_checkout_session_id: str | None = None,
+    trial_ends_at: datetime | None | object = _UNSET,
 ) -> Subscription:
     validate_plan_isolation_model(plan)
 
@@ -230,6 +234,8 @@ def upsert_subscription_for_tenant(
     subscription.provider_subscription_id = provider_subscription_id
     subscription.provider_customer_id = provider_customer_id
     subscription.provider_checkout_session_id = provider_checkout_session_id
+    if trial_ends_at is not _UNSET:
+        subscription.trial_ends_at = trial_ends_at
 
     db.add(subscription)
     db.flush()

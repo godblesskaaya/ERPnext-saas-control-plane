@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import secrets
 import sys
+from datetime import timedelta
 
 from fastapi import HTTPException, Request, status
 from rq import Retry
@@ -23,6 +24,7 @@ from app.modules.subscription.service import (
     upsert_subscription_for_tenant,
     validate_selected_app_for_plan,
 )
+from app.modules.subscription.trial_lifecycle import resolve_trial_subscription_status
 from app.modules.tenant.state import InvalidTenantStatusTransition, transition_tenant_status
 from app.utils.time import utcnow
 
@@ -80,6 +82,19 @@ def create_tenant_and_start_checkout(
         chosen_app=selected_app,
         status="pending_payment",
     )
+    trial_days = max(get_settings().trial_default_days, 0)
+    now = utcnow()
+    trial_status = "pending"
+    trial_ends_at = None
+    if get_settings().trial_lifecycle_enabled and trial_days > 0:
+        # AGENT-NOTE: Start trials at tenant creation so webhook/scheduler lifecycle
+        # transitions operate on explicit trialing subscriptions from day zero.
+        trial_status = resolve_trial_subscription_status(
+            current_status="pending",
+            event_type="trial.started",
+            now=now,
+        )
+        trial_ends_at = now + timedelta(days=trial_days)
     organization = Organization(name=company_name, owner_id=owner.id)
     db.add(organization)
     db.flush()
@@ -92,8 +107,9 @@ def create_tenant_and_start_checkout(
         tenant=tenant,
         plan=selected_plan,
         selected_app=selected_app,
-        status_value="pending",
+        status_value=trial_status,
         payment_provider=get_settings().active_payment_provider.strip().lower() or "azampay",
+        trial_ends_at=trial_ends_at,
     )
     db.commit()
     db.refresh(tenant)
@@ -132,10 +148,11 @@ def create_tenant_and_start_checkout(
         tenant=tenant,
         plan=selected_plan,
         selected_app=selected_app,
-        status_value="pending",
+        status_value=trial_status,
         payment_provider=provider,
         provider_checkout_session_id=checkout_session_id,
         provider_customer_id=customer_ref if provider == "stripe" else None,
+        trial_ends_at=trial_ends_at,
     )
     db.add(tenant)
     db.commit()

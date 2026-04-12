@@ -44,6 +44,10 @@ function isAdminRoute(pathname: string): boolean {
   return pathname === "/admin" || pathname.startsWith("/admin/");
 }
 
+function isAdminOperatorRole(role: string | undefined): boolean {
+  return role === "admin" || role === "support";
+}
+
 function resolveLegacyAdminRootRedirect(request: NextRequest): URL | null {
   const { pathname, searchParams } = request.nextUrl;
   if (pathname !== "/admin") {
@@ -106,8 +110,8 @@ function forbiddenHtml(): string {
   </head>
   <body>
     <div class="card">
-      <h1>403 — Admin access required</h1>
-      <p>Your account does not have permission to view this admin route.</p>
+      <h1>403 — Admin or support access required</h1>
+      <p>Your account does not have permission to view this operator route.</p>
       <p><a href="/dashboard/overview">Return to dashboard</a></p>
     </div>
   </body>
@@ -177,7 +181,7 @@ export function middleware(request: NextRequest) {
   }
 
   const role = request.cookies.get(ROLE_COOKIE)?.value ?? payload?.role;
-  if (isAdminRoute(pathname) && role !== "admin") {
+  if (isAdminRoute(pathname) && !isAdminOperatorRole(role)) {
     return new NextResponse(forbiddenHtml(), {
       status: 403,
       headers: {

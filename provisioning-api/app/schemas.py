@@ -383,6 +383,10 @@ class MetricsSummary(BaseModel):
     failed_tenants: int
     provisioning_tenants: int
     pending_payment_tenants: int
+    trialing_tenants: int
+    trial_converted_tenants: int
+    trial_expired_past_due_tenants: int
+    trial_cancelled_tenants: int
     jobs_last_24h: int
     provisioning_success_rate_7d: float
     dead_letter_count: int

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { getSessionRole } from "../../../../domains/auth/auth";
 import {
   getPlatformOpsErrorMessage,
   loadPlatformHealthSnapshot,
@@ -24,6 +25,7 @@ function formatDate(value?: string | null): string {
 }
 
 export default function PlatformHealthPage() {
+  const [operatorRole, setOperatorRole] = useState("user");
   const [health, setHealth] = useState<ApiHealth | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -34,6 +36,12 @@ export default function PlatformHealthPage() {
   const [maintenanceMessage, setMaintenanceMessage] = useState<string | null>(null);
   const [maintenanceError, setMaintenanceError] = useState<string | null>(null);
   const [maintenanceBusy, setMaintenanceBusy] = useState(false);
+  const canRunAdminOnlyActions = operatorRole === "admin";
+
+  useEffect(() => {
+    const role = getSessionRole() ?? "user";
+    setOperatorRole(role);
+  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -60,6 +68,10 @@ export default function PlatformHealthPage() {
   }, []);
 
   const runMaintenance = async (action: MaintenanceAction) => {
+    if (!canRunAdminOnlyActions) {
+      setMaintenanceError("Only admin role can run maintenance actions.");
+      return;
+    }
     setMaintenanceBusy(true);
     setMaintenanceError(null);
     setMaintenanceMessage(null);
@@ -189,27 +201,35 @@ export default function PlatformHealthPage() {
               Run platform fixes for tenant TLS certificates and ERP assets when customers report 404s.
             </p>
             <div className="mt-4 space-y-2">
-              <button
-                className="w-full rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
-                onClick={() => void runMaintenance("assets")}
-                disabled={maintenanceBusy}
-              >
-                Rebuild ERP assets
-              </button>
-              <button
-                className="w-full rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
-                onClick={() => void runMaintenance("tls")}
-                disabled={maintenanceBusy}
-              >
-                Sync tenant TLS routes
-              </button>
-              <button
-                className="w-full rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-800 hover:border-slate-300 disabled:opacity-60"
-                onClick={() => void runMaintenance("tls-prime")}
-                disabled={maintenanceBusy}
-              >
-                Prime tenant certificates
-              </button>
+              {canRunAdminOnlyActions ? (
+                <>
+                  <button
+                    className="w-full rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
+                    onClick={() => void runMaintenance("assets")}
+                    disabled={maintenanceBusy}
+                  >
+                    Rebuild ERP assets
+                  </button>
+                  <button
+                    className="w-full rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
+                    onClick={() => void runMaintenance("tls")}
+                    disabled={maintenanceBusy}
+                  >
+                    Sync tenant TLS routes
+                  </button>
+                  <button
+                    className="w-full rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-800 hover:border-slate-300 disabled:opacity-60"
+                    onClick={() => void runMaintenance("tls-prime")}
+                    disabled={maintenanceBusy}
+                  >
+                    Prime tenant certificates
+                  </button>
+                </>
+              ) : (
+                <p className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+                  Read-only maintenance view for support role. Ask an admin to execute maintenance actions.
+                </p>
+              )}
             </div>
             {maintenanceMessage ? (
               <p className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">

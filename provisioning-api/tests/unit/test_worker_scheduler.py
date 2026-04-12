@@ -64,3 +64,26 @@ def test_enqueue_dunning_cycle_if_due_respects_interval(monkeypatch):
     now["value"] = 1_061.0
     worker._enqueue_dunning_cycle_if_due(redis)
     assert len(queue.calls) == 2
+
+
+def test_enqueue_trial_cycle_if_due_respects_interval(monkeypatch):
+    redis = FakeRedis()
+    queue = FakeQueue()
+    now = {"value": 2_000.0}
+
+    monkeypatch.setattr(worker.settings, "trial_lifecycle_enabled", True, raising=False)
+    monkeypatch.setattr(worker.settings, "trial_scheduler_auto_enabled", True, raising=False)
+    monkeypatch.setattr(worker.settings, "trial_scheduler_auto_interval_minutes", 1, raising=False)
+    monkeypatch.setattr(worker, "get_queue", lambda: queue)
+    monkeypatch.setattr(worker.time, "time", lambda: now["value"])
+
+    worker._enqueue_trial_cycle_if_due(redis)
+    assert len(queue.calls) == 1
+    assert queue.calls[0][0][0] == "app.workers.tasks.run_trial_lifecycle_cycle"
+
+    worker._enqueue_trial_cycle_if_due(redis)
+    assert len(queue.calls) == 1
+
+    now["value"] = 2_062.0
+    worker._enqueue_trial_cycle_if_due(redis)
+    assert len(queue.calls) == 2

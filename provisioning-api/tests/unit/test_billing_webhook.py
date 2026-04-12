@@ -150,6 +150,64 @@ def test_checkout_completed_webhook_enqueues_provisioning_once(mock_get_queue, c
 
 
 @patch("app.modules.tenant.service.get_queue")
+def test_checkout_completed_webhook_converts_trialing_subscription(mock_get_queue, client, db_session):
+    mock_get_queue.return_value.enqueue = fake_enqueue
+
+    from app.modules.subscription.models import Plan
+    from app.modules.subscription.service import ensure_default_plan_catalog
+
+    ensure_default_plan_catalog(db_session)
+    starter_plan = db_session.query(Plan).filter(Plan.slug == "starter").one()
+
+    user = User(email="trial-owner@example.com", password_hash="hash", role="user")
+    tenant = Tenant(
+        owner_id=user.id,
+        subdomain="trial-convert",
+        domain="trial-convert.erp.blenkotechnologies.co.tz",
+        site_name="trial-convert.erp.blenkotechnologies.co.tz",
+        company_name="Trial Convert Ltd",
+        plan="starter",
+        status="pending",
+        payment_provider="stripe",
+    )
+    db_session.add(user)
+    db_session.flush()
+    tenant.owner_id = user.id
+    db_session.add(tenant)
+    db_session.flush()
+    subscription = Subscription(
+        tenant_id=tenant.id,
+        plan_id=starter_plan.id,
+        status="trialing",
+        trial_ends_at=datetime.now(timezone.utc),
+        payment_provider="stripe",
+    )
+    db_session.add(subscription)
+    db_session.commit()
+
+    payload = {
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "id": "cs_trial_123",
+                "customer": "cus_trial_123",
+                "subscription": "sub_trial_123",
+                "metadata": {"tenant_id": tenant.id, "plan": "starter"},
+            }
+        },
+    }
+
+    response = client.post("/billing/webhook/stripe", json=payload)
+    assert response.status_code == 200
+    assert response.json()["message"] == "processed:payment.confirmed"
+
+    db_session.expire_all()
+    refreshed = db_session.query(Subscription).filter(Subscription.tenant_id == tenant.id).one()
+    assert refreshed.status == "active"
+    assert refreshed.trial_ends_at is None
+
+
+@patch("app.modules.tenant.service.get_queue")
 def test_checkout_completed_webhook_retry_recovers_without_duplicate_state_transitions(
     mock_get_queue,
     client,
@@ -279,13 +337,66 @@ def test_payment_failed_and_subscription_cancelled_audited(client, db_session):
     assert any(row.tenant_id == tenant.id for row in payment_events)
 
 
-def test_default_billing_webhook_disabled_in_production(monkeypatch, client):
+def test_payment_failed_suspends_active_tenant_and_marks_subscription_past_due(client, db_session):
+    user = User(email="owner3@example.com", password_hash="hash", role="user")
+    tenant = Tenant(
+        owner_id=user.id,
+        subdomain="billing-active-failure",
+        domain="billing-active-failure.erp.blenkotechnologies.co.tz",
+        site_name="billing-active-failure.erp.blenkotechnologies.co.tz",
+        company_name="Billing Active Failure Ltd",
+        plan="starter",
+        status="active",
+        payment_provider="stripe",
+    )
+    db_session.add(user)
+    db_session.flush()
+    tenant.owner_id = user.id
+    db_session.add(tenant)
+    db_session.flush()
+
+    from app.modules.subscription.models import Plan
+    from app.modules.subscription.service import ensure_default_plan_catalog
+
+    ensure_default_plan_catalog(db_session)
+    starter_plan = db_session.query(Plan).filter(Plan.slug == "starter").one()
+    db_session.add(
+        Subscription(
+            tenant_id=tenant.id,
+            plan_id=starter_plan.id,
+            status="trialing",
+            payment_provider="stripe",
+        )
+    )
+    db_session.commit()
+
+    failed_payload = {
+        "type": "invoice.payment_failed",
+        "data": {"object": {"id": "in_active_fail_1", "subscription": "sub_active_fail_1", "metadata": {"tenant_id": tenant.id}}},
+    }
+    failed = client.post("/billing/webhook/stripe", json=failed_payload)
+    assert failed.status_code == 200
+    assert failed.json()["message"] == "processed:payment.failed"
+
+    db_session.expire_all()
+    refreshed_tenant = db_session.get(Tenant, tenant.id)
+    subscription = db_session.query(Subscription).filter(Subscription.tenant_id == tenant.id).one()
+    assert refreshed_tenant.status == "suspended_billing"
+    assert subscription.status == "past_due"
+
+
+def test_default_billing_webhook_aliases_to_active_provider_in_production(monkeypatch, client, db_session):
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.delenv("ALLOW_DEFAULT_BILLING_WEBHOOK", raising=False)
     get_settings.cache_clear()
 
     response = client.post("/billing/webhook", json={"type": "checkout.session.completed", "data": {"object": {"metadata": {}}}})
-    assert response.status_code == 404
+    assert response.status_code != 404
+    assert response.status_code == 400
+    parse_errors = db_session.query(PaymentEvent).filter(PaymentEvent.event_type == "parse_error").all()
+    assert len(parse_errors) == 1
+    assert parse_errors[0].provider == "stripe"
+    assert parse_errors[0].processing_status == "error"
 
     get_settings.cache_clear()
 

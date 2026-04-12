@@ -15,6 +15,7 @@ type AdminTenantsViewProps = {
   onTenantPlanFilterChange: (value: string) => void;
   tenants: Tenant[];
   busyTenantId: string | null;
+  canManageTenantLifecycle?: boolean;
   onOpenTenantAction: (payload: { type: "suspend" | "unsuspend"; tenant: Tenant; phrase: string }) => void;
   tenantPage: number;
   tenantTotalPages: number;
@@ -34,6 +35,7 @@ export function AdminTenantsView({
   onTenantPlanFilterChange,
   tenants,
   busyTenantId,
+  canManageTenantLifecycle = true,
   onOpenTenantAction,
   tenantPage,
   tenantTotalPages,
@@ -122,36 +124,42 @@ export function AdminTenantsView({
                     <a href={`/tenants/${tenant.id}`} className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800">
                       Details
                     </a>
-                    {["suspended", "suspended_admin", "suspended_billing"].includes(tenant.status.toLowerCase()) ? (
-                      <button
-                        type="button"
-                        disabled={busyTenantId === tenant.id}
-                        className="rounded bg-emerald-700 px-2 py-1 text-xs hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
-                        onClick={() =>
-                          onOpenTenantAction({
-                            type: "unsuspend",
-                            tenant,
-                            phrase: buildTenantActionPhrase(tenant.subdomain),
-                          })
-                        }
-                      >
-                        {busyTenantId === tenant.id ? "Reactivating..." : "Unsuspend"}
-                      </button>
+                    {canManageTenantLifecycle ? (
+                      ["suspended", "suspended_admin", "suspended_billing"].includes(tenant.status.toLowerCase()) ? (
+                        <button
+                          type="button"
+                          disabled={busyTenantId === tenant.id}
+                          className="rounded bg-emerald-700 px-2 py-1 text-xs hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() =>
+                            onOpenTenantAction({
+                              type: "unsuspend",
+                              tenant,
+                              phrase: buildTenantActionPhrase(tenant.subdomain),
+                            })
+                          }
+                        >
+                          {busyTenantId === tenant.id ? "Reactivating..." : "Unsuspend"}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busyTenantId === tenant.id}
+                          className="rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() =>
+                            onOpenTenantAction({
+                              type: "suspend",
+                              tenant,
+                              phrase: buildTenantActionPhrase(tenant.subdomain),
+                            })
+                          }
+                        >
+                          {busyTenantId === tenant.id ? "Suspending..." : "Suspend"}
+                        </button>
+                      )
                     ) : (
-                      <button
-                        type="button"
-                        disabled={busyTenantId === tenant.id}
-                        className="rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
-                        onClick={() =>
-                          onOpenTenantAction({
-                            type: "suspend",
-                            tenant,
-                            phrase: buildTenantActionPhrase(tenant.subdomain),
-                          })
-                        }
-                      >
-                        {busyTenantId === tenant.id ? "Suspending..." : "Suspend"}
-                      </button>
+                      <span className="rounded border border-slate-700 px-2 py-1 text-[11px] text-slate-400">
+                        Read-only scope
+                      </span>
                     )}
                   </div>
                 </td>
@@ -187,4 +195,3 @@ export function AdminTenantsView({
     </div>
   );
 }
-

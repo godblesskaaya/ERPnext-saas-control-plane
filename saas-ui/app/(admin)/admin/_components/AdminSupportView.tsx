@@ -6,6 +6,7 @@ type AdminSupportViewProps = {
   impersonationReason: string;
   onImpersonationReasonChange: (value: string) => void;
   impersonationBusy: boolean;
+  canIssueImpersonationLink?: boolean;
   onIssueImpersonationLink: () => void;
   impersonationError: string | null;
   impersonationLink: string | null;
@@ -18,6 +19,7 @@ export function AdminSupportView({
   impersonationReason,
   onImpersonationReasonChange,
   impersonationBusy,
+  canIssueImpersonationLink = true,
   onIssueImpersonationLink,
   impersonationError,
   impersonationLink,
@@ -45,11 +47,14 @@ export function AdminSupportView({
         <button
           className="rounded border border-slate-600 px-3 py-2 text-xs hover:bg-slate-800 disabled:opacity-60"
           onClick={onIssueImpersonationLink}
-          disabled={impersonationBusy}
+          disabled={impersonationBusy || !canIssueImpersonationLink}
         >
-          {impersonationBusy ? "Issuing..." : "Issue link"}
+          {impersonationBusy ? "Issuing..." : canIssueImpersonationLink ? "Issue link" : "Admin only"}
         </button>
       </div>
+      {!canIssueImpersonationLink ? (
+        <p className="mt-2 text-xs text-slate-400">Support role is read-only for impersonation. Ask an admin to issue links.</p>
+      ) : null}
       {impersonationError ? <p className="mt-2 text-sm text-red-400">{impersonationError}</p> : null}
       {impersonationLink ? (
         <div className="mt-3 rounded border border-slate-500/40 bg-slate-500/10 p-3 text-xs text-sky-100">
@@ -61,4 +66,3 @@ export function AdminSupportView({
     </div>
   );
 }
-

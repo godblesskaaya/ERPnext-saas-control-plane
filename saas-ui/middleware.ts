@@ -4,16 +4,16 @@ import { normalizeCompatibilityRoute, resolveCompatibilityRoute } from "./domain
 const TOKEN_COOKIE = "erp_saas_token";
 const ROLE_COOKIE = "erp_saas_role";
 const USER_COOKIE = "erp_saas_user";
-const DEFAULT_WORKSPACE_REDIRECT = "/dashboard/overview";
+const DEFAULT_WORKSPACE_REDIRECT = "/app/overview";
 const ROUTE_COMPATIBILITY_MODE = process.env.ROUTE_COMPATIBILITY_MODE === "observe" ? "observe" : "redirect";
 const ROUTE_COMPATIBILITY_SUNSET_AT = "2026-06-30T00:00:00Z";
 const LEGACY_ADMIN_ROOT_ROUTE_REDIRECTS: Record<string, string> = {
-  overview: "/admin/control/overview",
-  tenants: "/admin/control/tenants",
-  jobs: "/admin/control/jobs",
-  audit: "/admin/control/audit",
-  support: "/admin/control/support",
-  recovery: "/admin/control/recovery",
+  overview: "/app/admin/control-overview",
+  tenants: "/app/admin/tenant-control",
+  jobs: "/app/admin/jobs",
+  audit: "/app/admin/audit",
+  support: "/app/admin/support-tools",
+  recovery: "/app/admin/recovery",
 };
 
 type JwtPayload = {
@@ -35,13 +35,13 @@ function decodePayload(token: string): JwtPayload | null {
 }
 
 function isProtected(pathname: string): boolean {
-  return ["/dashboard", "/billing", "/admin", "/onboarding", "/tenants"].some(
+  return ["/app", "/dashboard", "/billing", "/admin", "/onboarding", "/tenants"].some(
     (base) => pathname === base || pathname.startsWith(`${base}/`),
   );
 }
 
 function isAdminRoute(pathname: string): boolean {
-  return pathname === "/admin" || pathname.startsWith("/admin/");
+  return pathname === "/admin" || pathname.startsWith("/admin/") || pathname === "/app/admin" || pathname.startsWith("/app/admin/");
 }
 
 function isAdminOperatorRole(role: string | undefined): boolean {
@@ -54,7 +54,6 @@ function resolveLegacyAdminRootRedirect(request: NextRequest): URL | null {
     return null;
   }
 
-  const hasViewParam = searchParams.has("view");
   const viewParam = searchParams.get("view");
   const targetPath =
     (viewParam && LEGACY_ADMIN_ROOT_ROUTE_REDIRECTS[viewParam]) || LEGACY_ADMIN_ROOT_ROUTE_REDIRECTS.overview;
@@ -63,10 +62,6 @@ function resolveLegacyAdminRootRedirect(request: NextRequest): URL | null {
   for (const [key, value] of searchParams.entries()) {
     if (key === "view") continue;
     destination.searchParams.append(key, value);
-  }
-
-  if (!hasViewParam && pathname === targetPath) {
-    return null;
   }
 
   return destination;
@@ -112,7 +107,7 @@ function forbiddenHtml(): string {
     <div class="card">
       <h1>403 — Admin or support access required</h1>
       <p>Your account does not have permission to view this operator route.</p>
-      <p><a href="/dashboard/overview">Return to dashboard</a></p>
+      <p><a href="/app/overview">Return to overview</a></p>
     </div>
   </body>
 </html>`;
@@ -193,7 +188,13 @@ export function middleware(request: NextRequest) {
 
   const legacyAdminRootRedirect = resolveLegacyAdminRootRedirect(request);
   if (legacyAdminRootRedirect) {
-    return NextResponse.redirect(legacyAdminRootRedirect);
+    const redirectResponse = NextResponse.redirect(legacyAdminRootRedirect, 308);
+    annotateCompatibilityResponse(
+      redirectResponse,
+      "admin-view",
+      `${legacyAdminRootRedirect.pathname}${legacyAdminRootRedirect.search}`,
+    );
+    return redirectResponse;
   }
 
   const compatibility = resolveCompatibilityRoute(`${request.nextUrl.pathname}${request.nextUrl.search}`);
@@ -214,6 +215,7 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/app/:path*",
     "/admin",
     "/billing",
     "/dashboard/:path*",

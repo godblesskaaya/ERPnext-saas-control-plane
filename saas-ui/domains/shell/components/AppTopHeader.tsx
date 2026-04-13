@@ -23,9 +23,9 @@ import HelpOutlineOutlinedIcon from "@mui/icons-material/HelpOutlineOutlined";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 
 function resolveWorkspaceLabel(pathname: string): string {
-  if (pathname.startsWith("/admin")) return "Admin";
-  if (pathname.startsWith("/tenants")) return "Tenants";
-  if (pathname.startsWith("/billing") || pathname.includes("/billing")) return "Billing";
+  if (pathname.startsWith("/app/admin")) return "Admin";
+  if (pathname.startsWith("/app/tenants")) return "Tenants";
+  if (pathname.startsWith("/app/billing") || pathname.includes("/billing")) return "Billing";
   if (pathname.includes("/support")) return "Support";
   if (pathname.includes("/platform") || pathname.includes("/provisioning") || pathname.includes("/incidents")) return "Platform";
   if (pathname.includes("/account") || pathname.includes("/settings")) return "Account";
@@ -99,7 +99,7 @@ export function AppTopHeader() {
           <Tooltip title="Help">
             {/* AGENT-NOTE: We route help to support overview as an in-product docs fallback until
                a dedicated docs center route is finalized. */}
-            <IconButton size="small" color="inherit" component={Link} href="/dashboard/support-overview">
+            <IconButton size="small" color="inherit" component={Link} href="/app/support/escalations">
               <HelpOutlineOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -123,10 +123,10 @@ export function AppTopHeader() {
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         transformOrigin={{ vertical: "top", horizontal: "right" }}
       >
-        <MenuItem component={Link} href="/dashboard/account" onClick={() => setMenuAnchor(null)}>
+        <MenuItem component={Link} href="/app/account/profile" onClick={() => setMenuAnchor(null)}>
           Account
         </MenuItem>
-        <MenuItem component={Link} href="/dashboard/settings" onClick={() => setMenuAnchor(null)}>
+        <MenuItem component={Link} href="/app/account/settings" onClick={() => setMenuAnchor(null)}>
           Settings
         </MenuItem>
         <MenuItem component={Link} href="/login?logout=1" onClick={() => setMenuAnchor(null)}>

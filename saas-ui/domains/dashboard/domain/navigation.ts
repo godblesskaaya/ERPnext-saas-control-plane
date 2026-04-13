@@ -23,11 +23,11 @@ export const dashboardNavSections: DashboardNavSection[] = [
     description: "Track onboarding, provisioning, incidents, and tenant activity from one flow.",
     items: [
       { href: "/app/admin/control-overview", label: "Workflow hub", hint: "Entry point by operational journey" },
-      { href: "/admin/onboarding", label: "Payment onboarding", hint: "Awaiting payment confirmations" },
-      { href: "/admin/provisioning", label: "Provisioning queue", hint: "Deployments and upgrades in progress" },
-      { href: "/admin/incidents", label: "Incidents", hint: "Provisioning failures and rescue queue" },
-      { href: "/admin/suspensions", label: "Suspensions", hint: "Admin and billing suspends" },
-      { href: "/admin/activity", label: "Jobs timeline", hint: "Recent operational events" },
+      { href: "/app/platform/onboarding", label: "Payment onboarding", hint: "Awaiting payment confirmations" },
+      { href: "/app/platform/provisioning", label: "Provisioning queue", hint: "Deployments and upgrades in progress" },
+      { href: "/app/platform/incidents", label: "Incidents", hint: "Provisioning failures and rescue queue" },
+      { href: "/app/tenants/suspensions", label: "Suspensions", hint: "Admin and billing suspends" },
+      { href: "/app/overview/activity", label: "Jobs timeline", hint: "Recent operational events" },
     ],
   },
   {
@@ -73,7 +73,7 @@ export const dashboardNavSections: DashboardNavSection[] = [
     description: "Collections, dunning actions, and invoice visibility.",
     items: [
       { href: "/app/admin/billing-ops", label: "Dunning operations", hint: "Retry cycles and billing actions" },
-      { href: "/admin/billing", label: "Billing follow-ups", hint: "Pending payments and support handoff" },
+      { href: "/app/admin/billing-ops", label: "Billing follow-ups", hint: "Pending payments and support handoff" },
     ],
   },
   {
@@ -90,7 +90,7 @@ export const dashboardNavSections: DashboardNavSection[] = [
     title: "Support routing",
     description: "SLA management, auditability, and escalation readiness.",
     items: [
-      { href: "/admin/support-overview", label: "Support overview", hint: "SLA pressure and support load" },
+      { href: "/app/support/escalations", label: "Support overview", hint: "SLA pressure and support load" },
       { href: "/app/admin/support-tools", label: "Support queue", hint: "Case ownership and notes" },
       { href: "/app/admin/audit", label: "Audit & policy", hint: "Compliance and operational audit trail" },
     ],

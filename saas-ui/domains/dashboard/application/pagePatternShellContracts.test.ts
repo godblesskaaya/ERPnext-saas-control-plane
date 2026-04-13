@@ -8,10 +8,10 @@ function readSource(pathFromRoot: string): string {
 }
 
 const routePaths = {
-  overview: "app/(dashboard)/dashboard/overview/page.tsx",
-  list: "app/(dashboard)/dashboard/active/page.tsx",
-  queue: "app/(dashboard)/dashboard/provisioning/page.tsx",
-  settings: "app/(dashboard)/dashboard/settings/page.tsx",
+  overview: "app/(app-shell)/app/overview/page.tsx",
+  list: "app/(app-shell)/app/tenants/active/page.tsx",
+  queue: "app/(app-shell)/app/platform/provisioning/page.tsx",
+  settings: "app/(app-shell)/app/account/settings/page.tsx",
 } as const;
 
 const queueShellPath = "domains/dashboard/components/WorkspaceQueuePage.tsx";
@@ -78,7 +78,7 @@ test("settings route adopts LoadingState/ErrorState/EmptyState wrappers", () => 
   const settingsSource = readSource(routePaths.settings);
 
   assert.equal(
-    settingsSource.includes('import { EmptyState, ErrorState, LoadingState } from "../../../../domains/shell/components";'),
+    settingsSource.includes('import { EmptyState, ErrorState, LoadingState } from "../../../../../domains/shell/components";'),
     true,
   );
 

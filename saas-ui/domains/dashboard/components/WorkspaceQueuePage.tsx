@@ -272,10 +272,10 @@ export function WorkspaceQueuePage({
       : `${needsAttentionCount} item(s) need attention in your queue.`);
   const isAdminScope = routeScope === "admin";
   const rootCrumb = isAdminScope
-    ? { label: "Admin", href: "/admin/control/overview" }
-    : { label: "Dashboard", href: "/dashboard/overview" };
+    ? { label: "Admin", href: "/app/admin/control-overview" }
+    : { label: "Dashboard", href: "/app/overview" };
   const headerCrumbs = [rootCrumb, { label: title }];
-  const billingFollowUpHref = isAdminScope ? "/admin/billing" : "/billing";
+  const billingFollowUpHref = isAdminScope ? "/app/admin/billing-ops" : "/app/billing/invoices";
   const billingFollowUpLabel = isAdminScope ? "Go to billing follow-ups" : "Open payment center";
   const statusOptions = isAdminScope
     ? [
@@ -308,7 +308,7 @@ export function WorkspaceQueuePage({
     if (isAdminScope) {
       return [
         {
-          href: "/admin/onboarding",
+          href: "/app/platform/onboarding",
           eyebrow: "Payment confirmation",
           value: pendingPaymentTenants,
           description: "Sign-ups waiting for payment confirmation.",
@@ -316,26 +316,26 @@ export function WorkspaceQueuePage({
           cardBgColor: "#fff7ed",
         },
         {
-          href: "/admin/provisioning",
+          href: "/app/platform/provisioning",
           eyebrow: "Provisioning queue",
           value: provisioningQueueTenants,
           description: "Deployments and upgrades still in progress.",
         },
         {
-          href: "/admin/incidents",
+          href: "/app/platform/incidents",
           eyebrow: "System failures",
           value: failedTenants,
           description: "Provisioning failures needing operator action.",
           valueColor: "error.main",
         },
         {
-          href: "/admin/suspensions",
+          href: "/app/tenants/suspensions",
           eyebrow: "Account suspensions",
           value: suspendedTenants,
           description: "Admin or billing suspensions to review.",
         },
         {
-          href: "/admin/billing",
+          href: "/app/admin/billing-ops",
           eyebrow: "Billing follow-ups",
           value: billingQueueCount,
           description: "Pending payments and failed billing workspaces.",
@@ -346,7 +346,7 @@ export function WorkspaceQueuePage({
 
     return [
       {
-        href: "/billing",
+        href: "/app/billing/invoices",
         eyebrow: "Payments",
         value: pendingPaymentTenants,
         description: "Resume checkout and review unpaid invoices.",
@@ -354,19 +354,19 @@ export function WorkspaceQueuePage({
         cardBgColor: "#fff7ed",
       },
       {
-        href: "/dashboard/registry",
+        href: "/app/tenants",
         eyebrow: "Workspace registry",
         value: totalTenants,
         description: "Search all workspaces and open workspace details.",
       },
       {
-        href: "/dashboard/active",
+        href: "/app/tenants/active",
         eyebrow: "Active workspaces",
         value: activeTenants,
         description: "Monitor live customers and continue routine actions.",
       },
       {
-        href: "/onboarding",
+        href: "/app/platform/onboarding",
         eyebrow: "Onboarding",
         value: provisioningTenants,
         description: "Track setup progress for newly created workspaces.",

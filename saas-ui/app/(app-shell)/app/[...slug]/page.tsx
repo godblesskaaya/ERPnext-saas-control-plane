@@ -18,7 +18,7 @@ import DashboardOnboardingPage from "../../../(dashboard)/dashboard/onboarding/p
 import DashboardAccountPage from "../../../(dashboard)/dashboard/account/page";
 import DashboardSettingsPage from "../../../(dashboard)/dashboard/settings/page";
 import BillingPage from "../../../(billing)/billing/page";
-import { AdminConsolePage } from "../../../(admin)/admin/page";
+import { AdminConsolePage } from "../../../(admin)/admin/AdminConsolePage";
 import AdminBillingOpsPage from "../../../(admin)/admin/billing-ops/page";
 import AdminPlatformHealthPage from "../../../(admin)/admin/platform-health/page";
 import AdminSupportOverviewPage from "../../../(admin)/admin/support-overview/page";

@@ -1,5 +1,1 @@
-import { redirect } from "next/navigation";
-
-export default function AppRootPage() {
-  redirect("/app/overview");
-}
+export { default } from "./overview/page";

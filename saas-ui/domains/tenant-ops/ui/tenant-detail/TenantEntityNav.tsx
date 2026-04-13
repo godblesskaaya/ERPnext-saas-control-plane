@@ -18,11 +18,11 @@ type TenantNavItem = {
 
 export function TenantEntityNav({ id }: TenantEntityNavProps) {
   const pathname = usePathname() ?? "";
-  const basePath = `/tenants/${id}`;
+  const basePath = `/app/tenants/${id}`;
   const navItems: TenantNavItem[] = [
     {
       label: "Overview",
-      href: basePath,
+      href: `${basePath}/overview`,
       active: isTenantOverviewPath(pathname, id),
     },
     { label: "Members", href: `${basePath}/members`, active: isExactOrChildPath(pathname, `${basePath}/members`) },

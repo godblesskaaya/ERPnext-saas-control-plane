@@ -8,12 +8,12 @@ import { WorkspaceSidebar } from "../../shell/components/WorkspaceSidebar";
 import type { ShellNavSection } from "../../shell/model/nav";
 
 const LEGACY_ADMIN_VIEW_ROUTES: Record<string, string> = {
-  overview: "/admin/control/overview",
-  tenants: "/admin/control/tenants",
-  jobs: "/admin/control/jobs",
-  audit: "/admin/control/audit",
-  support: "/admin/control/support",
-  recovery: "/admin/control/recovery",
+  overview: "/app/admin/control-overview",
+  tenants: "/app/admin/tenant-control",
+  jobs: "/app/admin/jobs",
+  audit: "/app/admin/audit",
+  support: "/app/admin/support-tools",
+  recovery: "/app/admin/recovery",
 };
 
 const sections: ShellNavSection[] = adminNavSections.map((section) => ({
@@ -26,7 +26,7 @@ export function AdminNav() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const effectivePath = useMemo(() => {
-    if (pathname !== "/admin") {
+    if (pathname !== "/admin" && pathname !== "/app/admin") {
       return pathname ?? "/";
     }
 
@@ -35,7 +35,7 @@ export function AdminNav() {
       return LEGACY_ADMIN_VIEW_ROUTES[view];
     }
 
-    return "/admin/control/overview";
+    return "/app/admin/control-overview";
   }, [pathname, searchParams]);
 
   return (

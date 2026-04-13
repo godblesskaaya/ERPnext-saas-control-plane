@@ -74,7 +74,7 @@ export function decideAdminRouteAccess(options: {
       allow: false,
       status: 403,
       reason: "admin-required",
-      redirectPath: "/dashboard/overview?reason=admin-required",
+      redirectPath: "/app/overview?reason=admin-required",
     };
   }
 

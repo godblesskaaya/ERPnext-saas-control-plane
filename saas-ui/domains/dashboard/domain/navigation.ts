@@ -22,7 +22,7 @@ export const dashboardNavSections: DashboardNavSection[] = [
     title: "Lifecycle routing",
     description: "Track onboarding, provisioning, incidents, and tenant activity from one flow.",
     items: [
-      { href: "/admin/control/overview", label: "Workflow hub", hint: "Entry point by operational journey" },
+      { href: "/app/admin/control-overview", label: "Workflow hub", hint: "Entry point by operational journey" },
       { href: "/admin/onboarding", label: "Payment onboarding", hint: "Awaiting payment confirmations" },
       { href: "/admin/provisioning", label: "Provisioning queue", hint: "Deployments and upgrades in progress" },
       { href: "/admin/incidents", label: "Incidents", hint: "Provisioning failures and rescue queue" },
@@ -35,9 +35,9 @@ export const dashboardNavSections: DashboardNavSection[] = [
     title: "Overview workspace",
     description: "Workspace snapshot, live activity, and customer-facing health signals.",
     items: [
-      { href: "/dashboard/overview", label: "Overview", hint: "Workspace snapshot and priorities" },
-      { href: "/dashboard/active", label: "Active workspaces", hint: "Live customers and workspace health" },
-      { href: "/dashboard/activity", label: "Activity feed", hint: "Recent workspace lifecycle changes" },
+      { href: "/app/overview", label: "Overview", hint: "Workspace snapshot and priorities" },
+      { href: "/app/tenants/active", label: "Active workspaces", hint: "Live customers and workspace health" },
+      { href: "/app/overview/activity", label: "Activity feed", hint: "Recent workspace lifecycle changes" },
     ],
   },
   {
@@ -46,7 +46,7 @@ export const dashboardNavSections: DashboardNavSection[] = [
     description: "Find tenants, review status, and continue workspace detail journeys.",
     items: [
       {
-        href: "/dashboard/registry",
+        href: "/app/tenants",
         label: "Workspace registry",
         hint: "Search workspaces and open workspace details",
         match: ["/tenants"],
@@ -59,13 +59,12 @@ export const dashboardNavSections: DashboardNavSection[] = [
     description: "Customer payment recovery and invoice visibility.",
     items: [
       {
-        href: "/dashboard/billing-recovery",
+        href: "/app/billing/recovery",
         label: "Billing recovery",
         hint: "Payment follow-ups and invoice recovery",
-        match: ["/dashboard/billing-ops"],
       },
-      { href: "/dashboard/billing-details", label: "Invoice analytics", hint: "Invoice and provider-level breakdown" },
-      { href: "/billing", label: "Payment center", hint: "Resume checkout and review subscription invoices" },
+      { href: "/app/billing/invoices", label: "Invoice analytics", hint: "Invoice and provider-level breakdown" },
+      { href: "/app/billing/invoices", label: "Payment center", hint: "Resume checkout and review subscription invoices" },
     ],
   },
   {
@@ -73,7 +72,7 @@ export const dashboardNavSections: DashboardNavSection[] = [
     title: "Billing routing",
     description: "Collections, dunning actions, and invoice visibility.",
     items: [
-      { href: "/admin/billing-ops", label: "Dunning operations", hint: "Retry cycles and billing actions" },
+      { href: "/app/admin/billing-ops", label: "Dunning operations", hint: "Retry cycles and billing actions" },
       { href: "/admin/billing", label: "Billing follow-ups", hint: "Pending payments and support handoff" },
     ],
   },
@@ -82,8 +81,8 @@ export const dashboardNavSections: DashboardNavSection[] = [
     title: "Support workspace",
     description: "Support case routing, escalation readiness, and customer handoff.",
     items: [
-      { href: "/dashboard/support", label: "Support queue", hint: "Customer support handoff and resolution tracking" },
-      { href: "/dashboard/support-overview", label: "Support overview", hint: "Triage guidance and escalation checks" },
+      { href: "/app/support/queue", label: "Support queue", hint: "Customer support handoff and resolution tracking" },
+      { href: "/app/support/escalations", label: "Support overview", hint: "Triage guidance and escalation checks" },
     ],
   },
   {
@@ -92,8 +91,8 @@ export const dashboardNavSections: DashboardNavSection[] = [
     description: "SLA management, auditability, and escalation readiness.",
     items: [
       { href: "/admin/support-overview", label: "Support overview", hint: "SLA pressure and support load" },
-      { href: "/admin/support", label: "Support queue", hint: "Case ownership and notes" },
-      { href: "/admin/audit", label: "Audit & policy", hint: "Compliance and operational audit trail" },
+      { href: "/app/admin/support-tools", label: "Support queue", hint: "Case ownership and notes" },
+      { href: "/app/admin/audit", label: "Audit & policy", hint: "Compliance and operational audit trail" },
     ],
   },
   {
@@ -101,10 +100,10 @@ export const dashboardNavSections: DashboardNavSection[] = [
     title: "Platform workspace",
     description: "Provisioning, incident recovery, onboarding flow, and suspension tracking.",
     items: [
-      { href: "/dashboard/onboarding", label: "Onboarding queue", hint: "Payment onboarding and activation readiness" },
-      { href: "/dashboard/provisioning", label: "Provisioning queue", hint: "Deployments and pending upgrades" },
-      { href: "/dashboard/incidents", label: "Incidents queue", hint: "Provisioning failures and rescue actions" },
-      { href: "/dashboard/suspensions", label: "Suspensions queue", hint: "Workspace and billing suspension status" },
+      { href: "/app/platform/onboarding", label: "Onboarding queue", hint: "Payment onboarding and activation readiness" },
+      { href: "/app/platform/provisioning", label: "Provisioning queue", hint: "Deployments and pending upgrades" },
+      { href: "/app/platform/incidents", label: "Incidents queue", hint: "Provisioning failures and rescue actions" },
+      { href: "/app/tenants/suspensions", label: "Suspensions queue", hint: "Workspace and billing suspension status" },
     ],
   },
   {
@@ -112,15 +111,15 @@ export const dashboardNavSections: DashboardNavSection[] = [
     title: "Account workspace",
     description: "User profile, notification readiness, and account settings.",
     items: [
-      { href: "/dashboard/account", label: "Account summary", hint: "Identity and billing profile" },
-      { href: "/dashboard/settings", label: "Settings", hint: "Notification and contact preferences" },
+      { href: "/app/account/profile", label: "Account summary", hint: "Identity and billing profile" },
+      { href: "/app/account/settings", label: "Settings", hint: "Notification and contact preferences" },
     ],
   },
   {
     mode: "operations",
     title: "Platform routing",
     description: "Infrastructure health and control-plane readiness.",
-    items: [{ href: "/admin/platform-health", label: "Platform health", hint: "Queues, jobs, and infra checks" }],
+    items: [{ href: "/app/admin/platform-health", label: "Platform health", hint: "Queues, jobs, and infra checks" }],
   },
 ];
 

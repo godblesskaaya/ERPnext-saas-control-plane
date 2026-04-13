@@ -17,27 +17,27 @@ test("every navigation section declares a mode", () => {
 });
 
 test("infers operations mode from operational routes", () => {
-  assert.equal(inferDashboardNavModeFromRoute("/admin/billing"), "operations");
-  assert.equal(inferDashboardNavModeFromRoute("/admin/provisioning"), "operations");
+  assert.equal(inferDashboardNavModeFromRoute("/app/admin/billing-ops"), "operations");
+  assert.equal(inferDashboardNavModeFromRoute("/app/admin/platform-health"), "operations");
 });
 
 test("infers workspace mode from workspace routes", () => {
-  assert.equal(inferDashboardNavModeFromRoute("/dashboard/account"), "workspace");
-  assert.equal(inferDashboardNavModeFromRoute("/dashboard/settings/preferences"), "workspace");
-  assert.equal(inferDashboardNavModeFromRoute("/dashboard/overview"), "workspace");
-  assert.equal(inferDashboardNavModeFromRoute("/tenants/123"), "workspace");
-  assert.equal(inferDashboardNavModeFromRoute("/billing"), "workspace");
-  assert.equal(inferDashboardNavModeFromRoute("/dashboard/billing-recovery"), "workspace");
-  assert.equal(inferDashboardNavModeFromRoute("/dashboard/billing-ops"), "workspace");
+  assert.equal(inferDashboardNavModeFromRoute("/app/account/profile"), "workspace");
+  assert.equal(inferDashboardNavModeFromRoute("/app/account/settings/preferences"), "workspace");
+  assert.equal(inferDashboardNavModeFromRoute("/app/overview"), "workspace");
+  assert.equal(inferDashboardNavModeFromRoute("/app/tenants/123"), "workspace");
+  assert.equal(inferDashboardNavModeFromRoute("/app/billing/invoices"), "workspace");
+  assert.equal(inferDashboardNavModeFromRoute("/app/billing/recovery"), "workspace");
+  assert.equal(inferDashboardNavModeFromRoute("/app/support/queue"), "workspace");
 });
 
 test("resolve mode falls back to default for unknown routes", () => {
-  assert.equal(resolveDashboardNavMode("/dashboard/unknown"), defaultDashboardNavMode);
+  assert.equal(resolveDashboardNavMode("/app/unknown"), defaultDashboardNavMode);
   assert.equal(resolveDashboardNavMode(undefined), defaultDashboardNavMode);
 });
 
 test("resolve mode strips query/hash when matching", () => {
-  assert.equal(resolveDashboardNavMode("/dashboard/settings?tab=notifications#email"), "workspace");
+  assert.equal(resolveDashboardNavMode("/app/account/settings?tab=notifications#email"), "workspace");
 });
 
 test("sections can be filtered by mode", () => {
@@ -52,7 +52,7 @@ test("workspace navigation excludes admin-only concepts and ops-centric routes",
   const disallowedCopy = /\b(admin|operator|ops|operational)\b/i;
 
   for (const section of workspaceSections) {
-    assert.equal(section.items.every((item) => !item.href.startsWith("/admin")), true);
+    assert.equal(section.items.every((item) => !item.href.startsWith("/app/admin")), true);
     assert.equal(section.items.every((item) => !item.href.includes("-ops")), true);
     assert.equal(disallowedCopy.test(section.title), false);
     assert.equal(disallowedCopy.test(section.description), false);
@@ -68,7 +68,7 @@ test("workspace navigation routes never point to admin pages", () => {
 
   for (const section of workspaceSections) {
     for (const item of section.items) {
-      assert.equal(item.href.startsWith("/admin"), false);
+      assert.equal(item.href.startsWith("/app/admin"), false);
     }
   }
 });

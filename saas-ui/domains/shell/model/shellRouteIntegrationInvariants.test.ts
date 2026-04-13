@@ -68,7 +68,7 @@ test("admin navigation sections only expose admin-prefixed routes", () => {
   for (const section of adminNavSections) {
     for (const item of section.items) {
       assert.equal(
-        item.href.startsWith("/admin"),
+        item.href.startsWith("/app/admin"),
         true,
         `admin nav item should stay in admin namespace: ${item.href}`,
       );

@@ -19,60 +19,54 @@ type PageHeaderConfig = {
   breadcrumbs: Array<{ label: string; href?: string }>;
 };
 
-const DASHBOARD_NON_QUEUE_HEADERS: Record<string, PageHeaderConfig> = {
-  "/dashboard": {
-    overline: "Dashboard",
+const APP_NON_QUEUE_HEADERS: Record<string, PageHeaderConfig> = {
+  "/app/overview": {
+    overline: "Overview",
     title: "Workspace command center",
     subtitle: "Workspace dashboards and customer-safe operational checkpoints.",
-    breadcrumbs: [{ label: "Dashboard" }],
+    breadcrumbs: [{ label: "Overview" }],
   },
-  "/dashboard/account": {
-    overline: "Dashboard",
+  "/app/account/profile": {
+    overline: "Account",
     title: "Account workspace",
     subtitle: "Profile, billing identity, and account readiness details.",
-    breadcrumbs: [{ label: "Dashboard", href: "/dashboard" }, { label: "Account" }],
+    breadcrumbs: [{ label: "Overview", href: "/app/overview" }, { label: "Account" }, { label: "Profile" }],
   },
-  "/dashboard/activity": {
-    overline: "Dashboard",
+  "/app/overview/activity": {
+    overline: "Overview",
     title: "Workspace activity",
     subtitle: "Recent tenant-facing lifecycle and billing activity.",
-    breadcrumbs: [{ label: "Dashboard", href: "/dashboard" }, { label: "Activity" }],
+    breadcrumbs: [{ label: "Overview", href: "/app/overview" }, { label: "Activity" }],
   },
-  "/dashboard/audit": {
-    overline: "Dashboard",
-    title: "Workspace audit",
-    subtitle: "Compliance and timeline checks for customer-safe operations.",
-    breadcrumbs: [{ label: "Dashboard", href: "/dashboard" }, { label: "Audit" }],
-  },
-  "/dashboard/billing": {
-    overline: "Dashboard",
+  "/app/billing/invoices": {
+    overline: "Billing",
     title: "Billing workspace",
     subtitle: "Customer billing review and payment follow-up controls.",
-    breadcrumbs: [{ label: "Dashboard", href: "/dashboard" }, { label: "Billing" }],
+    breadcrumbs: [{ label: "Overview", href: "/app/overview" }, { label: "Billing" }, { label: "Invoices" }],
   },
-  "/dashboard/billing-recovery": {
-    overline: "Dashboard",
+  "/app/billing/recovery": {
+    overline: "Billing",
     title: "Billing recovery",
     subtitle: "Recovery steps for failed or pending payment states.",
-    breadcrumbs: [{ label: "Dashboard", href: "/dashboard" }, { label: "Billing recovery" }],
+    breadcrumbs: [{ label: "Overview", href: "/app/overview" }, { label: "Billing" }, { label: "Recovery" }],
   },
-  "/dashboard/platform-health": {
-    overline: "Dashboard",
+  "/app/platform/health": {
+    overline: "Platform",
     title: "Platform health",
     subtitle: "Customer-safe health checks for key platform services.",
-    breadcrumbs: [{ label: "Dashboard", href: "/dashboard" }, { label: "Platform health" }],
+    breadcrumbs: [{ label: "Overview", href: "/app/overview" }, { label: "Platform" }, { label: "Health" }],
   },
-  "/dashboard/settings": {
-    overline: "Dashboard",
+  "/app/account/settings": {
+    overline: "Account",
     title: "Workspace settings",
     subtitle: "Notification, contact, and communication preferences.",
-    breadcrumbs: [{ label: "Dashboard", href: "/dashboard" }, { label: "Settings" }],
+    breadcrumbs: [{ label: "Overview", href: "/app/overview" }, { label: "Account" }, { label: "Settings" }],
   },
-  "/dashboard/support-overview": {
-    overline: "Dashboard",
+  "/app/support/escalations": {
+    overline: "Support",
     title: "Support overview",
     subtitle: "Support guidance, readiness, and channel selection.",
-    breadcrumbs: [{ label: "Dashboard", href: "/dashboard" }, { label: "Support overview" }],
+    breadcrumbs: [{ label: "Overview", href: "/app/overview" }, { label: "Support" }, { label: "Escalations" }],
   },
 };
 
@@ -123,7 +117,7 @@ export function UserShell({ children }: { children: ReactNode }) {
       clearToken();
       setAuthorized(false);
       setChecked(true);
-      router.replace(`/login?next=${encodeURIComponent(pathname || "/dashboard/overview")}`);
+      router.replace(`/login?next=${encodeURIComponent(pathname || "/app/overview")}`);
     };
 
     void ensureSession();
@@ -140,13 +134,13 @@ export function UserShell({ children }: { children: ReactNode }) {
     <AppFrame sidebar={<DashboardNav />}>
       <Box sx={{ display: "grid", gap: 3 }}>
         <WorkspaceLocalNav />
-        {pathname && DASHBOARD_NON_QUEUE_HEADERS[pathname] ? (
+        {pathname && APP_NON_QUEUE_HEADERS[pathname] ? (
           <Paper variant="outlined" sx={{ borderColor: "divider", borderRadius: 4, p: 3 }}>
             <PageHeader
-              overline={DASHBOARD_NON_QUEUE_HEADERS[pathname].overline}
-              title={DASHBOARD_NON_QUEUE_HEADERS[pathname].title}
-              subtitle={DASHBOARD_NON_QUEUE_HEADERS[pathname].subtitle}
-              breadcrumbs={DASHBOARD_NON_QUEUE_HEADERS[pathname].breadcrumbs}
+              overline={APP_NON_QUEUE_HEADERS[pathname].overline}
+              title={APP_NON_QUEUE_HEADERS[pathname].title}
+              subtitle={APP_NON_QUEUE_HEADERS[pathname].subtitle}
+              breadcrumbs={APP_NON_QUEUE_HEADERS[pathname].breadcrumbs}
             />
           </Paper>
         ) : null}

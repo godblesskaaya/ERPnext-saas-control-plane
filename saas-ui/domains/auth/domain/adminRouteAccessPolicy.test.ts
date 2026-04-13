@@ -63,7 +63,7 @@ test("decideAdminRouteAccess denies non-admin sessions with 403-compatible redir
     allow: false,
     status: 403,
     reason: "admin-required",
-    redirectPath: "/dashboard/overview?reason=admin-required",
+    redirectPath: "/app/overview?reason=admin-required",
   });
 });
 

@@ -7,10 +7,7 @@ import { Box, Paper } from "@mui/material";
 
 import { refreshAuthSession } from "../../domains/auth/application/authUseCases";
 import { clearToken, getToken, saveToken } from "../../domains/auth/auth";
-import {
-  decideAdminRouteAccess,
-  parseSessionToken,
-} from "../../domains/auth/domain/adminRouteAccessPolicy";
+import { decideAdminRouteAccess, parseSessionToken } from "../../domains/auth/domain/adminRouteAccessPolicy";
 import { AdminNav } from "../../domains/admin-ops/components/AdminNav";
 import { AppFrame } from "../../domains/shell/components/AppFrame";
 import { PageHeader } from "../../domains/shell/components/PageHeader";
@@ -23,77 +20,65 @@ type PageHeaderConfig = {
 };
 
 const ADMIN_NON_QUEUE_HEADERS: Record<string, PageHeaderConfig> = {
-  "/admin": {
+  "/app/admin": {
     overline: "Operations",
     title: "Admin control center",
     subtitle: "Tenant reliability, governance workflows, and operator runbooks.",
-    breadcrumbs: [{ label: "Admin" }],
+    breadcrumbs: [{ label: "Admin", href: "/app/admin/control-overview" }],
   },
-  "/admin/activity": {
+  "/app/admin/activity": {
     overline: "Operations",
     title: "Admin activity",
     subtitle: "Platform job timeline and cross-tenant operational events.",
-    breadcrumbs: [{ label: "Admin", href: "/admin" }, { label: "Activity" }],
+    breadcrumbs: [{ label: "Admin", href: "/app/admin/control-overview" }, { label: "Activity" }],
   },
-  "/admin/audit": {
+  "/app/admin/audit": {
     overline: "Operations",
     title: "Admin audit",
     subtitle: "Security, compliance, and operator event timeline review.",
-    breadcrumbs: [{ label: "Admin", href: "/admin" }, { label: "Audit" }],
+    breadcrumbs: [{ label: "Admin", href: "/app/admin/control-overview" }, { label: "Audit" }],
   },
-  "/admin/billing-ops": {
+  "/app/admin/billing-ops": {
     overline: "Operations",
     title: "Billing operations",
     subtitle: "Dunning and billing follow-up workflow for account recovery.",
-    breadcrumbs: [{ label: "Admin", href: "/admin" }, { label: "Billing ops" }],
+    breadcrumbs: [{ label: "Admin", href: "/app/admin/control-overview" }, { label: "Billing ops" }],
   },
-  "/admin/platform-health": {
+  "/app/admin/platform-health": {
     overline: "Operations",
     title: "Platform health",
     subtitle: "Infrastructure checks and queue readiness for operators.",
-    breadcrumbs: [{ label: "Admin", href: "/admin" }, { label: "Platform health" }],
+    breadcrumbs: [{ label: "Admin", href: "/app/admin/control-overview" }, { label: "Platform health" }],
   },
-  "/admin/support-overview": {
-    overline: "Operations",
-    title: "Support overview",
-    subtitle: "Support readiness, SLA pressure, and escalation guidance.",
-    breadcrumbs: [{ label: "Admin", href: "/admin" }, { label: "Support overview" }],
-  },
-  "/admin/control/overview": {
+  "/app/admin/control-overview": {
     overline: "Operations",
     title: "Control lane overview",
     subtitle: "At-a-glance control lane status and workflows.",
-    breadcrumbs: [{ label: "Admin", href: "/admin" }, { label: "Control lane" }, { label: "Overview" }],
+    breadcrumbs: [{ label: "Admin", href: "/app/admin/control-overview" }, { label: "Control" }, { label: "Overview" }],
   },
-  "/admin/control/jobs": {
+  "/app/admin/jobs": {
     overline: "Operations",
     title: "Control lane jobs",
     subtitle: "Job execution monitoring and operational handoff.",
-    breadcrumbs: [{ label: "Admin", href: "/admin" }, { label: "Control lane" }, { label: "Jobs" }],
+    breadcrumbs: [{ label: "Admin", href: "/app/admin/control-overview" }, { label: "Control" }, { label: "Jobs" }],
   },
-  "/admin/control/tenants": {
+  "/app/admin/tenant-control": {
     overline: "Operations",
     title: "Control lane tenants",
     subtitle: "Tenant lifecycle operations from the control lane.",
-    breadcrumbs: [{ label: "Admin", href: "/admin" }, { label: "Control lane" }, { label: "Tenants" }],
+    breadcrumbs: [{ label: "Admin", href: "/app/admin/control-overview" }, { label: "Control" }, { label: "Tenants" }],
   },
-  "/admin/control/audit": {
-    overline: "Operations",
-    title: "Control lane audit",
-    subtitle: "Audit and policy timeline for operator actions.",
-    breadcrumbs: [{ label: "Admin", href: "/admin" }, { label: "Control lane" }, { label: "Audit" }],
-  },
-  "/admin/control/support": {
+  "/app/admin/support-tools": {
     overline: "Operations",
     title: "Control lane support",
     subtitle: "Escalation and support coordination workflow.",
-    breadcrumbs: [{ label: "Admin", href: "/admin" }, { label: "Control lane" }, { label: "Support" }],
+    breadcrumbs: [{ label: "Admin", href: "/app/admin/control-overview" }, { label: "Control" }, { label: "Support tools" }],
   },
-  "/admin/control/recovery": {
+  "/app/admin/recovery": {
     overline: "Operations",
     title: "Control lane recovery",
     subtitle: "Recovery queue and dead-letter remediation flow.",
-    breadcrumbs: [{ label: "Admin", href: "/admin" }, { label: "Control lane" }, { label: "Recovery" }],
+    breadcrumbs: [{ label: "Admin", href: "/app/admin/control-overview" }, { label: "Control" }, { label: "Recovery" }],
   },
 };
 
@@ -124,11 +109,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       const hadToken = Boolean(token);
       const payload = parseSessionToken(token);
 
-      const immediateDecision = decideAdminRouteAccess({
-        payload,
-        hadToken,
-        nextPath,
-      });
+      const immediateDecision = decideAdminRouteAccess({ payload, hadToken, nextPath });
 
       if (immediateDecision.allow) {
         if (active) {

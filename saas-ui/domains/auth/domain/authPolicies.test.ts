@@ -9,17 +9,17 @@ import {
 } from "./authPolicies";
 
 test("safePostLoginRedirect uses fallback for invalid values", () => {
-  assert.equal(safePostLoginRedirect(null), DEFAULT_POST_LOGIN_REDIRECT);
-  assert.equal(safePostLoginRedirect(""), DEFAULT_POST_LOGIN_REDIRECT);
-  assert.equal(safePostLoginRedirect("https://evil.example"), DEFAULT_POST_LOGIN_REDIRECT);
-  assert.equal(safePostLoginRedirect("//evil.example"), DEFAULT_POST_LOGIN_REDIRECT);
+  assert.equal(safePostLoginRedirect(null), "/app/overview");
+  assert.equal(safePostLoginRedirect(""), "/app/overview");
+  assert.equal(safePostLoginRedirect("https://evil.example"), "/app/overview");
+  assert.equal(safePostLoginRedirect("//evil.example"), "/app/overview");
   assert.equal(safePostLoginRedirect("settings", "/home"), "/home");
 });
 
 test("safePostLoginRedirect allows rooted app paths", () => {
-  assert.equal(safePostLoginRedirect("/dashboard"), "/dashboard/overview");
-  assert.equal(safePostLoginRedirect("/dashboard?tab=billing"), "/dashboard/overview?tab=billing");
-  assert.equal(safePostLoginRedirect("/dashboard/overview"), "/dashboard/overview");
+  assert.equal(safePostLoginRedirect("/dashboard"), "/app/overview");
+  assert.equal(safePostLoginRedirect("/dashboard?tab=billing"), "/app/overview?tab=billing");
+  assert.equal(safePostLoginRedirect("/app/overview"), "/app/overview");
 });
 
 test("sanitizeAuthEmail trims leading and trailing whitespace", () => {

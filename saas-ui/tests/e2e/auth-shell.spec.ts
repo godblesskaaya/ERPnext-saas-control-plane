@@ -7,32 +7,32 @@ test.describe("auth shell route guards", () => {
     await context.clearCookies();
   });
 
-  test("redirects dashboard overview guests to login with next param", async ({ page }) => {
+  test("redirects app overview guests to login with next param", async ({ page }) => {
     await page.addInitScript(() => {
       window.localStorage.removeItem("erp_saas_token");
       window.localStorage.removeItem("erp_saas_role");
       window.localStorage.removeItem("erp_saas_user");
     });
 
-    await page.goto("/dashboard/overview");
+    await page.goto("/app/overview");
 
-    await expect(page).toHaveURL(/\/login\?next=%2Fdashboard%2Foverview/);
+    await expect(page).toHaveURL(/\/login\?next=%2Fapp%2Foverview/);
   });
 
-  test("redirects admin control overview guests to login with next param", async ({ page }) => {
-    await page.goto("/admin/control/overview");
+  test("redirects app admin control overview guests to login with next param", async ({ page }) => {
+    await page.goto("/app/admin/control-overview");
 
-    await expect(page).toHaveURL(/\/login\?next=%2Fadmin%2Fcontrol%2Foverview/);
+    await expect(page).toHaveURL(/\/login\?next=%2Fapp%2Fadmin%2Fcontrol-overview/);
   });
 
-  test("keeps authenticated users on dashboard overview", async ({ page }) => {
+  test("keeps authenticated users on app overview", async ({ page }) => {
     await page.addInitScript((token: string) => {
       window.localStorage.setItem("erp_saas_token", token);
     }, createFakeJwt({ role: "member" }));
 
-    await page.goto("/dashboard/overview");
+    await page.goto("/app/overview");
 
-    await expect(page).toHaveURL(/\/dashboard\/overview/);
+    await expect(page).toHaveURL(/\/app\/overview/);
   });
 
   test("redirects legacy dashboard root to canonical workspace overview", async ({ page }) => {
@@ -50,6 +50,6 @@ test.describe("auth shell route guards", () => {
 
     await page.goto("/dashboard");
 
-    await expect(page).toHaveURL(/\/dashboard\/overview$/);
+    await expect(page).toHaveURL(/\/app\/overview$/);
   });
 });

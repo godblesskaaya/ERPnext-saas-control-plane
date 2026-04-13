@@ -3,12 +3,12 @@ export type AdminView = "overview" | "tenants" | "jobs" | "audit" | "support" | 
 export const ADMIN_VIEWS: AdminView[] = ["overview", "tenants", "jobs", "audit", "support", "recovery"];
 
 export const ADMIN_VIEW_ROUTES: Record<AdminView, string> = {
-  overview: "/admin/control/overview",
-  tenants: "/admin/control/tenants",
-  jobs: "/admin/control/jobs",
-  audit: "/admin/control/audit",
-  support: "/admin/control/support",
-  recovery: "/admin/control/recovery",
+  overview: "/app/admin/control-overview",
+  tenants: "/app/admin/tenant-control",
+  jobs: "/app/admin/jobs",
+  audit: "/app/admin/audit",
+  support: "/app/admin/support-tools",
+  recovery: "/app/admin/recovery",
 };
 
 export const ADMIN_VIEW_DETAILS: Record<AdminView, { label: string; description: string }> = {

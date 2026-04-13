@@ -58,7 +58,7 @@ test("loginWithPassword trims email and returns safe redirect without persisting
 
   assert.equal(capturedEmail, "owner@example.com");
   assert.equal(capturedPassword, "secret123");
-  assert.equal(result.redirectPath, "/dashboard/overview");
+  assert.equal(result.redirectPath, "/app/overview");
   assert.equal(result.token.access_token, "access-token");
 });
 
@@ -86,12 +86,12 @@ test("signupAndLogin signs up then logs in with normalized email", async () => {
   const result = await signupAndLogin({
     email: "  founder@example.com ",
     password: "secret123",
-    nextPath: "/dashboard/overview",
+    nextPath: "/app/overview",
     persistToken: false,
   });
 
   assert.deepEqual(calls, ["signup:founder@example.com", "login:founder@example.com"]);
-  assert.equal(result.redirectPath, "/dashboard/overview");
+  assert.equal(result.redirectPath, "/app/overview");
 });
 
 test("loadAuthHealth and loadBillingHealth map supported/unsupported/unavailable states", async () => {

@@ -84,28 +84,28 @@ export default function DashboardPage() {
         eyebrow: "Workspace",
         title: "Workspace overview",
         description: "Start from a consolidated summary of workspace and platform activity.",
-        href: "/dashboard/overview",
+        href: "/app/overview",
         value: metrics?.jobs_last_24h,
       },
       {
         eyebrow: "Workspace",
         title: "Workspace registry",
         description: "Search workspaces and open workspace detail pages.",
-        href: "/dashboard/registry",
+        href: "/app/tenants",
         value: metrics?.total_tenants,
       },
       {
         eyebrow: "Workspace",
         title: "Active workspaces",
         description: "Review live workspaces and continue routine workspace workflows.",
-        href: "/dashboard/active",
+        href: "/app/tenants/active",
         value: metrics?.active_tenants,
       },
       {
         eyebrow: "Workspace",
         title: "Payment center",
         description: "Resume failed checkout and review customer billing invoices.",
-        href: "/billing",
+        href: "/app/billing/invoices",
         value: metrics?.pending_payment_tenants,
       },
     ],
@@ -214,7 +214,7 @@ export default function DashboardPage() {
 
       <Grid container spacing={2}>
         {visibleSections.map((section) => {
-          const links = section.items.filter((item) => item.href !== "/dashboard" && !item.href.startsWith("/admin"));
+          const links = section.items.filter((item) => item.href !== "/app/overview" && !item.href.startsWith("/app/admin"));
           return (
             <Grid key={section.title} size={{ xs: 12, xl: 6 }}>
               <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4, height: "100%" }}>

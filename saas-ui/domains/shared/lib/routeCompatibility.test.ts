@@ -12,6 +12,13 @@ test("resolveCompatibilityRoute maps dashboard root alias to app overview", () =
   });
 });
 
+test("resolveCompatibilityRoute keeps canonical app routes untouched", () => {
+  assert.equal(resolveCompatibilityRoute("/app/overview"), null);
+  assert.equal(resolveCompatibilityRoute("/app/billing/invoices?plan=starter"), null);
+  assert.equal(resolveCompatibilityRoute("/app/tenants/tenant-123/overview"), null);
+  assert.equal(resolveCompatibilityRoute("/app/admin/control-overview"), null);
+});
+
 test("resolveCompatibilityRoute maps dashboard billing detail alias to app billing invoices", () => {
   const resolved = resolveCompatibilityRoute("/dashboard/billing-details?tab=invoices");
   assert.deepEqual(resolved, {
@@ -66,7 +73,16 @@ test("resolveCompatibilityRoute maps legacy admin control routes to canonical ap
   });
 });
 
-test("normalizeCompatibilityRoute keeps canonical /app paths unchanged", () => {
+test("normalizeCompatibilityRoute keeps canonical app paths unchanged", () => {
   assert.equal(normalizeCompatibilityRoute("/app/overview"), "/app/overview");
   assert.equal(normalizeCompatibilityRoute("/app/tenants/tenant-123/members"), "/app/tenants/tenant-123/members");
+  assert.equal(
+    normalizeCompatibilityRoute("/app/admin/support-tools?tab=queue"),
+    "/app/admin/support-tools?tab=queue",
+  );
+});
+
+test("normalizeCompatibilityRoute redirects legacy routes to canonical app paths", () => {
+  assert.equal(resolveCompatibilityRoute("/dashboard/active")?.canonicalPath, "/app/tenants/active");
+  assert.equal(resolveCompatibilityRoute("/billing?plan=starter")?.canonicalPath, "/app/billing/invoices?plan=starter");
 });

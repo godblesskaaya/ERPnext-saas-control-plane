@@ -24,6 +24,24 @@ test("user shell mounts workspace-local navigation before route content", () => 
   assert.equal(source.includes("WorkspaceLocalNav"), true, "user shell should include workspace-local navigation");
 });
 
+test("workspace descriptors use canonical /app/* hrefs only", () => {
+  for (const descriptor of workspaceDescriptors) {
+    assert.equal(
+      descriptor.href.startsWith("/app/"),
+      true,
+      `workspace descriptor should use canonical app href: ${descriptor.href}`,
+    );
+  }
+});
+
+test("workspace sidebar sections keep canonical /app/* hrefs", () => {
+  for (const section of getDashboardNavSectionsByMode("workspace")) {
+    for (const item of section.items) {
+      assert.equal(item.href.startsWith("/app/"), true, `workspace item should use canonical app href: ${item.href}`);
+    }
+  }
+});
+
 test("admin shell layout composes AppFrame + AdminNav and applies route access policy in a hook", () => {
   const source = readSource("app/(admin)/layout.tsx");
 
@@ -62,6 +80,10 @@ test("dashboard workspace navigation never includes admin routes", () => {
 test("global workspace descriptors remain the compact top-level set", () => {
   const labels = workspaceDescriptors.map((workspace) => workspace.label);
   assert.deepEqual(labels, ["Overview", "Tenants", "Billing", "Support", "Platform", "Account"]);
+  assert.deepEqual(
+    workspaceDescriptors.map((workspace) => workspace.href),
+    ["/app/overview", "/app/tenants", "/app/billing/invoices", "/app/support/queue", "/app/platform/provisioning", "/app/account/profile"],
+  );
 });
 
 test("admin navigation sections only expose admin-prefixed routes", () => {

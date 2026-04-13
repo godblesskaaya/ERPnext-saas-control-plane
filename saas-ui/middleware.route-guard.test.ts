@@ -21,6 +21,16 @@ test("redirects unauthenticated app shell access to login with app next param", 
   assert.equal(response.headers.get("location"), "http://localhost/login?next=%2Fapp%2Foverview");
 });
 
+test("redirects unauthenticated canonical app billing access to login with canonical next param", () => {
+  const response = middleware(request("/app/billing/invoices?tab=overdue"));
+
+  assert.equal(response.status, 307);
+  assert.equal(
+    response.headers.get("location"),
+    "http://localhost/login?next=%2Fapp%2Fbilling%2Finvoices%3Ftab%3Doverdue",
+  );
+});
+
 test("redirects unauthenticated admin access to login with canonical next param", () => {
   const response = middleware(request("/admin/control/overview"));
 
@@ -84,6 +94,16 @@ test("redirects authenticated dashboard root compatibility route to canonical ap
   assert.equal(response.headers.get("location"), "http://localhost/app/overview?verifyEmail=1");
   assert.equal(response.headers.get("x-compat-route"), "dashboard-root");
   assert.equal(response.headers.get("x-compat-canonical"), "/app/overview?verifyEmail=1");
+});
+
+test("redirects authenticated legacy billing root compatibility route to canonical app invoices", () => {
+  const token = createJwt({ role: "member", exp: Math.floor(Date.now() / 1000) + 3600 });
+  const response = middleware(request("/billing?plan=starter", `erp_saas_token=${token}; erp_saas_role=member`));
+
+  assert.equal(response.status, 308);
+  assert.equal(response.headers.get("location"), "http://localhost/app/billing/invoices?plan=starter");
+  assert.equal(response.headers.get("x-compat-route"), "billing-root");
+  assert.equal(response.headers.get("x-compat-canonical"), "/app/billing/invoices?plan=starter");
 });
 
 test("redirects authenticated dashboard billing compatibility route to canonical app billing invoices", () => {

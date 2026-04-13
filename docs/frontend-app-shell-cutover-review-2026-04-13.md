@@ -122,6 +122,19 @@ Recommended D-entry prerequisites:
 2. Confirm no remaining feature work is landing on legacy pathnames.
 3. Remove compatibility redirects and legacy alias routes only after rollout sign-off.
 
+### D-prep update (2026-04-13, latest)
+
+1. **Canonical `/app/*` root aliases are now explicit** (`/app/account`, `/app/billing`, `/app/platform`, `/app/support`, `/app/admin`, `/app/tenants/:tenantId`), which reduces fallback routing responsibility.
+2. **`/app/[...slug]` now returns `notFound()`** and no longer owns canonical route behavior.
+3. **Next.js redirect layer now maps legacy canonical URLs to `/app/*`** in `saas-ui/next.config.js` for:
+   - `/dashboard/*` workspace routes
+   - `/billing`
+   - `/tenants/:tenantId` and tenant tabs
+   - `/admin/control/*`, `/admin/billing-ops`, `/admin/platform-health`
+   - `/admin?view=*` legacy query-mode routes
+
+AGENT-NOTE: this is an intentional intermediate step before deleting legacy route files; it preserves operational safety while hardening canonical URL behavior.
+
 ---
 
 ## Verification Evidence (fresh run)

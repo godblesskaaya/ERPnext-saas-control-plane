@@ -17,8 +17,8 @@ test("safePostLoginRedirect uses fallback for invalid values", () => {
 });
 
 test("safePostLoginRedirect allows rooted app paths", () => {
-  assert.equal(safePostLoginRedirect("/dashboard"), "/app/overview");
-  assert.equal(safePostLoginRedirect("/dashboard?tab=billing"), "/app/overview?tab=billing");
+  assert.equal(safePostLoginRedirect("/dashboard"), "/dashboard");
+  assert.equal(safePostLoginRedirect("/dashboard?tab=billing"), "/dashboard?tab=billing");
   assert.equal(safePostLoginRedirect("/app/overview"), "/app/overview");
 });
 

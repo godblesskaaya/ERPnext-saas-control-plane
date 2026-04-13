@@ -135,6 +135,8 @@ Recommended D-entry prerequisites:
 
 AGENT-NOTE: this is an intentional intermediate step before deleting legacy route files; it preserves operational safety while hardening canonical URL behavior.
 
+4. **Middleware compatibility redirects removed**: `saas-ui/middleware.ts` now protects only `/app/*` and no longer performs legacy canonical rewrites. Legacy URL rewriting is owned by `next.config.js` redirects.
+
 ---
 
 ## Verification Evidence (fresh run)

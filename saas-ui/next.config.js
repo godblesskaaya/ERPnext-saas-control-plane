@@ -114,6 +114,16 @@ const nextConfig = {
         permanent: false,
       },
       {
+        source: "/onboarding",
+        destination: "/app/platform/onboarding",
+        permanent: false,
+      },
+      {
+        source: "/tenants",
+        destination: "/app/tenants",
+        permanent: false,
+      },
+      {
         source: "/tenants/:tenantId",
         destination: "/app/tenants/:tenantId/overview",
         permanent: false,

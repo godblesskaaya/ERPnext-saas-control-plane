@@ -1,20 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { normalizeCompatibilityRoute, resolveCompatibilityRoute } from "./domains/shared/lib/routeCompatibility";
 
 const TOKEN_COOKIE = "erp_saas_token";
 const ROLE_COOKIE = "erp_saas_role";
 const USER_COOKIE = "erp_saas_user";
 const DEFAULT_WORKSPACE_REDIRECT = "/app/overview";
-const ROUTE_COMPATIBILITY_MODE = process.env.ROUTE_COMPATIBILITY_MODE === "observe" ? "observe" : "redirect";
-const ROUTE_COMPATIBILITY_SUNSET_AT = "2026-06-30T00:00:00Z";
-const LEGACY_ADMIN_ROOT_ROUTE_REDIRECTS: Record<string, string> = {
-  overview: "/app/admin/control-overview",
-  tenants: "/app/admin/tenant-control",
-  jobs: "/app/admin/jobs",
-  audit: "/app/admin/audit",
-  support: "/app/admin/support-tools",
-  recovery: "/app/admin/recovery",
-};
 
 type JwtPayload = {
   exp?: number;
@@ -35,36 +24,15 @@ function decodePayload(token: string): JwtPayload | null {
 }
 
 function isProtected(pathname: string): boolean {
-  return ["/app", "/dashboard", "/billing", "/admin", "/onboarding", "/tenants"].some(
-    (base) => pathname === base || pathname.startsWith(`${base}/`),
-  );
+  return pathname === "/app" || pathname.startsWith("/app/");
 }
 
 function isAdminRoute(pathname: string): boolean {
-  return pathname === "/admin" || pathname.startsWith("/admin/") || pathname === "/app/admin" || pathname.startsWith("/app/admin/");
+  return pathname === "/app/admin" || pathname.startsWith("/app/admin/");
 }
 
 function isAdminOperatorRole(role: string | undefined): boolean {
   return role === "admin" || role === "support";
-}
-
-function resolveLegacyAdminRootRedirect(request: NextRequest): URL | null {
-  const { pathname, searchParams } = request.nextUrl;
-  if (pathname !== "/admin") {
-    return null;
-  }
-
-  const viewParam = searchParams.get("view");
-  const targetPath =
-    (viewParam && LEGACY_ADMIN_ROOT_ROUTE_REDIRECTS[viewParam]) || LEGACY_ADMIN_ROOT_ROUTE_REDIRECTS.overview;
-
-  const destination = new URL(targetPath, request.url);
-  for (const [key, value] of searchParams.entries()) {
-    if (key === "view") continue;
-    destination.searchParams.append(key, value);
-  }
-
-  return destination;
 }
 
 function isPublicAuthRoute(pathname: string): boolean {
@@ -75,12 +43,12 @@ function safeRedirectPath(value: string | null): string {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
     return DEFAULT_WORKSPACE_REDIRECT;
   }
-  return normalizeCompatibilityRoute(value);
+  return value;
 }
 
 function buildLoginUrl(request: NextRequest, sessionExpired: boolean): URL {
   const loginUrl = new URL("/login", request.url);
-  const nextPath = normalizeCompatibilityRoute(`${request.nextUrl.pathname}${request.nextUrl.search}`);
+  const nextPath = `${request.nextUrl.pathname}${request.nextUrl.search}`;
   loginUrl.searchParams.set("next", nextPath);
   if (sessionExpired) {
     loginUrl.searchParams.set("sessionExpired", "1");
@@ -111,17 +79,6 @@ function forbiddenHtml(): string {
     </div>
   </body>
 </html>`;
-}
-
-function annotateCompatibilityResponse(
-  response: NextResponse,
-  routeId: string,
-  canonicalPath: string,
-): void {
-  response.headers.set("x-compat-route", routeId);
-  response.headers.set("x-compat-canonical", canonicalPath);
-  response.headers.set("x-compat-mode", ROUTE_COMPATIBILITY_MODE);
-  response.headers.set("x-compat-sunset-at", ROUTE_COMPATIBILITY_SUNSET_AT);
 }
 
 export function middleware(request: NextRequest) {
@@ -186,43 +143,12 @@ export function middleware(request: NextRequest) {
     });
   }
 
-  const legacyAdminRootRedirect = resolveLegacyAdminRootRedirect(request);
-  if (legacyAdminRootRedirect) {
-    const redirectResponse = NextResponse.redirect(legacyAdminRootRedirect, 308);
-    annotateCompatibilityResponse(
-      redirectResponse,
-      "admin-view",
-      `${legacyAdminRootRedirect.pathname}${legacyAdminRootRedirect.search}`,
-    );
-    return redirectResponse;
-  }
-
-  const compatibility = resolveCompatibilityRoute(`${request.nextUrl.pathname}${request.nextUrl.search}`);
-  if (compatibility) {
-    if (ROUTE_COMPATIBILITY_MODE === "observe") {
-      const observeResponse = NextResponse.next();
-      annotateCompatibilityResponse(observeResponse, compatibility.id, compatibility.canonicalPath);
-      return observeResponse;
-    }
-
-    const redirectResponse = NextResponse.redirect(new URL(compatibility.canonicalPath, request.url), 308);
-    annotateCompatibilityResponse(redirectResponse, compatibility.id, compatibility.canonicalPath);
-    return redirectResponse;
-  }
-
   return NextResponse.next();
 }
 
 export const config = {
   matcher: [
     "/app/:path*",
-    "/admin",
-    "/billing",
-    "/dashboard/:path*",
-    "/billing/:path*",
-    "/admin/:path*",
-    "/onboarding/:path*",
-    "/tenants/:path*",
     "/login",
     "/signup",
     "/forgot-password",

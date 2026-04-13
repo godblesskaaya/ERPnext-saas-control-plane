@@ -1,12 +1,10 @@
-import { normalizeCompatibilityRoute } from "../../shared/lib/routeCompatibility";
-
-export const DEFAULT_POST_LOGIN_REDIRECT = "/dashboard/overview";
+export const DEFAULT_POST_LOGIN_REDIRECT = "/app/overview";
 
 export function safePostLoginRedirect(nextParam: string | null, fallback = DEFAULT_POST_LOGIN_REDIRECT): string {
   if (!nextParam || !nextParam.startsWith("/") || nextParam.startsWith("//")) {
-    return normalizeCompatibilityRoute(fallback);
+    return fallback;
   }
-  return normalizeCompatibilityRoute(nextParam);
+  return nextParam;
 }
 
 export function sanitizeAuthEmail(email: string): string {

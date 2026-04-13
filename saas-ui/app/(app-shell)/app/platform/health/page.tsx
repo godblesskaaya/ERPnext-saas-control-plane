@@ -151,7 +151,7 @@ export default function PlatformHealthPage() {
               What to do next
             </Typography>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 1 }}>
-              <Button href="/dashboard/support" variant="contained" sx={{ borderRadius: 999 }}>
+              <Button href="/app/support/queue" variant="contained" sx={{ borderRadius: 999 }}>
                 Contact support
               </Button>
               <Button href="/billing" variant="outlined" color="inherit" sx={{ borderRadius: 999 }}>
@@ -208,13 +208,13 @@ export default function PlatformHealthPage() {
               <Button href="/verify-email" variant="contained" sx={{ borderRadius: 999 }}>
                 Verify email
               </Button>
-              <Button href="/dashboard/settings" variant="outlined" color="inherit" sx={{ borderRadius: 999 }}>
+              <Button href="/app/account/settings" variant="outlined" color="inherit" sx={{ borderRadius: 999 }}>
                 Update contact settings
               </Button>
               <Button href="/billing" variant="outlined" color="inherit" sx={{ borderRadius: 999 }}>
                 Open billing center
               </Button>
-              <Button href="/dashboard/support" variant="outlined" color="inherit" sx={{ borderRadius: 999 }}>
+              <Button href="/app/support/queue" variant="outlined" color="inherit" sx={{ borderRadius: 999 }}>
                 Contact support
               </Button>
             </Stack>

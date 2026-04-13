@@ -20,10 +20,10 @@ export default function DashboardRegistryPage() {
         tone: "default",
       }}
       handoffLinks={[
-        { label: "Provisioning", href: "/dashboard/provisioning" },
-        { label: "Incidents", href: "/dashboard/incidents" },
-        { label: "Support", href: "/dashboard/support" },
-        { label: "Billing recovery", href: "/dashboard/billing-recovery" },
+        { label: "Provisioning", href: "/app/platform/provisioning" },
+        { label: "Incidents", href: "/app/platform/incidents" },
+        { label: "Support", href: "/app/support/queue" },
+        { label: "Billing recovery", href: "/app/billing/recovery" },
       ]}
     />
   );

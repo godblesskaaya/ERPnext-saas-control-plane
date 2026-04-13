@@ -20,9 +20,9 @@ export default function DashboardActivePage() {
         tone: "default",
       }}
       handoffLinks={[
-        { label: "Billing recovery", href: "/dashboard/billing-recovery" },
-        { label: "Provisioning", href: "/dashboard/provisioning" },
-        { label: "Support", href: "/dashboard/support" },
+        { label: "Billing recovery", href: "/app/billing/recovery" },
+        { label: "Provisioning", href: "/app/platform/provisioning" },
+        { label: "Support", href: "/app/support/queue" },
       ]}
       emptyStateTitle="No active workspaces yet"
       emptyStateBody="Once provisioning is complete, live workspaces will appear here for routine workflows."

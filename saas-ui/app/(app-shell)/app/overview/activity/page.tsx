@@ -259,7 +259,7 @@ export default function DashboardActivityPage() {
         <Alert
           severity="warning"
           action={
-            <Button component={NextLink} href="/dashboard/registry" color="inherit" size="small">
+            <Button component={NextLink} href="/app/tenants" color="inherit" size="small">
               Open registry
             </Button>
           }
@@ -320,7 +320,7 @@ export default function DashboardActivityPage() {
               The newest workspace changes are surfaced here first.
             </Typography>
           </Box>
-          <Button component={NextLink} href="/dashboard/overview" variant="outlined" sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}>
+          <Button component={NextLink} href="/app/overview" variant="outlined" sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}>
             Open overview
           </Button>
         </Stack>

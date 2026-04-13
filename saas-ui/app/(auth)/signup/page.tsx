@@ -22,7 +22,7 @@ export default function SignupPage() {
 
   useEffect(() => {
     if (getToken()) {
-      router.replace("/dashboard/overview");
+      router.replace("/app/overview");
       return;
     }
 
@@ -51,7 +51,7 @@ export default function SignupPage() {
     try {
       await signupAndLogin({ email, phone, password, persistToken: true });
       setNotice("Account created. Please verify your email from your inbox before creating a workspace.");
-      router.push("/dashboard/overview?verifyEmail=1");
+      router.push("/app/overview?verifyEmail=1");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create your account");
     } finally {

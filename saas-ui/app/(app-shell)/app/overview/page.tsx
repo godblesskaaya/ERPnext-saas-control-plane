@@ -42,9 +42,9 @@ export default function DashboardOverviewPage() {
       }}
       handoffLinks={[
         { label: "Onboarding", href: "/onboarding" },
-        { label: "Provisioning", href: "/dashboard/provisioning" },
-        { label: "Incidents", href: "/dashboard/incidents" },
-        { label: "Billing recovery", href: "/dashboard/billing-recovery" },
+        { label: "Provisioning", href: "/app/platform/provisioning" },
+        { label: "Incidents", href: "/app/platform/incidents" },
+        { label: "Billing recovery", href: "/app/billing/recovery" },
       ]}
       extraContent={
         <Paper variant="outlined" sx={{ borderColor: "divider", p: 2, borderRadius: 4 }}>

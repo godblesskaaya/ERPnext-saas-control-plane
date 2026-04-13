@@ -742,7 +742,7 @@ export default function OnboardingPage() {
                   </button>
                   <button
                     className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-700 hover:border-slate-300"
-                    onClick={() => router.push("/dashboard/settings")}
+                    onClick={() => router.push("/app/account/settings")}
                   >
                     Open workspace settings
                   </button>
@@ -799,7 +799,7 @@ export default function OnboardingPage() {
                 </a>
                 <button
                   className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:border-slate-300"
-                  onClick={() => router.push("/dashboard/overview")}
+                  onClick={() => router.push("/app/overview")}
                 >
                   Go to operations dashboard
                 </button>

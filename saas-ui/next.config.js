@@ -69,6 +69,16 @@ const nextConfig = {
         permanent: false,
       },
       {
+        source: "/dashboard/billing-ops",
+        destination: "/app/billing/recovery",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/audit",
+        destination: "/app/overview/activity",
+        permanent: false,
+      },
+      {
         source: "/dashboard/support",
         destination: "/app/support/queue",
         permanent: false,
@@ -166,6 +176,54 @@ const nextConfig = {
       {
         source: "/admin/billing-ops",
         destination: "/app/admin/billing-ops",
+        permanent: false,
+      },
+      {
+        source: "/admin/audit",
+        destination: "/app/admin/audit",
+        permanent: false,
+      },
+      {
+        source: "/admin/support",
+        destination: "/app/admin/support-tools",
+        permanent: false,
+      },
+      {
+        source: "/admin/support-overview",
+        destination: "/app/admin/support-tools",
+        permanent: false,
+      },
+      {
+        source: "/admin/billing",
+        destination: "/app/admin/billing-ops",
+        permanent: false,
+      },
+      // AGENT-NOTE: Legacy `/admin/*` pages below do not yet have one-to-one canonical
+      // `/app/admin/*` replacements. We redirect each path to the closest operator workflow
+      // so bookmarked/admin-shared links remain functional during incremental migration.
+      {
+        source: "/admin/activity",
+        destination: "/app/admin/jobs",
+        permanent: false,
+      },
+      {
+        source: "/admin/incidents",
+        destination: "/app/admin/recovery",
+        permanent: false,
+      },
+      {
+        source: "/admin/provisioning",
+        destination: "/app/admin/jobs",
+        permanent: false,
+      },
+      {
+        source: "/admin/onboarding",
+        destination: "/app/admin/tenant-control",
+        permanent: false,
+      },
+      {
+        source: "/admin/suspensions",
+        destination: "/app/admin/tenant-control",
         permanent: false,
       },
       {

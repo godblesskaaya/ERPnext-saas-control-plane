@@ -296,7 +296,7 @@ export default function DashboardSettingsPage() {
           <Button component={NextLink} href="/onboarding" variant="outlined" size="small">
             Setup progress
           </Button>
-          <Button component={NextLink} href="/dashboard/registry" variant="outlined" size="small">
+          <Button component={NextLink} href="/app/tenants" variant="outlined" size="small">
             Workspace registry
           </Button>
         </Stack>

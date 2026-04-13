@@ -22,7 +22,7 @@ export default function DashboardOnboardingQueuePage() {
       emptyStateTitle="No pending onboarding payments"
       emptyStateBody="All onboarding tenants have either paid or moved to provisioning."
       emptyStateActionLabel="Open provisioning queue"
-      emptyStateActionHref="/dashboard/provisioning"
+      emptyStateActionHref="/app/platform/provisioning"
     />
   );
 }

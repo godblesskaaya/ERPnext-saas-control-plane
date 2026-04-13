@@ -20,14 +20,14 @@ export default function DashboardIncidentsQueuePage() {
         tone: "warn",
       }}
       handoffLinks={[
-        { label: "Suspensions", href: "/dashboard/suspensions" },
-        { label: "Support", href: "/dashboard/support" },
-        { label: "Billing recovery", href: "/dashboard/billing-recovery" },
+        { label: "Suspensions", href: "/app/tenants/suspensions" },
+        { label: "Support", href: "/app/support/queue" },
+        { label: "Billing recovery", href: "/app/billing/recovery" },
       ]}
       emptyStateTitle="No incident workspaces"
       emptyStateBody="There are no failed workspaces in this queue right now."
       emptyStateActionLabel="Back to provisioning"
-      emptyStateActionHref="/dashboard/provisioning"
+      emptyStateActionHref="/app/platform/provisioning"
     />
   );
 }

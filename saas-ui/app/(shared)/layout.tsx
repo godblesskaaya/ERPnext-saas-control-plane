@@ -73,17 +73,17 @@ export default async function SharedLayout({ children }: { children: ReactNode }
           <div className="flex items-center gap-2">
             {authenticated ? (
               <>
-                <Link href="/onboarding" className={navLinkClass}>
+                <Link href="/app/platform/onboarding" className={navLinkClass}>
                   Onboarding
                 </Link>
-                <Link href="/dashboard/overview" className={navLinkClass}>
+                <Link href="/app/overview" className={navLinkClass}>
                   Dashboard
                 </Link>
-                <Link href="/billing" className={navLinkClass}>
+                <Link href="/app/billing/invoices" className={navLinkClass}>
                   Billing
                 </Link>
                 {role === "admin" || role === "support" ? (
-                  <Link href="/admin" className={navLinkClass}>
+                  <Link href="/app/admin/control-overview" className={navLinkClass}>
                     Admin
                   </Link>
                 ) : null}

@@ -17,10 +17,10 @@ export default function DashboardSupportQueuePage() {
       showStatusFilter={false}
       attentionNote="Set owner, next action, and customer update ETA for each escalation before handoff."
       handoffLinks={[
-        { label: "Incidents", href: "/dashboard/incidents" },
-        { label: "Suspensions", href: "/dashboard/suspensions" },
-        { label: "Billing recovery", href: "/dashboard/billing-recovery" },
-        { label: "Contact settings", href: "/dashboard/settings" },
+        { label: "Incidents", href: "/app/platform/incidents" },
+        { label: "Suspensions", href: "/app/tenants/suspensions" },
+        { label: "Billing recovery", href: "/app/billing/recovery" },
+        { label: "Contact settings", href: "/app/account/settings" },
       ]}
       callout={{
         title: "What to do next",
@@ -30,7 +30,7 @@ export default function DashboardSupportQueuePage() {
       emptyStateTitle="No open support escalations"
       emptyStateBody="There are no failed or suspended workspace escalations requiring follow-up right now."
       emptyStateActionLabel="Open overview"
-      emptyStateActionHref="/dashboard/overview"
+      emptyStateActionHref="/app/overview"
     />
   );
 }

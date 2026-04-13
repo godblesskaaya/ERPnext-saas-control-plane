@@ -132,7 +132,7 @@ export default function DashboardAccountPage() {
           What to do next
         </Typography>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 1 }}>
-          <Button component={NextLink} href="/dashboard/settings" variant="contained" size="small">
+          <Button component={NextLink} href="/app/account/settings" variant="contained" size="small">
             Update contact settings
           </Button>
           <Button component={NextLink} href="/billing" variant="outlined" color="inherit" size="small">

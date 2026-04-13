@@ -144,10 +144,10 @@ export default function SupportOverviewPage() {
               What to do next
             </Typography>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 1 }}>
-              <Button href="/dashboard/support" variant="contained" sx={{ borderRadius: 999 }}>
+              <Button href="/app/support/queue" variant="contained" sx={{ borderRadius: 999 }}>
                 Open support queue
               </Button>
-              <Button href="/dashboard/incidents" variant="outlined" color="inherit" sx={{ borderRadius: 999 }}>
+              <Button href="/app/platform/incidents" variant="outlined" color="inherit" sx={{ borderRadius: 999 }}>
                 Review incidents
               </Button>
             </Stack>
@@ -162,9 +162,9 @@ export default function SupportOverviewPage() {
             title="Use the channel that matches your issue"
             body="Email and in-app support are best for most requests. Use billing tools for payment issues, and keep contact settings current so urgent replies reach you."
             actions={[
-              { label: "Open support queue", href: "/dashboard/support", variant: "contained" },
+              { label: "Open support queue", href: "/app/support/queue", variant: "contained" },
               { label: "Review billing", href: "/billing" },
-              { label: "Update contact settings", href: "/dashboard/settings" },
+              { label: "Update contact settings", href: "/app/account/settings" },
             ]}
           />
         </Grid>
@@ -244,10 +244,10 @@ export default function SupportOverviewPage() {
               <Link href="/verify-email" underline="hover">
                 Verify email
               </Link>
-              <Link href="/dashboard/settings" underline="hover">
+              <Link href="/app/account/settings" underline="hover">
                 Contact settings
               </Link>
-              <Link href="/dashboard/support" underline="hover">
+              <Link href="/app/support/queue" underline="hover">
                 Support queue
               </Link>
             </Stack>

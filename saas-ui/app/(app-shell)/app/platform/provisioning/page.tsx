@@ -20,13 +20,13 @@ export default function DashboardProvisioningQueuePage() {
         tone: "default",
       }}
       handoffLinks={[
-        { label: "Onboarding", href: "/dashboard/onboarding" },
-        { label: "Incidents", href: "/dashboard/incidents" },
+        { label: "Onboarding", href: "/app/platform/onboarding" },
+        { label: "Incidents", href: "/app/platform/incidents" },
       ]}
       emptyStateTitle="No provisioning workspaces in progress"
       emptyStateBody="Current setup and upgrade tasks are clear."
       emptyStateActionLabel="Review active tenants"
-      emptyStateActionHref="/dashboard/active"
+      emptyStateActionHref="/app/tenants/active"
     />
   );
 }

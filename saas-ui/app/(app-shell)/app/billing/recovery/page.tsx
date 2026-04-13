@@ -22,8 +22,8 @@ export default function DashboardBillingOpsQueuePage() {
         tone: "default",
       }}
       handoffLinks={[
-        { label: "Billing details", href: "/dashboard/billing-details" },
-        { label: "Suspensions", href: "/dashboard/suspensions" },
+        { label: "Billing details", href: "/app/billing/invoices" },
+        { label: "Suspensions", href: "/app/tenants/suspensions" },
       ]}
       emptyStateTitle="No billing recovery backlog"
       emptyStateBody="No pending payment follow-ups are currently in the queue."

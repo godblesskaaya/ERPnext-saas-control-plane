@@ -1,8 +1,25 @@
 "use client";
 
+import Link from "next/link";
+import {
+  Button,
+  Chip,
+  Grid,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from "@mui/material";
+
 import { buildTenantActionPhrase } from "../../../domain/adminDashboard";
 import type { Tenant } from "../../../../shared/lib/types";
-import { formatDate, statusBadgeClass } from "./adminConsoleFormatters";
+import { formatDate } from "./adminConsoleFormatters";
 
 type AdminTenantsViewProps = {
   tenantsError: string | null;
@@ -24,6 +41,15 @@ type AdminTenantsViewProps = {
   onNextPage: () => void;
 };
 
+function resolveStatusChipColor(status: string): "default" | "success" | "warning" | "error" | "info" {
+  const normalized = status.toLowerCase();
+  if (normalized === "active") return "success";
+  if (["failed", "suspended", "suspended_admin", "suspended_billing", "deleted"].includes(normalized)) return "error";
+  if (["pending", "pending_payment", "provisioning", "deleting", "upgrading", "restoring", "pending_deletion"].includes(normalized))
+    return "warning";
+  return "info";
+}
+
 export function AdminTenantsView({
   tenantsError,
   onRefreshTenants,
@@ -44,92 +70,123 @@ export function AdminTenantsView({
   onNextPage,
 }: AdminTenantsViewProps) {
   return (
-    <div className="rounded-xl border border-slate-700 p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Tenant intervention panel</h2>
-        <button className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800" onClick={onRefreshTenants}>
+    <Paper variant="outlined" sx={{ p: 2.5 }}>
+      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} gap={1.5} sx={{ mb: 2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          Tenant intervention panel
+        </Typography>
+        <Button size="small" variant="outlined" onClick={onRefreshTenants}>
           Refresh
-        </button>
-      </div>
+        </Button>
+      </Stack>
 
-      {tenantsError ? <p className="mb-2 text-sm text-red-400">{tenantsError}</p> : null}
+      {tenantsError ? (
+        <Typography variant="body2" color="error.main" sx={{ mb: 1.5 }}>
+          {tenantsError}
+        </Typography>
+      ) : null}
 
-      <div className="mb-3 grid gap-2 md:grid-cols-[1.2fr_1fr_1fr]">
-        <input
-          className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
-          placeholder="Search by company, subdomain, or domain"
-          value={tenantSearch}
-          onChange={(event) => onTenantSearchChange(event.target.value)}
-        />
-        <select
-          className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
-          value={tenantStatusFilter}
-          onChange={(event) => onTenantStatusFilterChange(event.target.value)}
-        >
-          <option value="all">All statuses</option>
-          <option value="active">Active</option>
-          <option value="pending_payment">Pending payment</option>
-          <option value="pending">Pending</option>
-          <option value="provisioning">Provisioning</option>
-          <option value="failed">Failed</option>
-          <option value="suspended">Suspended (all)</option>
-          <option value="suspended_admin">Suspended (admin)</option>
-          <option value="suspended_billing">Suspended (billing)</option>
-        </select>
-        <select
-          className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
-          value={tenantPlanFilter}
-          onChange={(event) => onTenantPlanFilterChange(event.target.value)}
-        >
-          <option value="all">All plans</option>
-          <option value="starter">Starter</option>
-          <option value="business">Business</option>
-          <option value="enterprise">Enterprise</option>
-        </select>
-      </div>
+      <Grid container spacing={1.5} sx={{ mb: 2 }}>
+        <Grid size={{ xs: 12, md: 5 }}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Search by company, subdomain, or domain"
+            value={tenantSearch}
+            onChange={(event) => onTenantSearchChange(event.target.value)}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 3.5 }}>
+          <TextField
+            fullWidth
+            select
+            size="small"
+            label="Status"
+            SelectProps={{ native: true }}
+            value={tenantStatusFilter}
+            onChange={(event) => onTenantStatusFilterChange(event.target.value)}
+          >
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="pending_payment">Pending payment</option>
+            <option value="pending">Pending</option>
+            <option value="provisioning">Provisioning</option>
+            <option value="failed">Failed</option>
+            <option value="suspended">Suspended (all)</option>
+            <option value="suspended_admin">Suspended (admin)</option>
+            <option value="suspended_billing">Suspended (billing)</option>
+          </TextField>
+        </Grid>
+        <Grid size={{ xs: 12, md: 3.5 }}>
+          <TextField
+            fullWidth
+            select
+            size="small"
+            label="Plan"
+            SelectProps={{ native: true }}
+            value={tenantPlanFilter}
+            onChange={(event) => onTenantPlanFilterChange(event.target.value)}
+          >
+            <option value="all">All plans</option>
+            <option value="starter">Starter</option>
+            <option value="business">Business</option>
+            <option value="enterprise">Enterprise</option>
+          </TextField>
+        </Grid>
+      </Grid>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
-            <tr>
-              <th className="p-2">Company</th>
-              <th className="p-2">Plan/focus</th>
-              <th className="p-2">Health</th>
-              <th className="p-2">Provider</th>
-              <th className="p-2">Created</th>
-              <th className="p-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Company</TableCell>
+              <TableCell>Plan/focus</TableCell>
+              <TableCell>Health</TableCell>
+              <TableCell>Provider</TableCell>
+              <TableCell>Created</TableCell>
+              <TableCell>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
             {tenants.map((tenant) => (
-              <tr key={tenant.id} className="border-t border-slate-700/80">
-                <td className="space-y-1 p-2">
-                  <p className="font-medium text-white">{tenant.company_name}</p>
-                  <p className="text-xs text-slate-300">{tenant.domain}</p>
-                  <p className="font-mono text-[11px] text-slate-500">{tenant.id}</p>
-                </td>
-                <td className="p-2 text-xs text-slate-200">
-                  <p>{tenant.plan}</p>
-                  <p className="text-slate-400">{tenant.chosen_app || "auto"}</p>
-                </td>
-                <td className="p-2">
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass(tenant.status)}`}>
-                    {tenant.status}
-                  </span>
-                </td>
-                <td className="p-2 text-xs text-slate-300">{tenant.payment_provider || "n/a"}</td>
-                <td className="p-2 text-xs text-slate-300">{formatDate(tenant.created_at)}</td>
-                <td className="p-2">
-                  <div className="flex flex-wrap gap-2">
-                    <a href={`/app/tenants/${tenant.id}/overview`} className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800">
+              <TableRow key={tenant.id} hover>
+                <TableCell>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    {tenant.company_name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {tenant.domain}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                    {tenant.id}
+                  </Typography>
+                </TableCell>
+                <TableCell sx={{ fontSize: 12 }}>
+                  <Typography variant="caption" display="block">
+                    {tenant.plan}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {tenant.chosen_app || "auto"}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Chip size="small" color={resolveStatusChipColor(tenant.status)} variant="outlined" label={tenant.status} />
+                </TableCell>
+                <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>{tenant.payment_provider || "n/a"}</TableCell>
+                <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>{formatDate(tenant.created_at)}</TableCell>
+                <TableCell>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Button component={Link} href={`/app/tenants/${tenant.id}/overview`} size="small" variant="outlined">
                       Details
-                    </a>
+                    </Button>
                     {canManageTenantLifecycle ? (
                       ["suspended", "suspended_admin", "suspended_billing"].includes(tenant.status.toLowerCase()) ? (
-                        <button
+                        <Button
                           type="button"
                           disabled={busyTenantId === tenant.id}
-                          className="rounded bg-emerald-700 px-2 py-1 text-xs hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+                          size="small"
+                          color="success"
+                          variant="contained"
                           onClick={() =>
                             onOpenTenantAction({
                               type: "unsuspend",
@@ -139,12 +196,14 @@ export function AdminTenantsView({
                           }
                         >
                           {busyTenantId === tenant.id ? "Reactivating..." : "Unsuspend"}
-                        </button>
+                        </Button>
                       ) : (
-                        <button
+                        <Button
                           type="button"
                           disabled={busyTenantId === tenant.id}
-                          className="rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
+                          size="small"
+                          color="warning"
+                          variant="contained"
                           onClick={() =>
                             onOpenTenantAction({
                               type: "suspend",
@@ -154,44 +213,40 @@ export function AdminTenantsView({
                           }
                         >
                           {busyTenantId === tenant.id ? "Suspending..." : "Suspend"}
-                        </button>
+                        </Button>
                       )
                     ) : (
-                      <span className="rounded border border-slate-700 px-2 py-1 text-[11px] text-slate-400">
+                      <Typography variant="caption" color="text.secondary">
                         Read-only scope
-                      </span>
+                      </Typography>
                     )}
-                  </div>
-                </td>
-              </tr>
+                  </Stack>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-      {!tenants.length && !tenantsError ? <p className="mt-3 text-sm text-slate-300">No tenants found.</p> : null}
+      {!tenants.length && !tenantsError ? (
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+          No tenants found.
+        </Typography>
+      ) : null}
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-        <span>
+      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} gap={1.5} sx={{ mt: 2 }}>
+        <Typography variant="caption" color="text.secondary">
           Page {tenantPage} of {tenantTotalPages} • {tenantTotal} tenants
-        </span>
-        <div className="flex gap-2">
-          <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
-            disabled={tenantPage <= 1}
-            onClick={onPreviousPage}
-          >
+        </Typography>
+        <Stack direction="row" spacing={1}>
+          <Button size="small" variant="outlined" disabled={tenantPage <= 1} onClick={onPreviousPage}>
             Previous
-          </button>
-          <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
-            disabled={tenantPage >= tenantTotalPages}
-            onClick={onNextPage}
-          >
+          </Button>
+          <Button size="small" variant="outlined" disabled={tenantPage >= tenantTotalPages} onClick={onNextPage}>
             Next
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </Stack>
+      </Stack>
+    </Paper>
   );
 }

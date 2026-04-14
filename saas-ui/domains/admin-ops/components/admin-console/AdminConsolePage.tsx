@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { Box, Button, Chip, Paper, Stack, Typography } from "@mui/material";
+
 import { AdminAuditView } from "./_components/AdminAuditView";
 import { AdminJobsView } from "./_components/AdminJobsView";
 import { AdminOverviewView } from "./_components/AdminOverviewView";
@@ -18,36 +21,34 @@ export function AdminConsolePage({ forcedView }: AdminConsolePageProps) {
   const controller = useAdminConsoleController({ forcedView });
 
   return (
-    <section className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">Admin Control Center</h1>
-          <p className="text-sm text-slate-300">
+    <Stack component="section" spacing={3}>
+      <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "center" }} gap={2}>
+        <Box>
+          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+            Admin Control Center
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
             Keep tenant reliability high with fast attention routing for setup delays, failures, and governance tasks.
-          </p>
-        </div>
-        <p className="rounded-full border border-slate-700 bg-slate-900/60 px-3 py-1 text-xs text-slate-200">
-          View: {ADMIN_VIEW_DETAILS[controller.currentView].label}
-        </p>
-      </div>
+          </Typography>
+        </Box>
+        <Chip label={`View: ${ADMIN_VIEW_DETAILS[controller.currentView].label}`} variant="outlined" />
+      </Stack>
 
-      <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-2">
-        <div className="flex flex-wrap gap-2">
+      <Paper variant="outlined" sx={{ p: 1.5 }}>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           {ADMIN_VIEWS.map((view) => (
-            <a
+            <Button
               key={view}
+              component={Link}
               href={controller.buildViewHref(view)}
-              className={`rounded px-3 py-1.5 text-xs transition ${
-                controller.currentView === view
-                  ? "border border-sky-500/60 bg-sky-500/20 text-sky-100"
-                  : "border border-slate-700 bg-slate-950/70 text-slate-300 hover:bg-slate-800"
-              }`}
+              size="small"
+              variant={controller.currentView === view ? "contained" : "outlined"}
             >
               {ADMIN_VIEW_DETAILS[view].label}
-            </a>
+            </Button>
           ))}
-        </div>
-      </div>
+        </Stack>
+      </Paper>
 
       {controller.currentView === "overview" ? (
         <AdminOverviewView
@@ -173,6 +174,6 @@ export function AdminConsolePage({ forcedView }: AdminConsolePageProps) {
           void controller.submitTenantAction();
         }}
       />
-    </section>
+    </Stack>
   );
 }

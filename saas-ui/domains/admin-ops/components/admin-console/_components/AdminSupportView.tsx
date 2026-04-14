@@ -1,5 +1,7 @@
 "use client";
 
+import { Alert, Button, Grid, Paper, Stack, TextField, Typography } from "@mui/material";
+
 type AdminSupportViewProps = {
   impersonationEmail: string;
   onImpersonationEmailChange: (value: string) => void;
@@ -26,43 +28,71 @@ export function AdminSupportView({
   impersonationToken,
 }: AdminSupportViewProps) {
   return (
-    <div className="rounded-xl border border-slate-700 p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Support impersonation links</h2>
-        <p className="text-xs text-slate-400">Short-lived, audited access for guided troubleshooting.</p>
-      </div>
-      <div className="grid gap-2 md:grid-cols-[1.2fr_1.8fr_auto]">
-        <input
-          className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
-          placeholder="target-user@example.com"
-          value={impersonationEmail}
-          onChange={(event) => onImpersonationEmailChange(event.target.value)}
-        />
-        <input
-          className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100"
-          placeholder="Reason for support access"
-          value={impersonationReason}
-          onChange={(event) => onImpersonationReasonChange(event.target.value)}
-        />
-        <button
-          className="rounded border border-slate-600 px-3 py-2 text-xs hover:bg-slate-800 disabled:opacity-60"
-          onClick={onIssueImpersonationLink}
-          disabled={impersonationBusy || !canIssueImpersonationLink}
-        >
-          {impersonationBusy ? "Issuing..." : canIssueImpersonationLink ? "Issue link" : "Admin only"}
-        </button>
-      </div>
+    <Paper variant="outlined" sx={{ p: 2.5 }}>
+      <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "center" }} gap={1} sx={{ mb: 2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          Support impersonation links
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          Short-lived, audited access for guided troubleshooting.
+        </Typography>
+      </Stack>
+      <Grid container spacing={1.5} alignItems="center">
+        <Grid size={{ xs: 12, md: 4 }}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="target-user@example.com"
+            value={impersonationEmail}
+            onChange={(event) => onImpersonationEmailChange(event.target.value)}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 5 }}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Reason for support access"
+            value={impersonationReason}
+            onChange={(event) => onImpersonationReasonChange(event.target.value)}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 3 }}>
+          <Button
+            fullWidth
+            size="small"
+            variant="outlined"
+            onClick={onIssueImpersonationLink}
+            disabled={impersonationBusy || !canIssueImpersonationLink}
+          >
+            {impersonationBusy ? "Issuing..." : canIssueImpersonationLink ? "Issue link" : "Admin only"}
+          </Button>
+        </Grid>
+      </Grid>
       {!canIssueImpersonationLink ? (
-        <p className="mt-2 text-xs text-slate-400">Support role is read-only for impersonation. Ask an admin to issue links.</p>
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: "block" }}>
+          Support role is read-only for impersonation. Ask an admin to issue links.
+        </Typography>
       ) : null}
-      {impersonationError ? <p className="mt-2 text-sm text-red-400">{impersonationError}</p> : null}
+      {impersonationError ? (
+        <Typography variant="body2" color="error.main" sx={{ mt: 1 }}>
+          {impersonationError}
+        </Typography>
+      ) : null}
       {impersonationLink ? (
-        <div className="mt-3 rounded border border-slate-500/40 bg-slate-500/10 p-3 text-xs text-sky-100">
-          <p className="font-semibold">Impersonation link ready</p>
-          <p className="mt-1 break-all">{impersonationLink}</p>
-          {impersonationToken ? <p className="mt-1 break-all text-sky-100">Token: {impersonationToken}</p> : null}
-        </div>
+        <Alert severity="info" variant="outlined" sx={{ mt: 2 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+            Impersonation link ready
+          </Typography>
+          <Typography variant="caption" sx={{ wordBreak: "break-all", display: "block", mt: 0.5 }}>
+            {impersonationLink}
+          </Typography>
+          {impersonationToken ? (
+            <Typography variant="caption" sx={{ wordBreak: "break-all", display: "block", mt: 0.5 }}>
+              Token: {impersonationToken}
+            </Typography>
+          ) : null}
+        </Alert>
       ) : null}
-    </div>
+    </Paper>
   );
 }

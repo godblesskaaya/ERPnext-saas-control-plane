@@ -1,5 +1,18 @@
 "use client";
 
+import {
+  Button,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from "@mui/material";
+
 import type { AuditLogEntry } from "../../../../shared/lib/types";
 import { formatDate } from "./adminConsoleFormatters";
 
@@ -33,82 +46,81 @@ export function AdminAuditView({
   onNextPage,
 }: AdminAuditViewProps) {
   return (
-    <div className="rounded-xl border border-slate-700 p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Admin audit log</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
-            onClick={onExportAudit}
-            disabled={auditExportBusy}
-          >
+    <Paper variant="outlined" sx={{ p: 2.5 }}>
+      <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "center" }} gap={1.5} sx={{ mb: 2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          Admin audit log
+        </Typography>
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <Button size="small" variant="outlined" onClick={onExportAudit} disabled={auditExportBusy}>
             {auditExportBusy ? "Exporting..." : "Export CSV"}
-          </button>
-          <button className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800" onClick={onRefreshAudit}>
+          </Button>
+          <Button size="small" variant="outlined" onClick={onRefreshAudit}>
             Refresh
-          </button>
-        </div>
-      </div>
-      {auditExportError ? <p className="mb-3 text-sm text-red-400">{auditExportError}</p> : null}
+          </Button>
+        </Stack>
+      </Stack>
+      {auditExportError ? (
+        <Typography variant="body2" color="error.main" sx={{ mb: 1.5 }}>
+          {auditExportError}
+        </Typography>
+      ) : null}
 
       {!auditSupported ? (
-        <p className="text-sm text-slate-300">Audit log endpoint is not available on this backend.</p>
+        <Typography variant="body2" color="text.secondary">
+          Audit log endpoint is not available on this backend.
+        </Typography>
       ) : auditError ? (
-        <p className="text-sm text-red-400">{auditError}</p>
+        <Typography variant="body2" color="error.main">
+          {auditError}
+        </Typography>
       ) : auditLog.length ? (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
-              <tr>
-                <th className="p-2">Time</th>
-                <th className="p-2">Actor</th>
-                <th className="p-2">Action</th>
-                <th className="p-2">Resource</th>
-                <th className="p-2">IP</th>
-              </tr>
-            </thead>
-            <tbody>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Time</TableCell>
+                <TableCell>Actor</TableCell>
+                <TableCell>Action</TableCell>
+                <TableCell>Resource</TableCell>
+                <TableCell>IP</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {auditLog.map((entry) => (
-                <tr key={entry.id} className="border-t border-slate-700">
-                  <td className="p-2 text-xs text-slate-300">{formatDate(entry.created_at)}</td>
-                  <td className="p-2 text-xs text-slate-300">{entry.actor_email || entry.actor_id || entry.actor_role}</td>
-                  <td className="p-2 text-xs">{entry.action}</td>
-                  <td className="p-2 text-xs text-slate-300">
+                <TableRow key={entry.id} hover>
+                  <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>{formatDate(entry.created_at)}</TableCell>
+                  <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>{entry.actor_email || entry.actor_id || entry.actor_role}</TableCell>
+                  <TableCell sx={{ fontSize: 12 }}>{entry.action}</TableCell>
+                  <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>
                     {entry.resource}
                     {entry.resource_id ? ` (${entry.resource_id.slice(0, 6)}...)` : ""}
-                  </td>
-                  <td className="p-2 text-xs text-slate-400">{entry.ip_address || "—"}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>{entry.ip_address || "—"}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       ) : (
-        <p className="text-sm text-slate-300">No audit entries yet.</p>
+        <Typography variant="body2" color="text.secondary">
+          No audit entries yet.
+        </Typography>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
-        <span>
+      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} gap={1.5} sx={{ mt: 2 }}>
+        <Typography variant="caption" color="text.secondary">
           Page {auditPage} of {auditTotalPages} • {auditTotal} events
-        </span>
-        <div className="flex gap-2">
-          <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
-            disabled={auditPage <= 1}
-            onClick={onPreviousPage}
-          >
+        </Typography>
+        <Stack direction="row" spacing={1}>
+          <Button size="small" variant="outlined" disabled={auditPage <= 1} onClick={onPreviousPage}>
             Previous
-          </button>
-          <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
-            disabled={auditPage >= auditTotalPages}
-            onClick={onNextPage}
-          >
+          </Button>
+          <Button size="small" variant="outlined" disabled={auditPage >= auditTotalPages} onClick={onNextPage}>
             Next
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </Stack>
+      </Stack>
+    </Paper>
   );
 }
-

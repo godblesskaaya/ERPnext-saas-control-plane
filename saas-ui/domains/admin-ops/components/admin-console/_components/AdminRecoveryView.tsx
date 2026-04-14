@@ -1,5 +1,18 @@
 "use client";
 
+import {
+  Box,
+  Button,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from "@mui/material";
+
 import type { DeadLetterJob } from "../../../../shared/lib/types";
 import { formatDate } from "./adminConsoleFormatters";
 
@@ -23,60 +36,66 @@ export function AdminRecoveryView({
   onRequeueDeadLetter,
 }: AdminRecoveryViewProps) {
   return (
-    <div className="rounded-xl border border-slate-700 p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Recovery queue (dead-letter)</h2>
-        <button className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800" onClick={onRefreshDeadLetters}>
+    <Paper variant="outlined" sx={{ p: 2.5 }}>
+      <Box sx={{ mb: 2, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          Recovery queue (dead-letter)
+        </Typography>
+        <Button size="small" variant="outlined" onClick={onRefreshDeadLetters}>
           Refresh
-        </button>
-      </div>
+        </Button>
+      </Box>
 
       {!deadLetterSupported ? (
-        <p className="text-sm text-slate-300">Dead-letter endpoint is not available on this backend.</p>
+        <Typography variant="body2" color="text.secondary">
+          Dead-letter endpoint is not available on this backend.
+        </Typography>
       ) : deadLetterError ? (
-        <p className="text-sm text-red-400">{deadLetterError}</p>
+        <Typography variant="body2" color="error.main">
+          {deadLetterError}
+        </Typography>
       ) : deadLetters.length ? (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
-              <tr>
-                <th className="p-2">ID</th>
-                <th className="p-2">Worker function</th>
-                <th className="p-2">Queued</th>
-                <th className="p-2">Args</th>
-                <th className="p-2">Action</th>
-              </tr>
-            </thead>
-            <tbody>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>ID</TableCell>
+                <TableCell>Worker function</TableCell>
+                <TableCell>Queued</TableCell>
+                <TableCell>Args</TableCell>
+                <TableCell>Action</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {deadLetters.map((job) => (
-                <tr key={job.id} className="border-t border-slate-700">
-                  <td className="p-2 font-mono text-xs">{job.id}</td>
-                  <td className="p-2 text-xs">{job.func_name}</td>
-                  <td className="p-2 text-xs text-slate-300">{formatDate(job.enqueued_at)}</td>
-                  <td className="p-2 text-xs text-slate-300">
-                    <code>{JSON.stringify(job.args).slice(0, 120)}</code>
-                  </td>
-                  <td className="p-2 text-xs">
+                <TableRow key={job.id} hover>
+                  <TableCell sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12 }}>{job.id}</TableCell>
+                  <TableCell sx={{ fontSize: 12 }}>{job.func_name}</TableCell>
+                  <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>{formatDate(job.enqueued_at)}</TableCell>
+                  <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>
+                    <Box component="code">{JSON.stringify(job.args).slice(0, 120)}</Box>
+                  </TableCell>
+                  <TableCell sx={{ fontSize: 12 }}>
                     {canRequeueDeadLetters ? (
-                      <button
-                        className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800 disabled:opacity-60"
-                        disabled={requeueJobId === job.id}
-                        onClick={() => onRequeueDeadLetter(job.id)}
-                      >
+                      <Button size="small" variant="outlined" disabled={requeueJobId === job.id} onClick={() => onRequeueDeadLetter(job.id)}>
                         {requeueJobId === job.id ? "Requeueing..." : "Requeue"}
-                      </button>
+                      </Button>
                     ) : (
-                      <span className="rounded border border-slate-700 px-2 py-1 text-[11px] text-slate-400">Read-only scope</span>
+                      <Typography variant="caption" color="text.secondary">
+                        Read-only scope
+                      </Typography>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       ) : (
-        <p className="text-sm text-slate-300">No dead-letter jobs.</p>
+        <Typography variant="body2" color="text.secondary">
+          No dead-letter jobs.
+        </Typography>
       )}
-    </div>
+    </Paper>
   );
 }

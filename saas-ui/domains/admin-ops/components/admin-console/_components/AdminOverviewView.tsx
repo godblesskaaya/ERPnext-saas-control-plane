@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { Box, Button, Card, Chip, Grid, Paper, Stack, Typography } from "@mui/material";
+
 import type { MetricsSummary } from "../../../../shared/lib/types";
 import type { AdminControlLaneLink } from "./adminConsoleTypes";
 
@@ -18,19 +21,25 @@ type AdminOverviewViewProps = {
 };
 
 function metricCard(label: string, value: number, hint: string, tone: "default" | "good" | "warn" = "default") {
-  const toneClass =
+  const toneSx =
     tone === "good"
-      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+      ? { borderColor: "success.light", backgroundColor: "rgba(34,197,94,0.08)" }
       : tone === "warn"
-      ? "border-slate-500/30 bg-slate-500/10 text-sky-100"
-      : "border-slate-700 bg-slate-900/70 text-slate-100";
+      ? { borderColor: "warning.light", backgroundColor: "rgba(245,158,11,0.08)" }
+      : {};
 
   return (
-    <article className={`rounded-lg border p-3 ${toneClass}`}>
-      <p className="text-xs uppercase tracking-wide opacity-80">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
-      <p className="mt-1 text-xs opacity-80">{hint}</p>
-    </article>
+    <Card variant="outlined" sx={{ p: 2, ...toneSx }}>
+      <Typography variant="caption" sx={{ textTransform: "uppercase", letterSpacing: 0.6, color: "text.secondary" }}>
+        {label}
+      </Typography>
+      <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 700 }}>
+        {value}
+      </Typography>
+      <Typography variant="caption" color="text.secondary">
+        {hint}
+      </Typography>
+    </Card>
   );
 }
 
@@ -47,92 +56,166 @@ export function AdminOverviewView({
   onRefreshMetrics,
   controlLaneLinks,
 }: AdminOverviewViewProps) {
+  const attentionNeeded = failedCount || suspendedCount || deadLettersCount;
+
   return (
     <>
-      <div className="rounded-xl border border-slate-700 bg-slate-900/50 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-medium text-white">Attention lane</p>
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs ${
-              failedCount || suspendedCount || deadLettersCount ? "bg-sky-500/20 text-sky-100" : "bg-emerald-500/20 text-emerald-200"
-            }`}
-          >
-            {failedCount || suspendedCount || deadLettersCount ? "Intervention recommended" : "Platform healthy"}
-          </span>
-        </div>
-        <div className="mt-3 grid gap-2 text-xs md:grid-cols-4">
-          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
-            Active tenants: <span className="font-semibold text-emerald-200">{activeCount}</span>
-          </p>
-          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
-            Setup queue: <span className="font-semibold text-sky-100">{provisioningCount}</span>
-          </p>
-          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
-            Failed: <span className="font-semibold text-red-200">{failedCount}</span>
-          </p>
-          <p className="rounded border border-slate-700 bg-slate-950/50 px-3 py-2 text-slate-300">
-            Dead letters: <span className="font-semibold text-rose-200">{deadLettersCount}</span>
-          </p>
-        </div>
-      </div>
+      <Paper variant="outlined" sx={{ p: 2.5 }}>
+        <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "center" }} gap={1.5}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            Attention lane
+          </Typography>
+          <Chip
+            size="small"
+            color={attentionNeeded ? "warning" : "success"}
+            label={attentionNeeded ? "Intervention recommended" : "Platform healthy"}
+            variant="outlined"
+          />
+        </Stack>
+        <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <Paper variant="outlined" sx={{ p: 1.25 }}>
+              <Typography variant="caption" color="text.secondary">
+                Active tenants
+              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {activeCount}
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <Paper variant="outlined" sx={{ p: 1.25 }}>
+              <Typography variant="caption" color="text.secondary">
+                Setup queue
+              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {provisioningCount}
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <Paper variant="outlined" sx={{ p: 1.25 }}>
+              <Typography variant="caption" color="text.secondary">
+                Failed
+              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {failedCount}
+              </Typography>
+            </Paper>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <Paper variant="outlined" sx={{ p: 1.25 }}>
+              <Typography variant="caption" color="text.secondary">
+                Dead letters
+              </Typography>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {deadLettersCount}
+              </Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+      </Paper>
 
-      <div className="rounded-xl border border-slate-700 p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Platform metrics</h2>
-          <button className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800" onClick={onRefreshMetrics}>
+      <Paper variant="outlined" sx={{ p: 2.5 }}>
+        <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} gap={1.5} sx={{ mb: 2 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Platform metrics
+          </Typography>
+          <Button size="small" variant="outlined" onClick={onRefreshMetrics}>
             Refresh
-          </button>
-        </div>
+          </Button>
+        </Stack>
 
         {!metricsSupported ? (
-          <p className="text-sm text-slate-300">Metrics endpoint is not available on this backend.</p>
+          <Typography variant="body2" color="text.secondary">
+            Metrics endpoint is not available on this backend.
+          </Typography>
         ) : metricsError ? (
-          <p className="text-sm text-red-400">{metricsError}</p>
+          <Typography variant="body2" color="error.main">
+            {metricsError}
+          </Typography>
         ) : metrics ? (
-          <div className="grid gap-3 md:grid-cols-3">
+          <Grid container spacing={1.5}>
+            <Grid size={{ xs: 12, md: 4 }}>
             {metricCard("Total tenants", metrics.total_tenants, "All customer environments")}
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
             {metricCard("Active tenants", metrics.active_tenants, "Currently operational", "good")}
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
             {metricCard("Provisioning queue", metrics.provisioning_tenants, "Pending + provisioning", "warn")}
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
             {metricCard("Pending payment", metrics.pending_payment_tenants, "Awaiting payment confirmation", "warn")}
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
             {metricCard("Failed tenants", metrics.failed_tenants, "Needs operator action", metrics.failed_tenants ? "warn" : "default")}
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
             {metricCard("Dead-letter jobs", metrics.dead_letter_count, "Recovery queue depth", metrics.dead_letter_count ? "warn" : "default")}
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
             {metricCard("Jobs 24h", metrics.jobs_last_24h, "Activity in the last 24h")}
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
             {metricCard(
               "Provisioning success (7d)",
               metrics.provisioning_success_rate_7d,
               "Percent succeeded",
               metrics.provisioning_success_rate_7d < 95 ? "warn" : "good"
             )}
-          </div>
+            </Grid>
+          </Grid>
         ) : (
-          <p className="text-sm text-slate-300">Loading metrics...</p>
+          <Typography variant="body2" color="text.secondary">
+            Loading metrics...
+          </Typography>
         )}
-      </div>
+      </Paper>
 
-      <div className="grid gap-3 md:grid-cols-4">
-        {metricCard("Total tenants", tenantTotal, "All managed customer environments")}
-        {metricCard("Suspended", suspendedCount, "Access paused pending review", suspendedCount ? "warn" : "default")}
-        {metricCard("Provisioning", provisioningCount, "Still onboarding or awaiting payment", provisioningCount ? "warn" : "default")}
-        {metricCard("Failed", failedCount, "Requires immediate operator follow-up", failedCount ? "warn" : "good")}
-      </div>
+      <Grid container spacing={1.5}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>{metricCard("Total tenants", tenantTotal, "All managed customer environments")}</Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>{metricCard("Suspended", suspendedCount, "Access paused pending review", suspendedCount ? "warn" : "default")}</Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>{metricCard("Provisioning", provisioningCount, "Still onboarding or awaiting payment", provisioningCount ? "warn" : "default")}</Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>{metricCard("Failed", failedCount, "Requires immediate operator follow-up", failedCount ? "warn" : "good")}</Grid>
+      </Grid>
 
-      <div className="rounded-xl border border-slate-700 p-4">
-        <h2 className="text-lg font-semibold">Control lanes</h2>
-        <p className="mt-1 text-xs text-slate-400">Jump directly into focused admin workflows.</p>
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <Paper variant="outlined" sx={{ p: 2.5 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          Control lanes
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          Jump directly into focused admin workflows.
+        </Typography>
+        <Grid container spacing={1.5} sx={{ mt: 0.25 }}>
           {controlLaneLinks.map((lane) => (
-            <a
-              key={lane.href}
-              href={lane.href}
-              className="rounded border border-slate-700 bg-slate-950/60 p-3 text-left transition hover:border-slate-500 hover:bg-slate-900"
-            >
-              <p className="text-sm font-medium text-white">{lane.label}</p>
-              <p className="mt-1 text-xs text-slate-300">{lane.description}</p>
-              <p className="mt-2 text-[11px] text-slate-400">{lane.hint}</p>
-            </a>
+            <Grid size={{ xs: 12, md: 6, xl: 4 }} key={lane.href}>
+              <Card
+                component={Link}
+                href={lane.href}
+                variant="outlined"
+                sx={{
+                  p: 2,
+                  textDecoration: "none",
+                  color: "inherit",
+                  transition: "border-color 160ms ease, background-color 160ms ease",
+                  "&:hover": { borderColor: "primary.light", backgroundColor: "rgba(37,99,235,0.04)" },
+                }}
+              >
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  {lane.label}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                  {lane.description}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1.25, display: "block" }}>
+                  {lane.hint}
+                </Typography>
+              </Card>
+            </Grid>
           ))}
-        </div>
-      </div>
+        </Grid>
+      </Paper>
     </>
   );
 }

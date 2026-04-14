@@ -1,5 +1,19 @@
 "use client";
 
+import {
+  Box,
+  Button,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from "@mui/material";
+
 import { JobLogPanel } from "../../../../shared/components/JobLogPanel";
 import type { Job } from "../../../../shared/lib/types";
 import { formatDate } from "./adminConsoleFormatters";
@@ -24,73 +38,93 @@ export function AdminJobsView({
   onInspectJobLogs,
 }: AdminJobsViewProps) {
   return (
-    <div className="rounded-xl border border-slate-700 p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Execution monitor</h2>
-        <button className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800" onClick={onRefreshJobs}>
+    <Paper variant="outlined" sx={{ p: 2.5 }}>
+      <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ sm: "center" }} gap={1.5} sx={{ mb: 2 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          Execution monitor
+        </Typography>
+        <Button size="small" variant="outlined" onClick={onRefreshJobs}>
           Refresh
-        </button>
-      </div>
+        </Button>
+      </Stack>
 
       {!jobsSupported ? (
-        <p className="text-sm text-slate-300">Admin jobs endpoint is not available on this backend.</p>
+        <Typography variant="body2" color="text.secondary">
+          Admin jobs endpoint is not available on this backend.
+        </Typography>
       ) : jobsError ? (
-        <p className="text-sm text-red-400">{jobsError}</p>
+        <Typography variant="body2" color="error.main">
+          {jobsError}
+        </Typography>
       ) : jobs.length ? (
-        <div className="space-y-3">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-900/60 text-left text-xs uppercase tracking-wide text-slate-300">
-                <tr>
-                  <th className="p-2">Job ID</th>
-                  <th className="p-2">Tenant ID</th>
-                  <th className="p-2">Flow</th>
-                  <th className="p-2">Health</th>
-                  <th className="p-2">Created</th>
-                  <th className="p-2" />
-                </tr>
-              </thead>
-              <tbody>
+        <Stack spacing={2}>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Job ID</TableCell>
+                  <TableCell>Tenant ID</TableCell>
+                  <TableCell>Flow</TableCell>
+                  <TableCell>Health</TableCell>
+                  <TableCell>Created</TableCell>
+                  <TableCell align="right" />
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {jobs.map((job) => (
-                  <tr key={job.id} className="border-t border-slate-700">
-                    <td className="p-2 font-mono text-xs">{job.id}</td>
-                    <td className="p-2 font-mono text-xs">{job.tenant_id}</td>
-                    <td className="p-2 text-xs">{job.type}</td>
-                    <td className="p-2 text-xs">{job.status}</td>
-                    <td className="p-2 text-xs text-slate-300">{formatDate(job.created_at)}</td>
-                    <td className="p-2 text-right">
-                      <button
-                        className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800"
-                        onClick={() => onInspectJobLogs(job.id)}
-                      >
+                  <TableRow key={job.id} hover>
+                    <TableCell sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12 }}>{job.id}</TableCell>
+                    <TableCell sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12 }}>{job.tenant_id}</TableCell>
+                    <TableCell sx={{ fontSize: 12 }}>{job.type}</TableCell>
+                    <TableCell sx={{ fontSize: 12 }}>{job.status}</TableCell>
+                    <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>{formatDate(job.created_at)}</TableCell>
+                    <TableCell align="right">
+                      <Button size="small" variant="outlined" onClick={() => onInspectJobLogs(job.id)}>
                         Inspect logs
-                      </button>
-                    </td>
-                  </tr>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableContainer>
 
           {selectedJob ? (
-            <div className="space-y-2">
-              <p className="text-xs text-slate-300">
-                Showing logs for job <span className="font-mono">{selectedJob.id}</span>
-              </p>
+            <Stack spacing={1}>
+              <Typography variant="caption" color="text.secondary">
+                Showing logs for job{" "}
+                <Box component="span" sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                  {selectedJob.id}
+                </Box>
+              </Typography>
               {selectedJobSupported ? (
                 <JobLogPanel jobId={selectedJob.id} logs={selectedJob.logs} status={selectedJob.status} />
               ) : (
-                <pre className="max-h-72 overflow-auto rounded border border-slate-700 bg-slate-950 p-3 text-xs">
+                <Box
+                  component="pre"
+                  sx={{
+                    m: 0,
+                    maxHeight: 288,
+                    overflow: "auto",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    bgcolor: "background.paper",
+                    p: 1.5,
+                    fontSize: 12,
+                  }}
+                >
                   {selectedJob.logs || "No logs available."}
-                </pre>
+                </Box>
               )}
-            </div>
+            </Stack>
           ) : null}
-        </div>
+        </Stack>
       ) : (
-        <p className="text-sm text-slate-300">No jobs found. Trigger provisioning or maintenance actions to populate this feed.</p>
+        <Typography variant="body2" color="text.secondary">
+          No jobs found. Trigger provisioning or maintenance actions to populate this feed.
+        </Typography>
       )}
-    </div>
+    </Paper>
   );
 }
-

@@ -121,7 +121,7 @@ export function AdminTenantsView({
                 <td className="p-2 text-xs text-slate-300">{formatDate(tenant.created_at)}</td>
                 <td className="p-2">
                   <div className="flex flex-wrap gap-2">
-                    <a href={`/tenants/${tenant.id}`} className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800">
+                    <a href={`/app/tenants/${tenant.id}/overview`} className="rounded border border-slate-600 px-2 py-1 text-xs hover:bg-slate-800">
                       Details
                     </a>
                     {canManageTenantLifecycle ? (

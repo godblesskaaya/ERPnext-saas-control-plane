@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 
-import { adminNavSections } from "../../admin-ops/domain/adminNavigation";
+import { buildAppNavSections } from "../../../app/(app-shell)/app/_components/appNavigation";
 import { getDashboardNavSectionsByMode } from "../../dashboard/domain/navigation";
 import { workspaceDescriptors } from "./workspace";
 
@@ -82,7 +82,8 @@ test("global workspace descriptors remain the compact top-level set", () => {
 });
 
 test("admin navigation sections only expose admin-prefixed routes", () => {
-  for (const section of adminNavSections) {
+  for (const section of buildAppNavSections(true)) {
+    if (section.title !== "Admin") continue;
     for (const item of section.items) {
       assert.equal(
         item.href.startsWith("/app/admin"),

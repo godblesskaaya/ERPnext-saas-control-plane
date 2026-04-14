@@ -201,7 +201,7 @@ export default function BillingOpsPage() {
                 tenants.map((tenant) => (
                   <tr key={tenant.tenant_id} className="border-t border-slate-200">
                     <td className="p-2 text-xs text-slate-700">
-                      <Link href={`/tenants/${tenant.tenant_id}`} className="font-semibold text-[#0d6a6a] hover:text-[#0b5a5a]">
+                      <Link href={`/app/tenants/${tenant.tenant_id}/overview`} className="font-semibold text-[#0d6a6a] hover:text-[#0b5a5a]">
                         {tenant.tenant_name}
                       </Link>
                       <p className="text-[11px] text-slate-500">{tenant.domain}</p>
@@ -219,7 +219,7 @@ export default function BillingOpsPage() {
                     <td className="p-2 text-xs text-slate-600">{formatDateTime(tenant.grace_ends_at)}</td>
                     <td className="p-2 text-xs">
                       <Link
-                        href={`/tenants/${tenant.tenant_id}#support`}
+                        href={`/app/tenants/${tenant.tenant_id}/support`}
                         className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-200 hover:bg-slate-50"
                       >
                         Add note

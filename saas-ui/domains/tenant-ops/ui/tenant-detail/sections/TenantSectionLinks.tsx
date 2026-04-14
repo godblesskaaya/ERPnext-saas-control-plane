@@ -32,7 +32,7 @@ export type TenantSectionNavItem = SectionRoute & {
 };
 
 export function buildTenantSectionNavItems(pathname: string, tenantId: string): TenantSectionNavItem[] {
-  const basePath = `/tenants/${tenantId}`;
+  const basePath = `/app/tenants/${tenantId}`;
   return sectionRoutes.map((item) => {
     const href = item.route ? `${basePath}/${item.route}` : basePath;
     const active = item.route ? isExactOrChildPath(pathname, href) : isTenantOverviewPath(pathname, tenantId);

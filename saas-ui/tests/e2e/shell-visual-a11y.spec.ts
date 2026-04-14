@@ -96,9 +96,9 @@ test.describe("workspace shell visual + accessibility checks", () => {
     await authenticateWorkspaceMember(page);
     await mockDashboardOverviewApis(page);
 
-    await page.goto("/dashboard/overview");
+    await page.goto("/app/overview");
 
-    await expect(page).toHaveURL(/\/dashboard\/overview/);
+    await expect(page).toHaveURL(/\/app\/overview/);
     await expect(page.getByRole("heading", { name: "Workspace navigation" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Workspace overview" })).toBeVisible();
     await expect(page.getByText("Filter workspaces")).toBeVisible();
@@ -134,9 +134,9 @@ test.describe("workspace shell visual + accessibility checks", () => {
     await authenticateWorkspaceMember(page);
     await mockDashboardOverviewApis(page);
 
-    await page.goto("/dashboard/overview");
+    await page.goto("/app/overview");
 
-    await expect(page).toHaveURL(/\/dashboard\/overview/);
+    await expect(page).toHaveURL(/\/app\/overview/);
     await expect(page.getByRole("heading", { name: "Workspace navigation" })).toBeVisible();
 
     const results = await new AxeBuilder({ page })

@@ -447,7 +447,7 @@ export function TenantTable({
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                        <Button component={Link} href={`/tenants/${tenant.id}`} size="small" variant="outlined" sx={{ borderRadius: 999 }}>
+                        <Button component={Link} href={`/app/tenants/${tenant.id}/overview`} size="small" variant="outlined" sx={{ borderRadius: 999 }}>
                           Details
                         </Button>
                         <Button

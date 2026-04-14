@@ -160,7 +160,7 @@ function buildActivityEntries(tenants: Tenant[]): ActivityEntry[] {
       return {
         id: tenant.id,
         tenantName: tenant.company_name,
-        tenantPath: "/tenants/" + tenant.id,
+        tenantPath: `/app/tenants/${tenant.id}/overview`,
         timestamp: formatTimestamp(tenant.updated_at || tenant.created_at),
         statusLabel: activity.label,
         statusTone: getActivityTone(tenant.status),

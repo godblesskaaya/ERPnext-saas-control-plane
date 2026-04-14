@@ -17,17 +17,26 @@ const routePaths = {
 const queueShellPath = "domains/dashboard/components/WorkspaceQueuePage.tsx";
 const listShellPath = "domains/dashboard/components/TenantTable.tsx";
 
-test("representative overview/list/queue routes compose the shared queue shell primitive", () => {
-  for (const [routeName, routePath] of Object.entries({
-    overview: routePaths.overview,
-    list: routePaths.list,
-    queue: routePaths.queue,
-  })) {
-    const source = readSource(routePath);
+test("representative overview/list/queue routes compose explicit workspace route page components", () => {
+  const overviewSource = readSource(routePaths.overview);
+  const listSource = readSource(routePaths.list);
+  const queueSource = readSource(routePaths.queue);
 
-    assert.equal(source.includes("<WorkspaceQueuePage"), true, `${routeName} route should render WorkspaceQueuePage.`);
-    assert.equal(source.includes('routeScope="workspace"'), true, `${routeName} route should stay workspace scoped.`);
-  }
+  const overviewComponentSource = readSource("domains/dashboard/components/workspace-pages/OverviewWorkspacePage.tsx");
+  const listComponentSource = readSource("domains/dashboard/components/workspace-pages/ActiveWorkspacesPage.tsx");
+  const queueComponentSource = readSource("domains/dashboard/components/workspace-pages/ProvisioningWorkspacePage.tsx");
+
+  assert.equal(overviewSource.includes("<OverviewWorkspacePage />"), true);
+  assert.equal(listSource.includes("<ActiveWorkspacesPage />"), true);
+  assert.equal(queueSource.includes("<ProvisioningWorkspacePage />"), true);
+
+  assert.equal(overviewSource.includes("<WorkspaceQueuePage"), false);
+  assert.equal(listSource.includes("<WorkspaceQueuePage"), false);
+  assert.equal(queueSource.includes("<WorkspaceQueuePage"), false);
+
+  assert.equal(overviewComponentSource.includes('routeScope="workspace"'), true);
+  assert.equal(listComponentSource.includes('routeScope="workspace"'), true);
+  assert.equal(queueComponentSource.includes('routeScope="workspace"'), true);
 });
 
 test("queue shell uses LoadingState/ErrorState wrappers for route-level loading and error", () => {
@@ -49,7 +58,7 @@ test("queue shell uses LoadingState/ErrorState wrappers for route-level loading 
   );
 
   assert.equal(
-    queueShellSource.includes("<ErrorState") && queueShellSource.includes("message={error ?? \"Failed to load workspace queue.\"}"),
+    queueShellSource.includes("<ErrorState") && queueShellSource.includes('message={error ?? "Failed to load workspace queue."}'),
     true,
     "Queue shell should render ErrorState wrapper when route data fails with no tenant rows.",
   );
@@ -85,5 +94,5 @@ test("settings route adopts LoadingState/ErrorState/EmptyState wrappers", () => 
   assert.equal(settingsSource.includes("const [profileLoading, setProfileLoading] = useState(true);"), true);
   assert.equal(settingsSource.includes('{profileLoading ? <LoadingState label="Loading account settings..." /> : null}'), true);
   assert.equal(settingsSource.includes("<ErrorState") && settingsSource.includes("message={error}"), true);
-  assert.equal(settingsSource.includes('<EmptyState') && settingsSource.includes('title="Account profile unavailable"'), true);
+  assert.equal(settingsSource.includes("<EmptyState") && settingsSource.includes('title="Account profile unavailable"'), true);
 });

@@ -184,6 +184,34 @@ Impact against plan:
 - Executes compatibility-route deprecation in redirect mode while preserving a controlled observe mode.
 - Confirms legacy aliases are converged to canonical paths with explicit redirect/contract coverage.
 
+
+### 2026-04-14 — Queue-route decomposition into explicit workspace page components (review + docs)
+
+Implementation + review update (worker-3):
+- Decomposed queue-driven workspace route wrappers into explicit domain page components under `saas-ui/domains/dashboard/components/workspace-pages/*` for:
+  - `/app/overview`
+  - `/app/tenants`
+  - `/app/tenants/active`
+  - `/app/tenants/suspensions`
+  - `/app/support/queue`
+  - `/app/billing/recovery`
+  - `/app/platform/provisioning`
+  - `/app/platform/incidents`
+  - `/app/platform/onboarding`
+- Updated route files to compose explicit components (instead of configuring `WorkspaceQueuePage` inline).
+- Updated readability/pattern contract tests to assert route-to-component composition and preserve readability marker expectations.
+
+Verification evidence:
+- `cd saas-ui && npx --yes tsx --test domains/dashboard/application/pagePatternShellContracts.test.ts domains/dashboard/application/workspaceReadabilityMarkers.contract.test.ts` → **PASS**
+- `cd saas-ui && npm run -s typecheck` → **PASS**
+- `cd saas-ui && npm run -s lint` → **PASS**
+- `cd saas-ui && npm run -s test:contracts` → **PASS**
+- `cd saas-ui && npm run -s build` → **PASS**
+
+Impact against plan:
+- Preserves existing queue behavior/API contracts while making route ownership explicit per workspace page and improving maintainability/reviewability for the next frontend backlog wave.
+
+
 ## Remaining Gaps (Prioritized Backlog)
 
 ## P0

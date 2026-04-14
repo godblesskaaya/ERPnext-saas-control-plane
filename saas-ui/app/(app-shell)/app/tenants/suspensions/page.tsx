@@ -1,32 +1,7 @@
 "use client";
 
-import { WorkspaceQueuePage } from "../../../../../domains/dashboard/components/WorkspaceQueuePage";
+import { SuspensionsWorkspacePage } from "../../../../../domains/dashboard/components/workspace-pages";
 
 export default function DashboardSuspensionsQueuePage() {
-  return (
-    <WorkspaceQueuePage
-      routeScope="workspace"
-      title="Suspensions queue"
-      description="Review suspended workspaces and coordinate reactivation with billing or support owners."
-      statusFilter={["suspended", "suspended_admin", "suspended_billing"]}
-      showMetrics
-      showAttention
-      showBillingAlert
-      showStatusFilter={false}
-      attentionNote="Verify suspension reason and next action for each impacted customer."
-      callout={{
-        title: "Reactivation checklist",
-        body: "Confirm payment state, support notes, and customer acknowledgement before restoring access.",
-        tone: "warn",
-      }}
-      handoffLinks={[
-        { label: "Billing recovery", href: "/app/billing/recovery" },
-        { label: "Support", href: "/app/support/queue" },
-      ]}
-      emptyStateTitle="No suspended workspaces"
-      emptyStateBody="No customer workspaces are currently suspended."
-      emptyStateActionLabel="Go to billing recovery"
-      emptyStateActionHref="/app/billing/recovery"
-    />
-  );
+  return <SuspensionsWorkspacePage />;
 }

@@ -1,0 +1,9 @@
+export { ActiveWorkspacesPage } from "./ActiveWorkspacesPage";
+export { BillingRecoveryWorkspacePage } from "./BillingRecoveryWorkspacePage";
+export { IncidentsWorkspacePage } from "./IncidentsWorkspacePage";
+export { OnboardingWorkspacePage } from "./OnboardingWorkspacePage";
+export { OverviewWorkspacePage } from "./OverviewWorkspacePage";
+export { ProvisioningWorkspacePage } from "./ProvisioningWorkspacePage";
+export { SupportQueueWorkspacePage } from "./SupportQueueWorkspacePage";
+export { SuspensionsWorkspacePage } from "./SuspensionsWorkspacePage";
+export { TenantRegistryWorkspacePage } from "./TenantRegistryWorkspacePage";

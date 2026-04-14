@@ -1,9 +1,0 @@
-"use client";
-
-import type { ReactNode } from "react";
-
-import { UserShell } from "../../domains/dashboard/components/UserShell";
-
-export default function DashboardShellLayout({ children }: { children: ReactNode }) {
-  return <UserShell>{children}</UserShell>;
-}

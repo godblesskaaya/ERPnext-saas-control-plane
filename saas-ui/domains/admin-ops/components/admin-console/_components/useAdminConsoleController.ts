@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { getSessionRole } from "../../../../domains/auth/auth";
+import { getSessionRole } from "../../../../auth/auth";
 import {
   executeTenantLifecycleAction,
   exportAdminAuditCsv,
@@ -16,14 +16,14 @@ import {
   loadAdminTenantPage,
   requeueDeadLetterById,
   toAdminErrorMessage,
-} from "../../../../domains/admin-ops/application/adminUseCases";
+} from "../../../application/adminUseCases";
 import {
   deriveAdminMetricAlertKey,
   deriveAdminMetricAlerts,
   deriveAdminTenantCounts,
-} from "../../../../domains/admin-ops/domain/adminDashboard";
-import { useNotifications } from "../../../../domains/shared/components/NotificationsProvider";
-import type { AuditLogEntry, DeadLetterJob, Job, MetricsSummary, Tenant } from "../../../../domains/shared/lib/types";
+} from "../../../domain/adminDashboard";
+import { useNotifications } from "../../../../shared/components/NotificationsProvider";
+import type { AuditLogEntry, DeadLetterJob, Job, MetricsSummary, Tenant } from "../../../../shared/lib/types";
 import type { AdminControlLaneLink, TenantAdminAction } from "./adminConsoleTypes";
 import {
   ADMIN_VIEW_DETAILS,

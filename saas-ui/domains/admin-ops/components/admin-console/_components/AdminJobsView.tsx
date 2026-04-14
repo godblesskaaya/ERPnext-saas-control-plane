@@ -1,7 +1,7 @@
 "use client";
 
-import { JobLogPanel } from "../../../../domains/shared/components/JobLogPanel";
-import type { Job } from "../../../../domains/shared/lib/types";
+import { JobLogPanel } from "../../../../shared/components/JobLogPanel";
+import type { Job } from "../../../../shared/lib/types";
 import { formatDate } from "./adminConsoleFormatters";
 
 type AdminJobsViewProps = {

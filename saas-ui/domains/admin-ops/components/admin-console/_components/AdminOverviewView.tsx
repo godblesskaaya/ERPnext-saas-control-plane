@@ -1,6 +1,6 @@
 "use client";
 
-import type { MetricsSummary } from "../../../../domains/shared/lib/types";
+import type { MetricsSummary } from "../../../../shared/lib/types";
 import type { AdminControlLaneLink } from "./adminConsoleTypes";
 
 type AdminOverviewViewProps = {

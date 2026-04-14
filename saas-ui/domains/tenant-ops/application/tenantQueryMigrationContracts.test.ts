@@ -43,9 +43,9 @@ test("tenant detail hooks expose query-backed route/members/subscription reads w
 });
 
 test("overview/members/billing pages consume query hooks and keep mutation-driven refresh behavior", () => {
-  const overviewSource = readSource("app/(dashboard)/tenants/[id]/overview/page.tsx");
-  const membersSource = readSource("app/(dashboard)/tenants/[id]/members/page.tsx");
-  const billingSource = readSource("app/(dashboard)/tenants/[id]/billing/page.tsx");
+  const overviewSource = readSource("app/(app-shell)/app/tenants/[tenantId]/overview/page.tsx");
+  const membersSource = readSource("app/(app-shell)/app/tenants/[tenantId]/members/page.tsx");
+  const billingSource = readSource("app/(app-shell)/app/tenants/[tenantId]/billing/page.tsx");
 
   assert.equal(overviewSource.includes("useTenantRouteContext") && overviewSource.includes("useTenantRecentJobsData"), true);
 

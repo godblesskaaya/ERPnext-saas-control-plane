@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 
-const tenantRootPagePath = resolve(process.cwd(), "app/(dashboard)/tenants/[id]/page.tsx");
+const tenantRootPagePath = resolve(process.cwd(), "app/(app-shell)/app/tenants/[tenantId]/page.tsx");
 
 function readTenantRootSource(): string {
   return readFileSync(tenantRootPagePath, "utf8");

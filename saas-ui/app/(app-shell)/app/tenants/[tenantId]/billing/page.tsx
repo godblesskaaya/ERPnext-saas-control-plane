@@ -1,25 +1,49 @@
-import { TenantDetailScaffold, TenantSectionPlaceholder } from "../../../_components/TenantDetailScaffold";
+"use client";
 
-type TenantBillingPageProps = {
-  params: Promise<{
-    tenantId: string;
-  }>;
-};
+import { Alert } from "@mui/material";
+import { useParams } from "next/navigation";
+import {
+  TenantSubscriptionSection,
+} from "../../../../../../domains/tenant-ops/ui/tenant-detail/sections";
+import { TenantWorkspacePageLayout } from "../../../../../../domains/tenant-ops/ui/tenant-detail/components/TenantWorkspacePageLayout";
+import {
+  useTenantRouteContext,
+  useTenantSubscriptionData,
+} from "../../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
 
-export default async function TenantBillingPage({ params }: TenantBillingPageProps) {
-  const { tenantId } = await params;
+function formatTimestamp(value?: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
+export default function TenantBillingPage() {
+  const params = useParams<{ tenantId: string }>();
+  const id = params.tenantId;
+  const { tenant, error } = useTenantRouteContext(id);
+  const { subscription, subscriptionSupported, subscriptionError, loadSubscription } = useTenantSubscriptionData(id);
+
+  if (!id) {
+    return <Alert severity="error">Tenant id is missing from route.</Alert>;
+  }
 
   return (
-    <TenantDetailScaffold
-      tenantId={tenantId}
-      section="billing"
-      title="Tenant billing"
-      subtitle="Payment state and billing context for this tenant."
+    <TenantWorkspacePageLayout
+      tenantId={id}
+      title="Billing & subscription"
+      tenantContext={tenant ? `${tenant.company_name} (${tenant.domain})` : "Loading tenant context..."}
+      footerError={error}
     >
-      <TenantSectionPlaceholder
-        title="Billing"
-        body="This canonical page now owns tenant payment state, invoice context, and billing follow-up."
+      <TenantSubscriptionSection
+        subscriptionError={subscriptionError}
+        subscriptionSupported={subscriptionSupported}
+        subscription={subscription}
+        onRefresh={() => {
+          void loadSubscription();
+        }}
+        formatTimestamp={formatTimestamp}
       />
-    </TenantDetailScaffold>
+    </TenantWorkspacePageLayout>
   );
 }

@@ -15,7 +15,7 @@ const tenantPages = [
 ];
 
 function readTenantPageSource(pagePath: string): string {
-  return readFileSync(resolve(process.cwd(), `app/(dashboard)/tenants/[id]/${pagePath}`), "utf8");
+  return readFileSync(resolve(process.cwd(), `app/(app-shell)/app/tenants/[tenantId]/${pagePath}`), "utf8");
 }
 
 test("tenant detail pages follow the shared tenant page pattern", () => {
@@ -23,9 +23,9 @@ test("tenant detail pages follow the shared tenant page pattern", () => {
     const source = readTenantPageSource(pagePath);
 
     assert.equal(
-      /useParams<\{\s*id:\s*string\s*\}>\(\)/.test(source),
+      /useParams<\{\s*tenantId:\s*string\s*\}>\(\)/.test(source),
       true,
-      `${pagePath} should read tenant id via route params.`,
+      `${pagePath} should read tenantId via route params.`,
     );
 
     assert.equal(

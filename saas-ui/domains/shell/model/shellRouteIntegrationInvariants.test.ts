@@ -11,11 +11,11 @@ function readSource(pathFromRoot: string): string {
   return readFileSync(resolve(process.cwd(), pathFromRoot), "utf8");
 }
 
-test("dashboard shell layout composes UserShell", () => {
-  const source = readSource("app/(dashboard)/layout.tsx");
+test("canonical app layout composes AppShell", () => {
+  const source = readSource("app/(app-shell)/app/layout.tsx");
 
-  assert.equal(source.includes("UserShell"), true, "dashboard layout should reference UserShell");
-  assert.equal(/<UserShell>\s*\{children\}\s*<\/UserShell>/.test(source), true);
+  assert.equal(source.includes("AppShell"), true, "app layout should reference AppShell");
+  assert.equal(/<AppShell>\s*\{children\}\s*<\/AppShell>/.test(source), true);
 });
 
 test("user shell mounts workspace-local navigation before route content", () => {
@@ -42,18 +42,13 @@ test("workspace sidebar sections keep canonical /app/* hrefs", () => {
   }
 });
 
-test("admin shell layout composes AppFrame + AdminNav and applies route access policy in a hook", () => {
-  const source = readSource("app/(admin)/layout.tsx");
+test("canonical app shell applies admin route policy and exposes admin nav sections", () => {
+  const source = readSource("app/(app-shell)/app/_components/AppShell.tsx");
 
-  assert.equal(source.includes("import { useEffect"), true, "admin layout should use useEffect hook");
-  assert.equal(source.includes("decideAdminRouteAccess"), true, "admin layout should apply admin route policy");
-  assert.equal(source.includes("nextPath"), true, "admin route policy should evaluate the effective nextPath");
-  assert.equal(source.includes("<AppFrame"), true, "admin layout should render AppFrame");
-  assert.equal(
-    source.includes("sidebar={<AdminNav />}"),
-    true,
-    "admin layout should mount AdminNav inside AppFrame sidebar",
-  );
+  assert.equal(source.includes("decideAdminRouteAccess"), true, "app shell should apply admin route policy");
+  assert.equal(source.includes('pathname.startsWith("/app/admin")'), true, "app shell should gate /app/admin routes");
+  assert.equal(source.includes("buildAppNavSections"), true, "app shell should derive unified sidebar sections");
+  assert.equal(source.includes("canSeeAdmin"), true, "app shell should toggle admin section visibility by session role");
 });
 
 test("workspace sidebar keeps sticky positioning guardrails", () => {

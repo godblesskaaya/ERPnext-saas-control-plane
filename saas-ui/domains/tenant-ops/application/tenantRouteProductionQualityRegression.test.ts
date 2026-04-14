@@ -6,13 +6,13 @@ import test from "node:test";
 type TenantPageKey = "jobs" | "backups" | "members" | "domains" | "support" | "billing" | "audit";
 
 const pagePaths: Record<TenantPageKey, string> = {
-  jobs: "app/(dashboard)/tenants/[id]/jobs/page.tsx",
-  backups: "app/(dashboard)/tenants/[id]/backups/page.tsx",
-  members: "app/(dashboard)/tenants/[id]/members/page.tsx",
-  domains: "app/(dashboard)/tenants/[id]/domains/page.tsx",
-  support: "app/(dashboard)/tenants/[id]/support/page.tsx",
-  billing: "app/(dashboard)/tenants/[id]/billing/page.tsx",
-  audit: "app/(dashboard)/tenants/[id]/audit/page.tsx",
+  jobs: "app/(app-shell)/app/tenants/[tenantId]/jobs/page.tsx",
+  backups: "app/(app-shell)/app/tenants/[tenantId]/backups/page.tsx",
+  members: "app/(app-shell)/app/tenants/[tenantId]/members/page.tsx",
+  domains: "app/(app-shell)/app/tenants/[tenantId]/domains/page.tsx",
+  support: "app/(app-shell)/app/tenants/[tenantId]/support/page.tsx",
+  billing: "app/(app-shell)/app/tenants/[tenantId]/billing/page.tsx",
+  audit: "app/(app-shell)/app/tenants/[tenantId]/audit/page.tsx",
 };
 
 const tenantLayoutPath = "domains/tenant-ops/ui/tenant-detail/components/TenantWorkspacePageLayout.tsx";

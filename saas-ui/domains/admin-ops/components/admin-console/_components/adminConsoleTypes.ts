@@ -1,4 +1,4 @@
-import type { Tenant } from "../../../../domains/shared/lib/types";
+import type { Tenant } from "../../../../shared/lib/types";
 
 export type TenantAdminAction = {
   type: "suspend" | "unsuspend";

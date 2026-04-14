@@ -1,6 +1,6 @@
 "use client";
 
-import type { DeadLetterJob } from "../../../../domains/shared/lib/types";
+import type { DeadLetterJob } from "../../../../shared/lib/types";
 import { formatDate } from "./adminConsoleFormatters";
 
 type AdminRecoveryViewProps = {

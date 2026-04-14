@@ -1,7 +1,7 @@
 "use client";
 
-import { buildTenantActionPhrase } from "../../../../domains/admin-ops/domain/adminDashboard";
-import type { Tenant } from "../../../../domains/shared/lib/types";
+import { buildTenantActionPhrase } from "../../../domain/adminDashboard";
+import type { Tenant } from "../../../../shared/lib/types";
 import { formatDate, statusBadgeClass } from "./adminConsoleFormatters";
 
 type AdminTenantsViewProps = {

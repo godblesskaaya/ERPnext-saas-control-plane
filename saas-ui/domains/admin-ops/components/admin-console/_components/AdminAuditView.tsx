@@ -1,6 +1,6 @@
 "use client";
 
-import type { AuditLogEntry } from "../../../../domains/shared/lib/types";
+import type { AuditLogEntry } from "../../../../shared/lib/types";
 import { formatDate } from "./adminConsoleFormatters";
 
 type AdminAuditViewProps = {

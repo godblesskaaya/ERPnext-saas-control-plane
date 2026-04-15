@@ -54,8 +54,41 @@ test("canonical app shell applies admin route policy and exposes admin nav secti
 test("workspace sidebar keeps sticky positioning guardrails", () => {
   const source = readSource("domains/shell/components/WorkspaceSidebar.tsx");
 
-  assert.equal(/position:\s*"sticky"/.test(source), true, "sidebar should stay sticky");
-  assert.equal(/top:\s*80/.test(source), true, "sidebar sticky top offset should remain 80");
+  assert.equal(source.includes('position: sticky ? "sticky" : "static"'), true, "sidebar should preserve sticky toggle guardrail.");
+  assert.equal(source.includes('top: sticky ? 80 : "auto"'), true, "sidebar sticky top offset should remain 80.");
+});
+
+test("app frame keeps responsive drawer and horizontal overflow guardrails", () => {
+  const source = readSource("domains/shell/components/AppFrame.tsx");
+
+  assert.equal(source.includes("Drawer"), true, "app frame should provide a mobile drawer shell");
+  assert.equal(source.includes('display: { xs: "none", lg: "block" }'), true, "desktop sidebar should hide on small screens");
+  assert.equal(source.includes('display: { xs: "block", lg: "none" }'), true, "mobile drawer should only render on small screens");
+  assert.equal(source.includes('overflowX: "clip"'), true, "app frame root should prevent page-level horizontal overflow");
+});
+
+test("top header exposes mobile navigation trigger while remaining sticky", () => {
+  const source = readSource("domains/shell/components/AppTopHeader.tsx");
+
+  assert.equal(source.includes("onOpenMobileNav"), true, "top header should accept mobile nav trigger callback");
+  assert.equal(source.includes("MenuIcon"), true, "top header should render menu trigger icon for mobile");
+  assert.equal(source.includes("position=\"sticky\""), true, "top header should remain sticky");
+});
+
+test("app frame preserves mobile-first single-column layout before desktop split", () => {
+  const source = readSource("domains/shell/components/AppFrame.tsx");
+
+  assert.equal(source.includes('gridTemplateColumns: contextRail ? { xs: "1fr", lg: "240px minmax(0,1fr) 300px" }'), true);
+  assert.equal(source.includes(': { xs: "1fr", lg: "240px minmax(0,1fr)" }'), true);
+  assert.equal(source.includes("py: { xs: 2, md: 3 }"), true);
+});
+
+test("app top header keeps mobile viewport guardrails", () => {
+  const source = readSource("domains/shell/components/AppTopHeader.tsx");
+
+  assert.equal(source.includes("position=\"sticky\""), true, "header should remain sticky during route changes.");
+  assert.equal(source.includes("minHeight: { xs: 62, md: 64 }"), true, "header should keep compact mobile height.");
+  assert.equal(source.includes('display: { xs: "none", md: "block" }'), true, "search slot should hide on mobile widths.");
 });
 
 test("dashboard workspace navigation never includes admin routes", () => {

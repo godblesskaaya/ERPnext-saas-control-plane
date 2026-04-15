@@ -114,6 +114,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <AppFrame
       sidebar={<WorkspaceSidebar overline="Biashara Cloud" title="App shell" caption="Canonical `/app/*` navigation." sections={sections} pathname={pathname} tone="light" />}
+      mobileSidebar={
+        <WorkspaceSidebar
+          overline="Biashara Cloud"
+          title="Navigation"
+          caption="Canonical `/app/*` navigation."
+          sections={sections}
+          pathname={pathname}
+          tone="light"
+          compact
+          sticky={false}
+        />
+      }
     >
       {children}
     </AppFrame>

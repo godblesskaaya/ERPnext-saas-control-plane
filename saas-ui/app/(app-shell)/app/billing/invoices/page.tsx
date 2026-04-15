@@ -6,6 +6,9 @@ import {
   Alert,
   Box,
   Button,
+  Card,
+  CardContent,
+  Chip,
   Link,
   Paper,
   Stack,
@@ -32,6 +35,12 @@ function formatTimestamp(value?: string | null): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
+}
+
+function invoiceAction(invoice: BillingInvoice): { label: string; href: string } | null {
+  if (invoice.hosted_invoice_url) return { label: "Resume payment", href: invoice.hosted_invoice_url };
+  if (invoice.invoice_pdf) return { label: "Download", href: invoice.invoice_pdf };
+  return null;
 }
 
 export default function BillingPage() {
@@ -92,48 +101,88 @@ export default function BillingPage() {
           {error}
         </Alert>
       ) : invoices.length ? (
-        <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 3, borderColor: "warning.light" }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow sx={{ bgcolor: "rgba(245,158,11,0.08)" }}>
-                <TableCell>Workspace</TableCell>
-                <TableCell>Invoice</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Amount due</TableCell>
-                <TableCell>Amount paid</TableCell>
-                <TableCell>Created</TableCell>
-                <TableCell>Link</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {invoices.map((invoice) => (
-                <TableRow key={invoice.id} hover>
-                  <TableCell sx={{ whiteSpace: "nowrap" }}>
-                    {invoice.metadata?.company_name ?? invoice.metadata?.tenant_domain ?? "—"}
-                  </TableCell>
-                  <TableCell sx={{ fontFamily: "monospace", fontSize: 12 }}>{invoice.id}</TableCell>
-                  <TableCell>{invoice.status ?? "—"}</TableCell>
-                  <TableCell>{formatCurrency(invoice.amount_due ?? undefined, invoice.currency)}</TableCell>
-                  <TableCell>{formatCurrency(invoice.amount_paid ?? undefined, invoice.currency)}</TableCell>
-                  <TableCell>{formatTimestamp(invoice.created_at)}</TableCell>
-                  <TableCell>
-                    {invoice.hosted_invoice_url ? (
-                      <Link href={invoice.hosted_invoice_url} target="_blank" rel="noreferrer" underline="hover">
-                        Resume payment
-                      </Link>
-                    ) : invoice.invoice_pdf ? (
-                      <Link href={invoice.invoice_pdf} target="_blank" rel="noreferrer" underline="hover">
-                        Download
-                      </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
+        <>
+          <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" } }}>
+            {invoices.map((invoice) => {
+              const action = invoiceAction(invoice);
+              return (
+                <Card key={invoice.id} variant="outlined" sx={{ borderRadius: 3, borderColor: "warning.light" }}>
+                  <CardContent sx={{ p: 2 }}>
+                    <Stack spacing={1}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                        {invoice.metadata?.company_name ?? invoice.metadata?.tenant_domain ?? "—"}
+                      </Typography>
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                        <Chip size="small" label={invoice.status ?? "—"} />
+                        <Chip size="small" variant="outlined" label={formatCurrency(invoice.amount_due ?? undefined, invoice.currency)} />
+                      </Box>
+                      <Typography variant="caption" color="text.secondary">
+                        Invoice: <Box component="span" sx={{ color: "text.primary", fontFamily: "monospace" }}>{invoice.id}</Box>
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Paid: <Box component="span" sx={{ color: "text.primary" }}>{formatCurrency(invoice.amount_paid ?? undefined, invoice.currency)}</Box>
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Created: <Box component="span" sx={{ color: "text.primary" }}>{formatTimestamp(invoice.created_at)}</Box>
+                      </Typography>
+                      {action ? (
+                        <Link href={action.href} target="_blank" rel="noreferrer" underline="hover">
+                          {action.label}
+                        </Link>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">
+                          Link: —
+                        </Typography>
+                      )}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </Stack>
+
+          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 3, borderColor: "warning.light", display: { xs: "none", md: "block" } }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: "rgba(245,158,11,0.08)" }}>
+                  <TableCell>Workspace</TableCell>
+                  <TableCell>Invoice</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Amount due</TableCell>
+                  <TableCell>Amount paid</TableCell>
+                  <TableCell>Created</TableCell>
+                  <TableCell>Link</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              </TableHead>
+              <TableBody>
+                {invoices.map((invoice) => {
+                  const action = invoiceAction(invoice);
+                  return (
+                    <TableRow key={invoice.id} hover>
+                      <TableCell sx={{ whiteSpace: "nowrap" }}>
+                        {invoice.metadata?.company_name ?? invoice.metadata?.tenant_domain ?? "—"}
+                      </TableCell>
+                      <TableCell sx={{ fontFamily: "monospace", fontSize: 12 }}>{invoice.id}</TableCell>
+                      <TableCell>{invoice.status ?? "—"}</TableCell>
+                      <TableCell>{formatCurrency(invoice.amount_due ?? undefined, invoice.currency)}</TableCell>
+                      <TableCell>{formatCurrency(invoice.amount_paid ?? undefined, invoice.currency)}</TableCell>
+                      <TableCell>{formatTimestamp(invoice.created_at)}</TableCell>
+                      <TableCell>
+                        {action ? (
+                          <Link href={action.href} target="_blank" rel="noreferrer" underline="hover">
+                            {action.label}
+                          </Link>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </>
       ) : (
         <Alert severity="info" sx={{ borderRadius: 3 }}>
           No invoices found yet.

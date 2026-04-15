@@ -22,6 +22,7 @@ type WorkspaceSidebarProps = {
   pathname: string;
   tone?: WorkspaceSidebarTone;
   compact?: boolean;
+  sticky?: boolean;
 };
 
 function resolveNavIcon(icon?: string) {
@@ -99,7 +100,7 @@ function toneStyles(tone: WorkspaceSidebarTone) {
   };
 }
 
-export function WorkspaceSidebar({ overline, title, caption, sections, pathname, tone = "light", compact = false }: WorkspaceSidebarProps) {
+export function WorkspaceSidebar({ overline, title, caption, sections, pathname, tone = "light", compact = false, sticky = true }: WorkspaceSidebarProps) {
   const styles = toneStyles(tone);
 
   return (
@@ -107,9 +108,10 @@ export function WorkspaceSidebar({ overline, title, caption, sections, pathname,
       component="aside"
       elevation={1}
       sx={{
-        position: "sticky",
-        top: 80,
+        position: sticky ? "sticky" : "static",
+        top: sticky ? 80 : "auto",
         alignSelf: "flex-start",
+        width: "100%",
         p: compact ? 1.5 : 2,
         border: "1px solid",
         borderRadius: 2,

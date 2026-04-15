@@ -18,6 +18,7 @@ import {
   Typography,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
+import MenuIcon from "@mui/icons-material/Menu";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import HelpOutlineOutlinedIcon from "@mui/icons-material/HelpOutlineOutlined";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
@@ -32,7 +33,11 @@ function resolveWorkspaceLabel(pathname: string): string {
   return "Overview";
 }
 
-export function AppTopHeader() {
+type AppTopHeaderProps = {
+  onOpenMobileNav?: () => void;
+};
+
+export function AppTopHeader({ onOpenMobileNav }: AppTopHeaderProps) {
   const pathname = usePathname() ?? "/";
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const workspaceLabel = useMemo(() => resolveWorkspaceLabel(pathname), [pathname]);
@@ -43,13 +48,26 @@ export function AppTopHeader() {
       position="sticky"
       elevation={0}
       sx={{
+        top: 0,
+        zIndex: (theme) => theme.zIndex.drawer + 1,
         borderBottom: "1px solid",
         borderColor: "divider",
         bgcolor: "background.paper",
       }}
     >
-      <Toolbar sx={{ minHeight: { xs: 62, md: 64 }, display: "flex", gap: 2 }}>
-        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: { md: 240 } }}>
+      <Toolbar sx={{ minHeight: { xs: 62, md: 64 }, display: "flex", gap: { xs: 1, md: 2 }, px: { xs: 1.25, sm: 2 } }}>
+        <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0, flex: 1 }}>
+          {onOpenMobileNav ? (
+            <IconButton
+              size="small"
+              color="inherit"
+              onClick={onOpenMobileNav}
+              aria-label="Open navigation menu"
+              sx={{ display: { xs: "inline-flex", md: "none" } }}
+            >
+              <MenuIcon fontSize="small" />
+            </IconButton>
+          ) : null}
           <Box
             sx={{
               width: 28,
@@ -69,7 +87,7 @@ export function AppTopHeader() {
             <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.1 }}>
               Biashara Cloud
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" sx={{ display: { xs: "none", sm: "inline" } }}>
               {workspaceLabel} workspace
             </Typography>
           </Box>
@@ -80,7 +98,7 @@ export function AppTopHeader() {
         <TextField
           size="small"
           placeholder="Search tenants, invoices, jobs…"
-          sx={{ display: { xs: "none", md: "block" }, minWidth: 320, maxWidth: 520, flex: 1 }}
+          sx={{ display: { xs: "none", md: "block" }, minWidth: { md: 280, lg: 320 }, maxWidth: 520, flex: 1 }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -90,7 +108,7 @@ export function AppTopHeader() {
           }}
         />
 
-        <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: "auto" }}>
+        <Stack direction="row" spacing={{ xs: 0, sm: 0.5 }} alignItems="center" sx={{ ml: "auto" }}>
           <Tooltip title="Notifications">
             <IconButton size="small" color="inherit">
               <NotificationsNoneOutlinedIcon fontSize="small" />

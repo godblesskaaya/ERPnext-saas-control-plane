@@ -31,11 +31,37 @@ test("redirects unauthenticated canonical app billing access to login with canon
   );
 });
 
+test("preserves app route query string for unauthenticated support queue access", () => {
+  const response = middleware(request("/app/support/queue?severity=high&channel=email"));
+
+  assert.equal(response.status, 307);
+  assert.equal(
+    response.headers.get("location"),
+    "http://localhost/login?next=%2Fapp%2Fsupport%2Fqueue%3Fseverity%3Dhigh%26channel%3Demail",
+  );
+});
+
 test("redirects unauthenticated admin access to login with canonical next param", () => {
   const response = middleware(request("/app/admin/control-overview"));
 
   assert.equal(response.status, 307);
   assert.equal(response.headers.get("location"), "http://localhost/login?next=%2Fapp%2Fadmin%2Fcontrol-overview");
+});
+
+test("keeps logout intent on public auth route even when a token exists", () => {
+  const token = createJwt({ role: "member", exp: Math.floor(Date.now() / 1000) + 3600 });
+  const response = middleware(request("/login?logout=1", `erp_saas_token=${token}; erp_saas_role=member`));
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("location"), null);
+});
+
+test("sanitizes unsafe login next param for authenticated sessions", () => {
+  const token = createJwt({ role: "member", exp: Math.floor(Date.now() / 1000) + 3600 });
+  const response = middleware(request("/login?next=//evil.example/phish", `erp_saas_token=${token}; erp_saas_role=member`));
+
+  assert.equal(response.status, 307);
+  assert.equal(response.headers.get("location"), "http://localhost/app/overview");
 });
 
 test("returns 403 html for authenticated non-operator access to /app/admin/* routes", async () => {

@@ -13,10 +13,12 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControl,
   InputLabel,
   MenuItem,
   Select,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -371,7 +373,173 @@ export function TenantTable({
         </Card>
       </Box>
 
-      <TableContainer component={Card} variant="outlined" sx={{ borderRadius: 3 }}>
+      <Box sx={{ display: { xs: "grid", md: "none" }, gap: 1.5 }}>
+        {tenants.map((tenant) => {
+          const job = jobsByTenant[tenant.id];
+          const plan = getPlanMeta(tenant.plan);
+          const confirmationPhrase = tenant.subdomain.toUpperCase();
+          const statusStyle = statusChipStyles(tenant.status);
+
+          return (
+            <Card key={tenant.id} variant="outlined" sx={{ borderRadius: 3, bgcolor: rowTone(tenant.status) ?? "background.paper" }}>
+              <CardContent sx={{ p: 2 }}>
+                <Stack spacing={1.25}>
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{tenant.company_name}</Typography>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      {tenant.subdomain}
+                    </Typography>
+                    <Button
+                      component="a"
+                      href={`https://${tenant.domain}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      size="small"
+                      sx={{ textTransform: "none", p: 0, minWidth: 0, mt: 0.5 }}
+                    >
+                      {tenant.domain}
+                    </Button>
+                  </Box>
+
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    <Chip size="small" label={plan?.label ?? tenant.plan} sx={{ ...planChipStyle(tenant.plan) }} />
+                    <Chip size="small" label={tenant.status} color={statusStyle.color} sx={statusStyle.sx} />
+                  </Box>
+
+                  <Stack spacing={0.5}>
+                    <Typography variant="caption" color="text.secondary">
+                      Focus: <Box component="span" sx={{ color: "text.primary" }}>{tenant.chosen_app || "auto"}</Box>
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Billing: <Box component="span" sx={{ color: "text.primary" }}>{getBillingLabel(tenant)}</Box>
+                    </Typography>
+                    {showPaymentChannel ? (
+                      <Typography variant="caption" color="text.secondary">
+                        Channel: <Box component="span" sx={{ color: "text.primary" }}>{tenant.payment_channel ? tenant.payment_channel.replace(/_/g, " ") : "—"}</Box>
+                      </Typography>
+                    ) : null}
+                    <Typography variant="caption" color="text.secondary">
+                      Created: <Box component="span" sx={{ color: "text.primary" }}>{formatDate(tenant.created_at)}</Box>
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Health: <Box component="span" sx={{ color: "text.primary" }}>{statusHint(tenant.status, isAdminScope)}</Box>
+                    </Typography>
+                    {job ? (
+                      <Typography variant="caption" color="text.secondary">
+                        Job: <Box component="span" sx={{ color: "text.primary" }}>{job.status}</Box>
+                      </Typography>
+                    ) : null}
+                  </Stack>
+
+                  <Divider />
+
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    <Button component={Link} href={`/app/tenants/${tenant.id}/overview`} size="small" variant="outlined" sx={{ borderRadius: 999 }}>
+                      Details
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="inherit"
+                      sx={{ borderRadius: 999, bgcolor: "#0f172a", color: "#fff", "&:hover": { bgcolor: "#1e293b" } }}
+                      disabled={busyTenantId === tenant.id}
+                      onClick={async () => {
+                        setBusyTenantId(tenant.id);
+                        try {
+                          await onBackup(tenant.id);
+                        } finally {
+                          setBusyTenantId(null);
+                        }
+                      }}
+                    >
+                      Backup now
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="warning"
+                      sx={{ borderRadius: 999 }}
+                      onClick={() => {
+                        setConfirmAction({ type: "reset", tenant, phrase: confirmationPhrase });
+                        setConfirmInput("");
+                        setNewPassword("");
+                        setConfirmError(null);
+                      }}
+                    >
+                      {isAdminScope ? "Reset admin login" : "Reset workspace login"}
+                    </Button>
+                    {onUpdatePlan ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        sx={{ borderRadius: 999 }}
+                        onClick={() => {
+                          setPlanActionTenant(tenant);
+                          setPlanChoice(tenant.plan);
+                          setPlanAppChoice(tenant.chosen_app || BUSINESS_APP_OPTIONS[0]?.id || "crm");
+                        }}
+                      >
+                        Change plan
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="error"
+                      sx={{ borderRadius: 999 }}
+                      onClick={() => {
+                        setConfirmAction({ type: "delete", tenant, phrase: confirmationPhrase });
+                        setConfirmInput("");
+                        setConfirmError(null);
+                      }}
+                    >
+                      Delete workspace
+                    </Button>
+                    {tenant.status.toLowerCase() === "failed" && onRetryProvisioning ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        sx={{ borderRadius: 999 }}
+                        disabled={retryingTenantId === tenant.id}
+                        onClick={() => {
+                          void onRetryProvisioning(tenant.id);
+                        }}
+                      >
+                        {retryingTenantId === tenant.id ? "Retrying..." : "Retry provisioning"}
+                      </Button>
+                    ) : null}
+                    {job ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        sx={{ borderRadius: 999 }}
+                        onClick={() => setExpandedTenantId((current) => (current === tenant.id ? null : tenant.id))}
+                      >
+                        {expandedTenantId === tenant.id ? "Hide logs" : "Show logs"}
+                      </Button>
+                    ) : null}
+                  </Box>
+
+                  {job && expandedTenantId === tenant.id ? (
+                    <Box sx={{ pt: 1 }}>
+                      <JobLogPanel
+                        jobId={job.id}
+                        logs={job.logs}
+                        status={job.status}
+                        onJobUpdate={(nextJob: Job) => {
+                          onJobUpdate?.(nextJob);
+                        }}
+                      />
+                    </Box>
+                  ) : null}
+                </Stack>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </Box>
+
+      <TableContainer component={Card} variant="outlined" sx={{ borderRadius: 3, display: { xs: "none", md: "block" } }}>
         <Table size="small" sx={{ minWidth: 960 }}>
           <TableHead>
             <TableRow sx={{ bgcolor: "rgba(37,99,235,0.06)" }}>

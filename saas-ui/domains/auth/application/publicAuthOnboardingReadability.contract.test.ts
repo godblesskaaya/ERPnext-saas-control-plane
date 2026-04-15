@@ -22,6 +22,14 @@ function hasPrimaryAction(source: string): boolean {
   );
 }
 
+function hasMobileReadabilityScaffold(source: string): boolean {
+  return (
+    source.includes("mx-auto max-w-xl space-y-6") &&
+    source.includes("md:grid-cols-3") &&
+    source.includes('Button className="w-full"')
+  );
+}
+
 test("public auth routes expose hardened shell readability markers", () => {
   for (const [routeName, routePath] of Object.entries(publicAuthRoutes)) {
     const source = readSource(routePath);
@@ -32,6 +40,11 @@ test("public auth routes expose hardened shell readability markers", () => {
     assert.equal(source.includes("PublicRouteGuidance"), true, `${routeName} should include explicit route guidance.`);
     assert.equal(source.includes("whereAmI="), true, `${routeName} should provide where-am-I copy.`);
     assert.equal(source.includes("whatNext="), true, `${routeName} should provide what-next copy.`);
+    assert.equal(
+      hasMobileReadabilityScaffold(source),
+      true,
+      `${routeName} should preserve mobile readability scaffolding (single-column card, responsive diagnostics grid, full-width CTA).`,
+    );
 
     const hasDiagnostics = source.includes("Diagnostics") && source.includes("API:") && source.includes("Auth:") && source.includes("Billing:");
     assert.equal(hasDiagnostics, true, `${routeName} should preserve diagnostics markers for backend contract visibility.`);

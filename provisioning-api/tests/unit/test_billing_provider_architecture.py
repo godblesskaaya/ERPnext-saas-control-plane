@@ -40,6 +40,8 @@ def test_billing_invoices_force_gateway_only_payment_provider(platform_client_cl
     db_session.commit()
 
     platform_client = platform_client_cls.return_value
+    platform_client.has_base_url.return_value = True
+    platform_client.has_api_credentials.return_value = True
     platform_client.is_configured.return_value = True
     platform_client.list_invoices.return_value = [
         {
@@ -101,10 +103,11 @@ def test_tenant_summary_force_gateway_only_payment_provider(platform_client_cls,
 
 
 @patch("app.modules.billing.router.PlatformERPClient")
-def test_billing_portal_requires_platform_erp_without_provider_fallback(platform_client_cls, client, db_session, monkeypatch):
+def test_billing_portal_uses_platform_base_url_without_provider_fallback(platform_client_cls, client, db_session, monkeypatch):
     headers, _ = _auth_headers(client, db_session)
     platform_client = platform_client_cls.return_value
-    platform_client.is_configured.return_value = False
+    platform_client.has_base_url.return_value = True
+    platform_client.base_url = "https://erp.example.test"
 
     def _unexpected_gateway_lookup():
         raise AssertionError("Provider fallback must not execute for /billing/portal")
@@ -112,8 +115,8 @@ def test_billing_portal_requires_platform_erp_without_provider_fallback(platform
     monkeypatch.setattr("app.modules.billing.router.get_payment_gateway", _unexpected_gateway_lookup)
 
     response = client.get("/billing/portal", headers=headers)
-    assert response.status_code == 501
-    assert response.json()["detail"] == "Platform ERP billing is not configured."
+    assert response.status_code == 200
+    assert response.json()["url"] == "https://erp.example.test/app/sales-invoice"
 
 
 @patch("app.modules.tenant.router.PlatformERPClient")

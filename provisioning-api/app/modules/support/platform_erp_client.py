@@ -12,10 +12,16 @@ settings = get_settings()
 
 class PlatformERPClient:
     def __init__(self) -> None:
-        self.base_url = settings.platform_erp_base_url.rstrip("/")
+        self.base_url = (settings.platform_erp_base_url or "").strip().rstrip("/")
+
+    def has_base_url(self) -> bool:
+        return bool(self.base_url)
+
+    def has_api_credentials(self) -> bool:
+        return bool(settings.platform_erp_api_key and settings.platform_erp_api_secret)
 
     def is_configured(self) -> bool:
-        return bool(settings.platform_erp_api_key and settings.platform_erp_api_secret)
+        return self.has_base_url() and self.has_api_credentials()
 
     def _headers(self) -> dict[str, str]:
         return {
@@ -70,4 +76,6 @@ class PlatformERPClient:
         return result.get("data", [])
 
     def invoice_url(self, invoice_name: str) -> str:
+        if not self.base_url:
+            return ""
         return f"{self.base_url}/app/sales-invoice/{invoice_name}"

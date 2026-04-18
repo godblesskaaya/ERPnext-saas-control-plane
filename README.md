@@ -116,6 +116,24 @@ Optional Selcom tuning:
 - `SELCOM_ORDER_STATUS_PATH` (default `/v1/checkout/order-status`)
 - `SELCOM_WEBHOOK_URL`
 
+
+## Platform ERP billing integration (separate from payment gateway)
+
+Payment gateways (AzamPay/Selcom/Stripe/DPO) are only for checkout/webhooks.
+Invoice ownership stays in the **platform ERPNext** instance.
+
+Required for ERP invoice sync:
+
+- `PLATFORM_ERP_BASE_URL` (example: `https://blenko.erp.blenkotechnologies.co.tz`)
+- `PLATFORM_ERP_API_KEY`
+- `PLATFORM_ERP_API_SECRET`
+
+Runtime behavior:
+
+- `GET /api/billing/portal` requires `PLATFORM_ERP_BASE_URL` and opens ERPNext Sales Invoice workspace.
+- `GET /api/billing/invoices` returns ERP invoice data when API credentials are present.
+- If API credentials are missing, invoices endpoint returns an empty list (200) so customer flows continue without gateway fallback.
+
 ## Email notifications
 
 Notification events are implemented for signup confirmation and key tenant lifecycle changes

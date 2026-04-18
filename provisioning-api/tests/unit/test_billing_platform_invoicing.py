@@ -20,22 +20,22 @@ def _auth_headers(client, db_session):
 
 
 @patch("app.modules.billing.router.PlatformERPClient")
-def test_billing_portal_requires_platform_erp_configuration(platform_client_cls, client, db_session):
+def test_billing_portal_requires_platform_erp_base_url(platform_client_cls, client, db_session):
     _, headers = _auth_headers(client, db_session)
     platform_client = platform_client_cls.return_value
-    platform_client.is_configured.return_value = False
+    platform_client.has_base_url.return_value = False
 
     response = client.get("/billing/portal", headers=headers)
 
     assert response.status_code == 501
-    assert response.json()["detail"] == "Platform ERP billing is not configured."
+    assert response.json()["detail"] == "Platform ERP base URL is not configured."
 
 
 @patch("app.modules.billing.router.PlatformERPClient")
 def test_billing_portal_returns_platform_erp_workspace_url(platform_client_cls, client, db_session):
     _, headers = _auth_headers(client, db_session)
     platform_client = platform_client_cls.return_value
-    platform_client.is_configured.return_value = True
+    platform_client.has_base_url.return_value = True
     platform_client.base_url = "https://erp.example.com"
 
     response = client.get("/billing/portal", headers=headers)
@@ -45,7 +45,7 @@ def test_billing_portal_returns_platform_erp_workspace_url(platform_client_cls, 
 
 
 @patch("app.modules.billing.router.PlatformERPClient")
-def test_billing_invoices_always_report_platform_erp_provider(platform_client_cls, client, db_session):
+def test_billing_invoices_report_gateway_provider_metadata(platform_client_cls, client, db_session):
     owner, headers = _auth_headers(client, db_session)
     tenant = Tenant(
         owner_id=owner.id,
@@ -63,7 +63,8 @@ def test_billing_invoices_always_report_platform_erp_provider(platform_client_cl
     db_session.commit()
 
     platform_client = platform_client_cls.return_value
-    platform_client.is_configured.return_value = True
+    platform_client.has_base_url.return_value = True
+    platform_client.has_api_credentials.return_value = True
     platform_client.list_invoices.return_value = [
         {
             "name": "SINV-0009",
@@ -81,7 +82,36 @@ def test_billing_invoices_always_report_platform_erp_provider(platform_client_cl
     assert response.status_code == 200
     payload = response.json()
     assert len(payload["invoices"]) == 1
-    assert payload["invoices"][0]["metadata"]["payment_provider"] == "platform_erp"
+    assert payload["invoices"][0]["metadata"]["payment_provider"] == "stripe"
+
+
+@patch("app.modules.billing.router.PlatformERPClient")
+def test_billing_invoices_return_empty_when_platform_api_credentials_missing(platform_client_cls, client, db_session):
+    owner, headers = _auth_headers(client, db_session)
+    tenant = Tenant(
+        owner_id=owner.id,
+        subdomain="platform-invoice-no-api-creds",
+        domain="platform-invoice-no-api-creds.erp.blenkotechnologies.co.tz",
+        site_name="platform-invoice-no-api-creds.erp.blenkotechnologies.co.tz",
+        company_name="Platform Invoice No Creds Ltd",
+        plan="starter",
+        status="active",
+        billing_status="paid",
+        payment_provider="stripe",
+        platform_customer_id="CUST-456",
+    )
+    db_session.add(tenant)
+    db_session.commit()
+
+    platform_client = platform_client_cls.return_value
+    platform_client.has_base_url.return_value = True
+    platform_client.has_api_credentials.return_value = False
+
+    response = client.get("/billing/invoices", headers=headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["invoices"] == []
 
 
 @patch("app.modules.tenant.router.get_payment_gateway", side_effect=RuntimeError("payment gateway should not be used"))

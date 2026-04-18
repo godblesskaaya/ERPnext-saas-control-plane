@@ -24,7 +24,7 @@ from app.rate_limits import authenticated_default_rate_limit
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
-NOT_IMPLEMENTED_501_RESPONSE = {"description": "Platform ERP billing is not configured."}
+NOT_IMPLEMENTED_501_RESPONSE = {"description": "Platform ERP base URL is not configured."}
 RATE_LIMIT_429_RESPONSE = {"description": "Too many requests. Retry after the rate-limit window."}
 
 
@@ -130,10 +130,10 @@ def create_billing_portal(
     current_user: User = Depends(get_current_user),
 ) -> BillingPortalResponse:
     platform_client = PlatformERPClient()
-    if not platform_client.is_configured():
+    if not platform_client.has_base_url():
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Platform ERP billing is not configured.",
+            detail="Platform ERP base URL is not configured.",
         )
 
     record_audit_event(
@@ -163,10 +163,10 @@ def list_billing_invoices(
     current_user: User = Depends(get_current_user),
 ) -> BillingInvoiceListResponse:
     platform_client = PlatformERPClient()
-    if not platform_client.is_configured():
+    if not platform_client.has_base_url():
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Platform ERP billing is not configured.",
+            detail="Platform ERP base URL is not configured.",
         )
 
     query = (
@@ -181,6 +181,17 @@ def list_billing_invoices(
     tenants = query.order_by(Tenant.created_at.desc()).all()
 
     invoices: list[BillingInvoiceOut] = []
+    if not platform_client.has_api_credentials():
+        record_audit_event(
+            db,
+            action="billing.invoices_viewed",
+            resource="billing_invoices",
+            actor=current_user,
+            request=request,
+            metadata={"count": 0, "sync_status": "platform_erp_api_credentials_missing"},
+        )
+        return BillingInvoiceListResponse(invoices=[])
+
     for tenant in tenants:
         if not tenant.platform_customer_id:
             continue

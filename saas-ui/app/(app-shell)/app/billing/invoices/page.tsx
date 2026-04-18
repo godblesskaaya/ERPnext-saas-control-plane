@@ -94,7 +94,7 @@ export default function BillingPage() {
 
       {!supported ? (
         <Alert severity="warning" sx={{ borderRadius: 3 }}>
-          ERPNext billing is not configured for this backend yet.
+          ERPNext billing workspace is currently unavailable. Use support if this persists.
         </Alert>
       ) : error ? (
         <Alert severity="error" sx={{ borderRadius: 3 }}>

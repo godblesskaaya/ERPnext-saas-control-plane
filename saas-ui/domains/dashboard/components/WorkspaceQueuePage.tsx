@@ -464,7 +464,7 @@ export function WorkspaceQueuePage({
     try {
       const result = await loadWorkspaceBillingPortal();
       if (!result.supported) {
-        setBillingPortalError("ERPNext billing is not configured on this backend.");
+        setBillingPortalError("ERPNext billing workspace is temporarily unavailable.");
         return;
       }
       setBillingPortalUrl(result.data.url);

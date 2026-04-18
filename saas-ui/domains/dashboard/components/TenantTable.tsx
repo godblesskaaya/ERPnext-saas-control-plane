@@ -140,7 +140,7 @@ export function TenantTable({
   onResumeCheckout,
   resumingCheckoutTenantId,
   paymentCenterHref = "/app/billing/invoices",
-  paymentCenterLabel = "Open payment center",
+  paymentCenterLabel = "Open ERPNext billing",
   onBackup,
   onDelete,
   onResetAdminPassword,

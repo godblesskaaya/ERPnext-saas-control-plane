@@ -291,7 +291,7 @@ export default function DashboardSettingsPage() {
         </Typography>
         <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: "wrap" }}>
           <Button component={NextLink} href="/billing" variant="outlined" size="small">
-            Payment center
+            ERPNext billing
           </Button>
           <Button component={NextLink} href="/onboarding" variant="outlined" size="small">
             Setup progress

@@ -64,7 +64,6 @@ from app.modules.tenant.service import (
     enforce_backup_plan_limit,
 )
 from app.modules.billing.payment.factory import get_payment_gateway
-from app.modules.billing.payment.stripe_gateway import StripeGateway
 from app.modules.support.platform_erp_client import PlatformERPClient
 from app.modules.tenant.state import transition_tenant_status
 from app.modules.tenant.membership import (
@@ -100,6 +99,14 @@ CONFLICT_409_RESPONSE = {"description": "Conflict with current tenant state (for
 VALIDATION_422_RESPONSE = {"description": "Request payload or business validation failed."}
 RATE_LIMIT_429_RESPONSE = {"description": "Too many requests. Retry after the rate-limit window."}
 logger = logging.getLogger(__name__)
+
+
+def _gateway_payment_provider(tenant: Tenant) -> str:
+    provider = (tenant.payment_provider or "").strip().lower()
+    if provider and provider != "platform_erp":
+        return provider
+    configured_provider = (get_settings().active_payment_provider or "").strip().lower()
+    return configured_provider or "azampay"
 
 
 def _normalize_filter_values(values: list[str] | None) -> list[str]:
@@ -650,41 +657,12 @@ def get_tenant_summary(
                     "tenant_domain": tenant.domain,
                     "company_name": tenant.company_name,
                     "customer_id": tenant.platform_customer_id,
-                    "payment_provider": "platform_erp",
+                    "payment_provider": _gateway_payment_provider(tenant),
                 },
                 hosted_invoice_url=platform_client.invoice_url(invoice_name),
                 invoice_pdf=None,
                 created_at=_parse_erp_invoice_date(item.get("posting_date")),
             )
-    else:
-        try:
-            gateway = get_payment_gateway()
-        except ValueError:
-            gateway = None
-        if isinstance(gateway, StripeGateway) and not gateway.mock_mode:
-            stripe = gateway._import_stripe()
-            customer_id = tenant.subscription.provider_customer_id if tenant.subscription else None
-            if stripe is not None and customer_id:
-                stripe.api_key = get_settings().stripe_secret_key
-                try:
-                    items = stripe.Invoice.list(customer=customer_id, limit=1).get("data", [])
-                except Exception:
-                    items = []
-                if items:
-                    item = items[0]
-                    last_invoice = BillingInvoiceOut(
-                        id=str(item.get("id")),
-                        status=item.get("status"),
-                        amount_due=item.get("amount_due"),
-                        amount_paid=item.get("amount_paid"),
-                        currency=item.get("currency"),
-                        collection_method=item.get("collection_method"),
-                        payment_method_types=item.get("payment_settings", {}).get("payment_method_types"),
-                        metadata=item.get("metadata"),
-                        hosted_invoice_url=item.get("hosted_invoice_url"),
-                        invoice_pdf=item.get("invoice_pdf"),
-                        created_at=datetime.utcfromtimestamp(item.get("created")) if item.get("created") else None,
-                    )
 
     record_audit_event(
         db,

@@ -99,7 +99,7 @@ test("support/platform/account/settings routes include explicit readability cues
   const accountSource = readSource("app/(app-shell)/app/account/profile/page.tsx");
   assert.equal(accountSource.includes("Account workspace"), true);
   assert.equal(accountSource.includes("Account summary"), true);
-  assert.equal(accountSource.includes("Open billing portal") || accountSource.includes("Open payment center"), true);
+  assert.equal(accountSource.includes("Open ERPNext invoices") || accountSource.includes("Open ERPNext billing"), true);
 
   const settingsSource = readSource("app/(app-shell)/app/account/settings/page.tsx");
   assert.equal(settingsSource.includes("Settings"), true);

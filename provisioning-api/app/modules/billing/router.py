@@ -12,7 +12,6 @@ from app.schemas import BillingInvoiceListResponse, BillingInvoiceOut, BillingPo
 from app.modules.audit.service import record_audit_event
 from app.modules.support.platform_erp_client import PlatformERPClient
 from app.modules.billing.payment.factory import get_payment_gateway
-from app.modules.billing.payment.stripe_gateway import StripeGateway
 from app.modules.billing.webhook_service import (
     BAD_REQUEST_400_RESPONSE,
     INTERNAL_500_RESPONSE,
@@ -25,8 +24,16 @@ from app.rate_limits import authenticated_default_rate_limit
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
-NOT_IMPLEMENTED_501_RESPONSE = {"description": "Billing portal is not supported for the active provider."}
+NOT_IMPLEMENTED_501_RESPONSE = {"description": "Platform ERP billing is not configured."}
 RATE_LIMIT_429_RESPONSE = {"description": "Too many requests. Retry after the rate-limit window."}
+
+
+def _gateway_payment_provider(tenant: Tenant) -> str:
+    provider = (tenant.payment_provider or "").strip().lower()
+    if provider and provider != "platform_erp":
+        return provider
+    configured_provider = (get_settings().active_payment_provider or "").strip().lower()
+    return configured_provider or "azampay"
 
 
 @router.get(
@@ -123,39 +130,12 @@ def create_billing_portal(
     current_user: User = Depends(get_current_user),
 ) -> BillingPortalResponse:
     platform_client = PlatformERPClient()
-    if platform_client.is_configured():
-        record_audit_event(
-            db,
-            action="billing.portal_opened",
-            resource="users",
-            actor=current_user,
-            resource_id=current_user.id,
-            request=request,
+    if not platform_client.is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Platform ERP billing is not configured.",
         )
-        return BillingPortalResponse(url=f"{platform_client.base_url}/app/sales-invoice")
 
-    gateway = get_payment_gateway()
-    settings = get_settings()
-
-    if gateway.provider_name != "stripe":
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Billing portal not supported for provider")
-
-    stripe_gateway = StripeGateway()
-    if stripe_gateway.mock_mode:
-        return BillingPortalResponse(url="https://mock-billing.local/portal")
-
-    stripe = stripe_gateway._import_stripe()
-    if stripe is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Stripe SDK not available")
-
-    if not current_user.stripe_customer_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No billing customer is associated with this account")
-
-    stripe.api_key = settings.stripe_secret_key
-    session = stripe.billing_portal.Session.create(
-        customer=current_user.stripe_customer_id,
-        return_url=settings.billing_portal_return_url,
-    )
     record_audit_event(
         db,
         action="billing.portal_opened",
@@ -164,7 +144,7 @@ def create_billing_portal(
         resource_id=current_user.id,
         request=request,
     )
-    return BillingPortalResponse(url=session["url"])
+    return BillingPortalResponse(url=f"{platform_client.base_url}/app/sales-invoice")
 
 
 @router.get(
@@ -233,7 +213,7 @@ def list_billing_invoices(
                         "tenant_domain": tenant.domain,
                         "company_name": tenant.company_name,
                         "customer_id": tenant.platform_customer_id,
-                        "payment_provider": "platform_erp",
+                        "payment_provider": _gateway_payment_provider(tenant),
                     },
                     hosted_invoice_url=platform_client.invoice_url(invoice_name),
                     invoice_pdf=None,

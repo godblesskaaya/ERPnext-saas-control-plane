@@ -136,7 +136,7 @@ export default function DashboardAccountPage() {
             Update contact settings
           </Button>
           <Button component={NextLink} href="/billing" variant="outlined" color="inherit" size="small">
-            Open payment center
+            Open ERPNext invoices
           </Button>
         </Stack>
       </Paper>
@@ -195,16 +195,16 @@ export default function DashboardAccountPage() {
               Billing workspace
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-              Continue collections, invoice reviews, and payment follow-up from your billing workspace.
+              Continue collections and invoice follow-up from the ERPNext billing workspace.
             </Typography>
             <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
               {portalUrl ? (
                 <Button component="a" href={portalUrl} target="_blank" rel="noreferrer" variant="contained" color="primary" size="small">
-                  Open billing portal
+                  Open ERPNext invoices
                 </Button>
               ) : (
                 <Button component={NextLink} href="/billing" variant="outlined" color="warning" size="small">
-                  Open payment center
+                  Open ERPNext billing
                 </Button>
               )}
             </Stack>
@@ -223,7 +223,7 @@ export default function DashboardAccountPage() {
             </Typography>
             {!invoicesSupported ? (
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Invoice endpoint is not available on this backend deployment.
+                ERPNext invoice data is not configured on this backend deployment.
               </Typography>
             ) : latestInvoice ? (
               <Stack spacing={0.5} sx={{ mt: 1.25 }}>

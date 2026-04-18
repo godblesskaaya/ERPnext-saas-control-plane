@@ -290,7 +290,7 @@ export default function TenantOverviewPage() {
                     </Button>
                   ) : null}
                   <Button component="a" href="/app/billing/invoices" variant="outlined" size="small" sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}>
-                    Open payment center
+                    Open ERPNext billing
                   </Button>
                   <Button component="a" href={`/app/tenants/${id}/billing`} variant="outlined" size="small" sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}>
                     Open tenant billing

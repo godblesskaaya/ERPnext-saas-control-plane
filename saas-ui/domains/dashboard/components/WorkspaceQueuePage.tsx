@@ -278,7 +278,7 @@ export function WorkspaceQueuePage({
     : { label: "Dashboard", href: "/app/overview" };
   const headerCrumbs = [rootCrumb, { label: title }];
   const billingFollowUpHref = isAdminScope ? "/app/admin/billing-ops" : "/app/billing/invoices";
-  const billingFollowUpLabel = isAdminScope ? "Go to billing follow-ups" : "Open payment center";
+  const billingFollowUpLabel = isAdminScope ? "Go to billing follow-ups" : "Open ERPNext billing";
   const statusOptions = isAdminScope
     ? [
         ["all", "All statuses"],
@@ -351,7 +351,7 @@ export function WorkspaceQueuePage({
         href: "/app/billing/invoices",
         eyebrow: "Payments",
         value: pendingPaymentTenants,
-        description: "Resume checkout and review unpaid invoices.",
+        description: "Review ERPNext invoices and complete payment follow-up.",
         valueColor: "warning.dark",
         cardBgColor: "#fff7ed",
       },
@@ -464,7 +464,7 @@ export function WorkspaceQueuePage({
     try {
       const result = await loadWorkspaceBillingPortal();
       if (!result.supported) {
-        setBillingPortalError("Billing portal is not available on this backend.");
+        setBillingPortalError("ERPNext billing is not configured on this backend.");
         return;
       }
       setBillingPortalUrl(result.data.url);
@@ -474,7 +474,7 @@ export function WorkspaceQueuePage({
         body: "A billing workspace link is ready to open in a new tab.",
       });
     } catch (err) {
-      setBillingPortalError(toWorkspaceQueueErrorMessage(err, "Unable to open billing portal."));
+      setBillingPortalError(toWorkspaceQueueErrorMessage(err, "Unable to open ERPNext billing."));
     }
   };
 

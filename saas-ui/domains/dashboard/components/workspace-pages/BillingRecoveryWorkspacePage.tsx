@@ -27,7 +27,7 @@ export function BillingRecoveryWorkspacePage() {
       ]}
       emptyStateTitle="No billing recovery backlog"
       emptyStateBody="No pending payment follow-ups are currently in the queue."
-      emptyStateActionLabel="Open payment center"
+      emptyStateActionLabel="Open ERPNext billing"
       emptyStateActionHref="/billing"
     />
   );

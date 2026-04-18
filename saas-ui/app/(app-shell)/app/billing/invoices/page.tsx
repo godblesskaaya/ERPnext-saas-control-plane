@@ -75,18 +75,18 @@ export default function BillingPage() {
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "flex-start", sm: "center" }} justifyContent="space-between">
           <Box>
             <Typography variant="overline" sx={{ color: "warning.dark", fontWeight: 700, letterSpacing: 0.8 }}>
-              Payment center
+              ERPNext billing
             </Typography>
             <Typography variant="h4" sx={{ fontWeight: 700 }}>
               Billing & invoices
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Review invoice history and resume pending payments.
+              Review ERPNext invoice history and continue payment follow-up.
             </Typography>
           </Box>
           {portalUrl ? (
             <Button variant="contained" href={portalUrl} target="_blank" rel="noreferrer" sx={{ borderRadius: 999 }}>
-              Open billing workspace
+              Open ERPNext invoices
             </Button>
           ) : null}
         </Stack>
@@ -94,7 +94,7 @@ export default function BillingPage() {
 
       {!supported ? (
         <Alert severity="warning" sx={{ borderRadius: 3 }}>
-          Invoice history is not available for the active payment provider.
+          ERPNext billing is not configured for this backend yet.
         </Alert>
       ) : error ? (
         <Alert severity="error" sx={{ borderRadius: 3 }}>

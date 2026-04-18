@@ -64,7 +64,7 @@ export const workspaceLocalNavByKey: Record<WorkspaceKey, ShellNavSection> = {
       {
         href: "/app/billing/invoices",
         label: "Payments",
-        hint: "Resume checkout and review subscription invoices",
+        hint: "Review ERPNext invoices and payment follow-up",
         match: ["/billing", "/dashboard/billing", "/dashboard/billing-details"],
       },
       {

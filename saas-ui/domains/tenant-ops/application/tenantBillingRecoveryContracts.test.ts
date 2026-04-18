@@ -16,7 +16,7 @@ test("tenant overview payment recovery keeps billing gate markers", () => {
     "PAYMENT_RECOVERY_SUBSCRIPTION_STATUSES",
     "Payment recovery",
     "Resume checkout",
-    "Open payment center",
+    "Open ERPNext billing",
     "Open tenant billing",
     '["pending", "pending_payment"].includes(tenantStatus)',
     "renewTenantCheckout",

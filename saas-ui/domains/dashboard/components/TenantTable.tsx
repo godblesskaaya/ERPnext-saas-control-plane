@@ -33,7 +33,7 @@ import type { Job, ResetAdminPasswordResult, Tenant } from "../../shared/lib/typ
 import { JobLogPanel } from "../../shared/components/JobLogPanel";
 import { EmptyState } from "../../shell/components";
 import { BUSINESS_APP_OPTIONS, getPlanMeta } from "../../onboarding/components/PlanSelector";
-import { isTenantBillingBlockedFromOperations } from "../domain/tenantBillingGate";
+import { blockedActionReasonFromOperations, isTenantBillingBlockedFromOperations } from "../domain/tenantBillingGate";
 
 type Props = {
   routeScope?: "workspace" | "admin";
@@ -571,6 +571,11 @@ export function TenantTable({
                       </Button>
                     ) : null}
                   </Box>
+                  {billingBlocked ? (
+                    <Alert severity="warning" sx={{ py: 0.25 }}>
+                      {blockedActionReasonFromOperations("Backup and credential reset actions")}
+                    </Alert>
+                  ) : null}
 
                   {job && expandedTenantId === tenant.id ? (
                     <Box sx={{ pt: 1 }}>
@@ -757,6 +762,11 @@ export function TenantTable({
                           </Button>
                         ) : null}
                       </Box>
+                      {billingBlocked ? (
+                        <Alert severity="warning" sx={{ mt: 1, py: 0.25 }}>
+                          {blockedActionReasonFromOperations("Backup and credential reset actions")}
+                        </Alert>
+                      ) : null}
                     </TableCell>
                   </TableRow>
 

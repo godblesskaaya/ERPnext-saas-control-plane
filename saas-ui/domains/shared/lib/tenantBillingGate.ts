@@ -16,3 +16,7 @@ export function isTenantBillingBlockedStatus(tenant?: Pick<Tenant, "status" | "b
   const billingStatus = normalize(tenant.billing_status);
   return BILLING_DELINQUENT_STATUSES.has(billingStatus);
 }
+
+export function billingBlockedActionReason(action: string): string {
+  return `${action} is unavailable while billing is not in good standing. Restore payment first.`;
+}

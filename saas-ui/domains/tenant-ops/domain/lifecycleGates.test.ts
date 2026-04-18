@@ -19,5 +19,8 @@ test("isTenantBillingBlocked returns false for paid active tenant", () => {
 });
 
 test("blockedActionReason returns operator-friendly copy", () => {
-  assert.match(blockedActionReason("Custom domain updates"), /billing is not in good standing/i);
+  assert.equal(
+    blockedActionReason("Custom domain updates"),
+    "Custom domain updates is unavailable while billing is not in good standing. Restore payment first.",
+  );
 });

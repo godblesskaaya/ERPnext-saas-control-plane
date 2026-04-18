@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isTenantBillingBlockedStatus } from "./tenantBillingGate";
+import { billingBlockedActionReason, isTenantBillingBlockedStatus } from "./tenantBillingGate";
 
 test("isTenantBillingBlockedStatus returns true for billing-gated tenant statuses", () => {
   assert.equal(isTenantBillingBlockedStatus({ status: "pending_payment", billing_status: "paid" }), true);
@@ -17,4 +17,11 @@ test("isTenantBillingBlockedStatus returns true for delinquent billing statuses"
 test("isTenantBillingBlockedStatus returns false when billing is in good standing", () => {
   assert.equal(isTenantBillingBlockedStatus({ status: "active", billing_status: "paid" }), false);
   assert.equal(isTenantBillingBlockedStatus({ status: "provisioning", billing_status: undefined }), false);
+});
+
+test("billingBlockedActionReason returns consistent operator copy", () => {
+  assert.equal(
+    billingBlockedActionReason("Backup restore"),
+    "Backup restore is unavailable while billing is not in good standing. Restore payment first."
+  );
 });

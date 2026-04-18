@@ -83,16 +83,30 @@ test("admin billing ops keeps resume-checkout guard rails", () => {
 test("tenant detail sections keep billing-block UX markers for gated actions", () => {
   const backupsSource = readSource("app/(app-shell)/app/tenants/[tenantId]/backups/page.tsx");
   const membersSource = readSource("app/(app-shell)/app/tenants/[tenantId]/members/page.tsx");
+  const domainsSource = readSource("app/(app-shell)/app/tenants/[tenantId]/domains/page.tsx");
+  const overviewSource = readSource("app/(app-shell)/app/tenants/[tenantId]/overview/page.tsx");
 
   for (const marker of [
+    "import { blockedActionReason, isTenantBillingBlocked }",
     'blockedActionReason("Backup restore")',
     "disabled={billingBlocked || !entry.id || restoreBusy}",
     'blockedActionReason("Team membership updates")',
     "disabled={billingBlocked || inviteMutation.isPending || !inviteEmail.trim()}",
+    'blockedActionReason("Custom domain updates")',
+    "disabled={billingBlocked || addingDomain || !domainInput.trim()}",
+    'blockedActionReason("Tenant unsuspend")',
+    "disabled={actionBusy || billingSuspended}",
+    '{billingSuspended ? "Resolve billing" : "Unsuspend tenant"}',
   ]) {
     const inBackups = backupsSource.includes(marker);
     const inMembers = membersSource.includes(marker);
-    assert.equal(inBackups || inMembers, true, `missing tenant detail billing-block marker: ${marker}`);
+    const inDomains = domainsSource.includes(marker);
+    const inOverview = overviewSource.includes(marker);
+    assert.equal(
+      inBackups || inMembers || inDomains || inOverview,
+      true,
+      `missing tenant detail billing-block marker: ${marker}`,
+    );
   }
 });
 
@@ -106,4 +120,32 @@ test("admin tenant console keeps billing suspension unsuspend guard rails", () =
   ]) {
     assert.equal(source.includes(marker), true, `missing admin unsuspend billing marker: ${marker}`);
   }
+});
+
+test("billing-gate wrappers keep delegating to shared helper contract", () => {
+  const dashboardGateSource = readSource("domains/dashboard/domain/tenantBillingGate.ts");
+  const tenantOpsGateSource = readSource("domains/tenant-ops/domain/lifecycleGates.ts");
+
+  for (const marker of ["isTenantBillingBlockedStatus", "return isTenantBillingBlockedStatus(tenant);"]) {
+    assert.equal(dashboardGateSource.includes(marker), true, `missing dashboard billing wrapper delegation marker: ${marker}`);
+    assert.equal(tenantOpsGateSource.includes(marker), true, `missing tenant-ops billing wrapper delegation marker: ${marker}`);
+  }
+});
+
+test("tenant action entry points keep blocked-action copy wiring markers", () => {
+  const backupsSource = readSource("app/(app-shell)/app/tenants/[tenantId]/backups/page.tsx");
+  const domainsSource = readSource("app/(app-shell)/app/tenants/[tenantId]/domains/page.tsx");
+  const membersSource = readSource("app/(app-shell)/app/tenants/[tenantId]/members/page.tsx");
+  const tenantTableSource = readSource("domains/dashboard/components/TenantTable.tsx");
+  const dashboardGateSource = readSource("domains/dashboard/domain/tenantBillingGate.ts");
+  const lifecycleGatesSource = readSource("domains/tenant-ops/domain/lifecycleGates.ts");
+
+  for (const source of [dashboardGateSource, lifecycleGatesSource]) {
+    assert.equal(source.includes("billingBlockedActionReason"), true, "wrapper should delegate blocked-action copy to shared helper");
+  }
+
+  assert.equal(backupsSource.includes('blockedActionReason("Backup restore")'), true);
+  assert.equal(domainsSource.includes('blockedActionReason("Custom domain updates")'), true);
+  assert.equal(membersSource.includes('blockedActionReason("Team membership updates")'), true);
+  assert.equal(tenantTableSource.includes('blockedActionReasonFromOperations("Backup and credential reset actions")'), true);
 });

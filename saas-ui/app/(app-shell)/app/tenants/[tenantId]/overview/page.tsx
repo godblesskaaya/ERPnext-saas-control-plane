@@ -23,6 +23,7 @@ import {
   toTenantDetailErrorMessage,
   unsuspendTenantAccess,
 } from "../../../../../../domains/tenant-ops/application/tenantDetailUseCases";
+import { blockedActionReason } from "../../../../../../domains/tenant-ops/domain/lifecycleGates";
 import { TenantWorkspacePageLayout } from "../../../../../../domains/tenant-ops/ui/tenant-detail/components/TenantWorkspacePageLayout";
 import {
   useTenantCurrentUserData,
@@ -109,6 +110,7 @@ export default function TenantOverviewPage() {
     [recentJobs]
   );
   const tenantStatus = (tenant?.status ?? "").toLowerCase();
+  const billingSuspended = tenantStatus === "suspended_billing";
   const subscriptionStatus = (subscription?.status ?? "").toLowerCase();
   const invoiceStatus = (tenantSummary?.last_invoice?.status ?? "").toLowerCase();
   const showPaymentRecovery = useMemo(
@@ -314,6 +316,7 @@ export default function TenantOverviewPage() {
 
           {isAdmin ? (
             <>
+              {billingSuspended ? <Alert severity="warning">{blockedActionReason("Tenant unsuspend")}</Alert> : null}
               <TextField
                 value={actionReason}
                 onChange={(event) => setActionReason(event.target.value)}
@@ -351,7 +354,8 @@ export default function TenantOverviewPage() {
                 <Button
                   variant="outlined"
                   color="success"
-                  disabled={actionBusy}
+                  disabled={actionBusy || billingSuspended}
+                  title={billingSuspended ? blockedActionReason("Tenant unsuspend") : undefined}
                   onClick={async () => {
                     setActionBusy(true);
                     setActionError(null);
@@ -372,7 +376,7 @@ export default function TenantOverviewPage() {
                   }}
                   sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
                 >
-                  Unsuspend tenant
+                  {billingSuspended ? "Resolve billing" : "Unsuspend tenant"}
                 </Button>
               </Stack>
             </>

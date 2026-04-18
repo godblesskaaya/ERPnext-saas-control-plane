@@ -28,6 +28,8 @@
 
 ## Validation evidence snapshot
 
+_Snapshot note: this validation block reflects the original P0 review run. For current follow-up verification status (including the reproducible `.next/server/pages-manifest.json` build issue observed later on 2026-04-18), see `docs/p1-billing-gate-wrapper-parity-and-blocked-action-copy-verification-2026-04-18.md`._
+
 - Typecheck: `npm run typecheck` ✅ PASS
 - Lint: `npm run lint` ✅ PASS
 - Contracts/tests: `npm run test:contracts` ✅ PASS
@@ -38,6 +40,17 @@
 
 1. **Nice-to-have hardening**: add one cross-domain parity contract test that ensures tenant-ops/dashboard wrappers keep delegating to the shared helper contract over time.
 2. **UX follow-up**: expand action-level “why blocked” messaging consistency across all tenant action entry points.
+
+## P1 follow-up implementation (2026-04-18)
+
+- Added/updated contract markers in `saas-ui/domains/tenant-ops/application/tenantBillingRecoveryContracts.test.ts` so both
+  `domains/dashboard/domain/tenantBillingGate.ts` and `domains/tenant-ops/domain/lifecycleGates.ts` are pinned to shared-helper delegation.
+- Promoted blocked-action copy to shared helper (`billingBlockedActionReason`) and routed wrappers through it:
+  - `saas-ui/domains/shared/lib/tenantBillingGate.ts`
+  - `saas-ui/domains/dashboard/domain/tenantBillingGate.ts`
+  - `saas-ui/domains/tenant-ops/domain/lifecycleGates.ts`
+- Extended blocked-action UX copy to dashboard tenant quick actions (`TenantTable`) so billing-gated backup/reset controls now show explicit
+  “why blocked” warning text that matches tenant-detail routes.
 
 ## Notes
 

@@ -11,6 +11,7 @@ test("isTenantBillingBlocked returns true for billing-blocked tenant statuses", 
 test("isTenantBillingBlocked returns true for delinquent billing statuses", () => {
   assert.equal(isTenantBillingBlocked({ status: "active", billing_status: "past_due" }), true);
   assert.equal(isTenantBillingBlocked({ status: "active", billing_status: "failed" }), true);
+  assert.equal(isTenantBillingBlocked({ status: "active", billing_status: "paused" }), true);
 });
 
 test("isTenantBillingBlocked returns false for paid active tenant", () => {

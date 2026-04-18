@@ -24,6 +24,7 @@ import {
   restoreTenantFromBackup,
   toTenantDetailErrorMessage,
 } from "../../../../../../domains/tenant-ops/application/tenantDetailUseCases";
+import { blockedActionReason, isTenantBillingBlocked } from "../../../../../../domains/tenant-ops/domain/lifecycleGates";
 import { TenantWorkspacePageLayout } from "../../../../../../domains/tenant-ops/ui/tenant-detail/components/TenantWorkspacePageLayout";
 import { useTenantRouteContext } from "../../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
 import type { BackupManifestEntry } from "../../../../../../domains/shared/lib/types";
@@ -57,6 +58,7 @@ export default function TenantBackupsPage() {
   const [restoreBusy, setRestoreBusy] = useState(false);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [restoreNotice, setRestoreNotice] = useState<string | null>(null);
+  const billingBlocked = isTenantBillingBlocked(tenant);
 
   const loadBackupsData = useCallback(async () => {
     if (!id) return;
@@ -126,6 +128,7 @@ export default function TenantBackupsPage() {
           <Alert severity="error" sx={{ mt: 2 }}>{backupsError}</Alert>
         ) : sortedBackups.length ? (
           <>
+            {billingBlocked ? <Alert severity="warning" sx={{ mt: 2 }}>{blockedActionReason("Backup restore")}</Alert> : null}
             <TableContainer component={Paper} variant="outlined" sx={{ mt: 2, borderRadius: 3 }}>
               <Table size="small">
                 <TableHead sx={{ backgroundColor: "grey.50" }}>
@@ -160,7 +163,7 @@ export default function TenantBackupsPage() {
                           <Button
                             variant="outlined"
                             size="small"
-                            disabled={!entry.id || restoreBusy}
+                            disabled={billingBlocked || !entry.id || restoreBusy}
                             onClick={() => {
                               setRestoreTarget(entry);
                               setRestoreConfirm("");
@@ -198,7 +201,7 @@ export default function TenantBackupsPage() {
                   <Button
                     variant="contained"
                     size="small"
-                    disabled={restoreBusy || restoreConfirm.trim().toUpperCase() !== "RESTORE"}
+                    disabled={billingBlocked || restoreBusy || restoreConfirm.trim().toUpperCase() !== "RESTORE"}
                     onClick={async () => {
                       if (!id || !restoreTarget?.id) return;
                       setRestoreBusy(true);

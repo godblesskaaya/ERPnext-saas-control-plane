@@ -47,7 +47,13 @@ test("overview/members/billing pages consume query hooks and keep mutation-drive
   const membersSource = readSource("app/(app-shell)/app/tenants/[tenantId]/members/page.tsx");
   const billingSource = readSource("app/(app-shell)/app/tenants/[tenantId]/billing/page.tsx");
 
-  assert.equal(overviewSource.includes("useTenantRouteContext") && overviewSource.includes("useTenantRecentJobsData"), true);
+  assert.equal(
+    overviewSource.includes("useTenantRouteContext") &&
+      overviewSource.includes("useTenantRecentJobsData") &&
+      overviewSource.includes("useTenantSubscriptionData"),
+    true,
+  );
+  assert.equal(overviewSource.includes("Payment recovery") && overviewSource.includes("Resume checkout"), true);
 
   assert.equal(membersSource.includes("useTenantMembersData"), true, "Members page should read member data via query hooks.");
   assert.equal(membersSource.includes("useMutation") && membersSource.includes("invalidateQueries"), true);

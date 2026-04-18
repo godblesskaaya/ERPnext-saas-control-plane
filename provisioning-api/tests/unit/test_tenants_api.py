@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from importlib import import_module
 from unittest.mock import patch
 
 from app.config import get_settings
-from app.models import AuditLog, Job, Tenant, TenantMembership, User
+from app.models import AuditLog, BackupManifest, Job, Tenant, TenantMembership, User
 from app.modules.subscription.models import Plan, Subscription
 from app.modules.subscription.service import ensure_default_plan_catalog
 
@@ -179,6 +179,84 @@ def test_tenant_membership_list_and_invite(_, client, db_session):
     )
 
 
+@patch("app.modules.tenant.router.run_bench_command")
+@patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())
+def test_reset_admin_password_blocked_for_suspended_billing_tenant(_, mock_run_bench_command, client, db_session):
+    headers = _auth_headers(client, db_session)
+    created = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "billing-blocked-reset", "company_name": "Billing Blocked Ltd", "plan": "starter"},
+    )
+    tenant_id = created.json()["tenant"]["id"]
+    tenant = db_session.get(Tenant, tenant_id)
+    assert tenant is not None
+    tenant.status = "suspended_billing"
+    tenant.billing_status = "failed"
+    db_session.add(tenant)
+    db_session.commit()
+
+    blocked = client.post(
+        f"/tenants/{tenant_id}/reset-admin-password",
+        headers=headers,
+        json={"new_password": "NeverApplied123!"},
+    )
+    assert blocked.status_code == 403
+    assert "blocked until billing is restored" in blocked.json()["detail"].lower()
+    mock_run_bench_command.assert_not_called()
+
+
+@patch("app.modules.tenant.router.run_bench_command")
+@patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())
+def test_reset_admin_password_blocked_for_delinquent_subscription(_, mock_run_bench_command, client, db_session):
+    headers = _auth_headers(client, db_session)
+    created = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "billing-delinquent-reset", "company_name": "Billing Delinquent Ltd", "plan": "starter"},
+    )
+    tenant_id = created.json()["tenant"]["id"]
+    tenant = db_session.get(Tenant, tenant_id)
+    assert tenant is not None
+    tenant.status = "active"
+    tenant.billing_status = "failed"
+    db_session.add(tenant)
+    db_session.commit()
+
+    blocked = client.post(
+        f"/tenants/{tenant_id}/reset-admin-password",
+        headers=headers,
+        json={},
+    )
+    assert blocked.status_code == 403
+    assert "blocked until billing is restored" in blocked.json()["detail"].lower()
+    mock_run_bench_command.assert_not_called()
+
+
+@patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())
+def test_retry_provisioning_blocked_for_delinquent_billing(_, client, db_session):
+    headers = _auth_headers(client, db_session)
+    created = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "billing-blocked-retry", "company_name": "Billing Retry Ltd", "plan": "starter"},
+    )
+    tenant_id = created.json()["tenant"]["id"]
+    tenant = db_session.get(Tenant, tenant_id)
+    assert tenant is not None
+    tenant.status = "failed"
+    tenant.billing_status = "failed"
+    db_session.add(tenant)
+    db_session.commit()
+
+    blocked = client.post(f"/tenants/{tenant_id}/retry", headers=headers)
+    assert blocked.status_code == 403
+    assert "blocked until billing is restored" in blocked.json()["detail"].lower()
+
+    db_session.expire_all()
+    assert db_session.get(Tenant, tenant_id).status == "failed"
+
+
 @patch("app.modules.tenant.router._domain_points_to_tenant", return_value=True)
 @patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())
 def test_tenant_custom_domain_flow(_, __, client, db_session):
@@ -223,6 +301,102 @@ def test_tenant_custom_domain_flow(_, __, client, db_session):
     assert "tenant.domain_added" in actions
     assert "tenant.domain_verified" in actions
     assert "tenant.domain_removed" in actions
+
+
+@patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())
+def test_tenant_domain_mutations_blocked_when_billing_blocked(_, client, db_session):
+    headers = _auth_headers(client, db_session)
+    created = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "domain-blocked", "company_name": "Domain Blocked Ltd", "plan": "starter"},
+    )
+    assert created.status_code == 202
+    tenant_id = created.json()["tenant"]["id"]
+
+    tenant = db_session.get(Tenant, tenant_id)
+    assert tenant is not None
+    tenant.status = "suspended_billing"
+    tenant.billing_status = "failed"
+    db_session.add(tenant)
+    db_session.commit()
+
+    blocked = client.post(
+        f"/tenants/{tenant_id}/domains",
+        headers=headers,
+        json={"domain": "billing-blocked.example.com"},
+    )
+    assert blocked.status_code == 403
+    assert "billing" in blocked.json()["detail"].lower()
+
+
+@patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())
+def test_tenant_member_mutations_blocked_when_billing_blocked(_, client, db_session):
+    headers = _auth_headers(client, db_session)
+    created = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "members-blocked", "company_name": "Members Blocked Ltd", "plan": "starter"},
+    )
+    assert created.status_code == 202
+    tenant_id = created.json()["tenant"]["id"]
+
+    tenant = db_session.get(Tenant, tenant_id)
+    assert tenant is not None
+    tenant.status = "suspended_billing"
+    tenant.billing_status = "failed"
+    db_session.add(tenant)
+    db_session.commit()
+
+    blocked = client.post(
+        f"/tenants/{tenant_id}/members",
+        headers=headers,
+        json={"email": "member-blocked@example.com", "role": "billing"},
+    )
+    assert blocked.status_code == 403
+    assert "billing" in blocked.json()["detail"].lower()
+
+
+@patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())
+def test_tenant_restore_blocked_when_billing_blocked(_, client, db_session):
+    headers = _auth_headers(client, db_session)
+    created = client.post(
+        "/tenants",
+        headers=headers,
+        json={"subdomain": "restore-blocked", "company_name": "Restore Blocked Ltd", "plan": "starter"},
+    )
+    assert created.status_code == 202
+    tenant_id = created.json()["tenant"]["id"]
+
+    job = Job(tenant_id=tenant_id, type="backup", status="succeeded", logs="ok")
+    db_session.add(job)
+    db_session.commit()
+    db_session.refresh(job)
+
+    manifest = BackupManifest(
+        tenant_id=tenant_id,
+        job_id=job.id,
+        file_path="/tmp/restore-blocked.sql.gz",
+        file_size_bytes=1024,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+    db_session.add(manifest)
+
+    tenant = db_session.get(Tenant, tenant_id)
+    assert tenant is not None
+    tenant.status = "suspended_billing"
+    tenant.billing_status = "failed"
+    db_session.add(tenant)
+    db_session.commit()
+    db_session.refresh(manifest)
+
+    blocked = client.post(
+        f"/tenants/{tenant_id}/restore",
+        headers=headers,
+        json={"backup_id": manifest.id},
+    )
+    assert blocked.status_code == 403
+    assert "billing" in blocked.json()["detail"].lower()
 
 
 @patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())

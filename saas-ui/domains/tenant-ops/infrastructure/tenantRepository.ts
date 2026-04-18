@@ -250,3 +250,9 @@ export async function unsuspendTenantWorkspace(
 ): Promise<OptionalEndpointResult<MessageResponse>> {
   return api.unsuspendTenant(tenantId, reason);
 }
+
+export async function renewTenantCheckoutLink(
+  tenantId: string
+): Promise<OptionalEndpointResult<TenantCreateResponse>> {
+  return api.renewCheckout(tenantId);
+}

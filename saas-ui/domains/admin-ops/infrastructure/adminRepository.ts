@@ -6,8 +6,10 @@ import type {
   ImpersonationLink,
   Job,
   MetricsSummary,
+  OptionalEndpointResult,
   SupportNote,
   Tenant,
+  TenantCreateResponse,
 } from "../../shared/lib/types";
 
 type FilterMode = "and" | "or";
@@ -165,6 +167,12 @@ export async function unsuspendTenant(tenantId: string, reason?: string): Promis
     return { supported: false };
   }
   return { supported: true };
+}
+
+export async function renewTenantCheckoutLink(
+  tenantId: string
+): Promise<OptionalEndpointResult<TenantCreateResponse>> {
+  return api.renewCheckout(tenantId);
 }
 
 export async function downloadAuditCsv(limit = 500): Promise<void> {

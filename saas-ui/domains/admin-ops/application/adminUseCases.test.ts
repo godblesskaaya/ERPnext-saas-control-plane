@@ -9,6 +9,7 @@ import {
   loadTenantCatalog,
   loadAdminTenantPage,
   queueBillingDunningCycle,
+  renewTenantCheckout,
 } from "./adminUseCases";
 import { api } from "../../shared/lib/api";
 
@@ -22,6 +23,7 @@ const originalApi = {
   unsuspendTenant: api.unsuspendTenant,
   requestImpersonationLink: api.requestImpersonationLink,
   runBillingDunningCycle: api.runBillingDunningCycle,
+  renewCheckout: api.renewCheckout,
 };
 
 afterEach(() => {
@@ -34,6 +36,7 @@ afterEach(() => {
   api.unsuspendTenant = originalApi.unsuspendTenant;
   api.requestImpersonationLink = originalApi.requestImpersonationLink;
   api.runBillingDunningCycle = originalApi.runBillingDunningCycle;
+  api.renewCheckout = originalApi.renewCheckout;
 });
 
 test("loadAdminTenantPage uses paged endpoint when supported", async () => {
@@ -134,6 +137,35 @@ test("issueSupportImpersonationLink returns unsupported when endpoint is absent"
   const result = await issueSupportImpersonationLink("owner@example.com", "support");
   assert.equal(result.supported, false);
   assert.equal(result.link, null);
+});
+
+test("renewTenantCheckout proxies checkout-renew optional endpoint", async () => {
+  api.renewCheckout = async (tenantId) => {
+    assert.equal(tenantId, "tenant-1");
+    return {
+      supported: true,
+      data: {
+        tenant: {
+          id: "tenant-1",
+          owner_id: "owner-1",
+          subdomain: "alpha",
+          domain: "alpha.example.com",
+          site_name: "alpha",
+          company_name: "Alpha",
+          plan: "business",
+          status: "pending_payment",
+          created_at: "2026-03-23T00:00:00Z",
+          updated_at: "2026-03-23T00:00:00Z",
+        },
+        checkout_url: "https://checkout.example.com/session/abc",
+        checkout_expires_at: "2026-03-24T00:00:00Z",
+      },
+    };
+  };
+
+  const result = await renewTenantCheckout("tenant-1");
+  assert.equal(result.supported, true);
+  assert.equal(result.data.checkout_url, "https://checkout.example.com/session/abc");
 });
 
 test("support/billing dashboard catalog use-cases map optional endpoint contracts", async () => {

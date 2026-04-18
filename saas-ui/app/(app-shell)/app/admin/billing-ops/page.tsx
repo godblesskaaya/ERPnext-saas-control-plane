@@ -7,6 +7,7 @@ import { getSessionRole } from "../../../../../domains/auth/auth";
 import {
   loadBillingDunningQueue,
   queueBillingDunningCycle,
+  renewTenantCheckout,
   toAdminErrorMessage,
 } from "../../../../../domains/admin-ops/application/adminUseCases";
 import type { DunningItem } from "../../../../../domains/shared/lib/types";
@@ -33,6 +34,9 @@ export default function BillingOpsPage() {
   const [runningCycle, setRunningCycle] = useState(false);
   const [cycleNotice, setCycleNotice] = useState<string | null>(null);
   const [cycleError, setCycleError] = useState<string | null>(null);
+  const [resumeBusyTenantId, setResumeBusyTenantId] = useState<string | null>(null);
+  const [resumeNotice, setResumeNotice] = useState<string | null>(null);
+  const [resumeError, setResumeError] = useState<string | null>(null);
   const canRunAdminOnlyActions = operatorRole === "admin";
 
   useEffect(() => {
@@ -60,6 +64,41 @@ export default function BillingOpsPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  const resumeCheckout = async (tenantId: string) => {
+    if (!canRunAdminOnlyActions) {
+      setResumeError("Only admin role can resume checkout links.");
+      return;
+    }
+
+    setResumeBusyTenantId(tenantId);
+    setResumeNotice(null);
+    setResumeError(null);
+
+    try {
+      const result = await renewTenantCheckout(tenantId);
+      if (!result.supported) {
+        setResumeError("Checkout renewal endpoint is not enabled on this backend.");
+        return;
+      }
+
+      const checkoutUrl = result.data.checkout_url;
+      if (!checkoutUrl) {
+        setResumeError("Billing provider did not return a checkout URL.");
+        return;
+      }
+
+      if (typeof window !== "undefined") {
+        window.open(checkoutUrl, "_blank", "noopener,noreferrer");
+      }
+      setResumeNotice("Checkout link generated and opened in a new tab.");
+      await load();
+    } catch (err) {
+      setResumeError(toAdminErrorMessage(err, "Failed to renew checkout link."));
+    } finally {
+      setResumeBusyTenantId(null);
+    }
+  };
 
   const runCycle = async (dryRun = false) => {
     if (!canRunAdminOnlyActions) {
@@ -174,6 +213,8 @@ export default function BillingOpsPage() {
         {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
         {cycleNotice ? <p className="mt-3 text-sm text-emerald-700">{cycleNotice}</p> : null}
         {cycleError ? <p className="mt-3 text-sm text-red-600">{cycleError}</p> : null}
+        {resumeNotice ? <p className="mt-3 text-sm text-emerald-700">{resumeNotice}</p> : null}
+        {resumeError ? <p className="mt-3 text-sm text-red-600">{resumeError}</p> : null}
 
         <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
           <table className="min-w-full text-sm">
@@ -218,12 +259,34 @@ export default function BillingOpsPage() {
                     <td className="p-2 text-xs text-slate-600">{formatDateTime(tenant.next_retry_at)}</td>
                     <td className="p-2 text-xs text-slate-600">{formatDateTime(tenant.grace_ends_at)}</td>
                     <td className="p-2 text-xs">
-                      <Link
-                        href={`/app/tenants/${tenant.tenant_id}/support`}
-                        className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-200 hover:bg-slate-50"
-                      >
-                        Add note
-                      </Link>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="rounded-full border border-slate-300 bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                          disabled={
+                            tenant.status !== "pending_payment" ||
+                            !canRunAdminOnlyActions ||
+                            resumeBusyTenantId === tenant.tenant_id
+                          }
+                          onClick={() => {
+                            void resumeCheckout(tenant.tenant_id);
+                          }}
+                        >
+                          {resumeBusyTenantId === tenant.tenant_id ? "Generating..." : "Resume checkout"}
+                        </button>
+                        <Link
+                          href={`/app/tenants/${tenant.tenant_id}/billing`}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-200 hover:bg-slate-50"
+                        >
+                          Billing
+                        </Link>
+                        <Link
+                          href={`/app/tenants/${tenant.tenant_id}/support`}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-200 hover:bg-slate-50"
+                        >
+                          Add note
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))

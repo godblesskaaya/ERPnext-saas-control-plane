@@ -17,6 +17,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 
 import {
+  renewTenantCheckout,
   retryTenantProvisioningAction,
   suspendTenantAccess,
   toTenantDetailErrorMessage,
@@ -27,6 +28,7 @@ import {
   useTenantCurrentUserData,
   useTenantRecentJobsData,
   useTenantRouteContext,
+  useTenantSubscriptionData,
   useTenantSummaryData,
 } from "../../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
 
@@ -54,6 +56,15 @@ function formatTimestamp(value?: string | null): string {
   return date.toLocaleString();
 }
 
+function formatAmount(value?: number | null, currency = "TZS"): string {
+  if (value == null) return "—";
+  return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
+}
+
+const PAYMENT_RECOVERY_STATUSES = new Set(["pending", "pending_payment", "suspended_billing"]);
+const PAYMENT_RECOVERY_INVOICE_STATUSES = new Set(["open", "past_due", "unpaid", "uncollectible"]);
+const PAYMENT_RECOVERY_SUBSCRIPTION_STATUSES = new Set(["pending", "past_due", "paused"]);
+
 export default function TenantOverviewPage() {
   const params = useParams<{ tenantId: string }>();
   const id = params.tenantId;
@@ -61,12 +72,16 @@ export default function TenantOverviewPage() {
   const { currentUser } = useTenantCurrentUserData();
   const { recentJobs, recentJobsError, recentJobsSupported, refresh: refreshRecentJobs } = useTenantRecentJobsData(id, 40, 5);
   const { tenantSummary, tenantSummaryError } = useTenantSummaryData(id);
+  const { subscription, subscriptionSupported, subscriptionError } = useTenantSubscriptionData(id);
 
   const [retrying, setRetrying] = useState(false);
+  const [resumingCheckout, setResumingCheckout] = useState(false);
   const [actionReason, setActionReason] = useState("");
   const [actionBusy, setActionBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const [recoveryNotice, setRecoveryNotice] = useState<string | null>(null);
 
   const isAdmin = currentUser?.role === "admin";
 
@@ -93,6 +108,41 @@ export default function TenantOverviewPage() {
     () => recentJobs.find((job) => !TERMINAL_JOB_STATUSES.has((job.status || "").toLowerCase())),
     [recentJobs]
   );
+  const tenantStatus = (tenant?.status ?? "").toLowerCase();
+  const subscriptionStatus = (subscription?.status ?? "").toLowerCase();
+  const invoiceStatus = (tenantSummary?.last_invoice?.status ?? "").toLowerCase();
+  const showPaymentRecovery = useMemo(
+    () =>
+      PAYMENT_RECOVERY_STATUSES.has(tenantStatus) ||
+      PAYMENT_RECOVERY_SUBSCRIPTION_STATUSES.has(subscriptionStatus) ||
+      PAYMENT_RECOVERY_INVOICE_STATUSES.has(invoiceStatus),
+    [invoiceStatus, subscriptionStatus, tenantStatus]
+  );
+
+  const resumeCheckout = useCallback(async () => {
+    if (!id) return;
+    setResumingCheckout(true);
+    setRecoveryError(null);
+    setRecoveryNotice(null);
+    try {
+      const result = await renewTenantCheckout(id);
+      if (!result.supported) {
+        setRecoveryError("Checkout renewal is not available on this backend.");
+        return;
+      }
+      if (result.data.checkout_url) {
+        window.open(result.data.checkout_url, "_blank", "noopener,noreferrer");
+        setRecoveryNotice("Checkout link opened in a new tab.");
+      } else {
+        setRecoveryNotice("Checkout link refreshed.");
+      }
+      await loadTenant();
+    } catch (err) {
+      setRecoveryError(toTenantDetailErrorMessage(err, "Unable to resume checkout."));
+    } finally {
+      setResumingCheckout(false);
+    }
+  }, [id, loadTenant]);
 
   if (!id) {
     return <Alert severity="error">Tenant id is missing from route.</Alert>;
@@ -207,6 +257,50 @@ export default function TenantOverviewPage() {
           Quick actions
         </Typography>
         <Stack spacing={1} sx={{ mt: 1.5 }}>
+          {showPaymentRecovery ? (
+            <Card variant="outlined" sx={{ borderRadius: 3, borderColor: "warning.light", bgcolor: "rgba(255,251,235,0.7)" }}>
+              <CardContent sx={{ p: 2 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  Payment recovery
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                  Tenant status: {tenant.status} · Subscription: {subscription?.status ?? (subscriptionSupported ? "—" : "unsupported")} ·
+                  Latest invoice: {tenantSummary?.last_invoice?.status ?? "—"}
+                </Typography>
+                {tenantSummary?.last_invoice ? (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                    Invoice due: {formatAmount(tenantSummary.last_invoice.amount_due, tenantSummary.last_invoice.currency ?? "TZS")}
+                  </Typography>
+                ) : null}
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1.25 }}>
+                  {["pending", "pending_payment"].includes(tenantStatus) ? (
+                    <Button
+                      variant="outlined"
+                      color="warning"
+                      size="small"
+                      disabled={resumingCheckout}
+                      onClick={() => {
+                        void resumeCheckout();
+                      }}
+                      sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+                    >
+                      {resumingCheckout ? "Opening checkout..." : "Resume checkout"}
+                    </Button>
+                  ) : null}
+                  <Button component="a" href="/app/billing/invoices" variant="outlined" size="small" sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}>
+                    Open payment center
+                  </Button>
+                  <Button component="a" href={`/app/tenants/${id}/billing`} variant="outlined" size="small" sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}>
+                    Open tenant billing
+                  </Button>
+                </Stack>
+                {subscriptionError ? <Typography variant="caption" color="error" sx={{ mt: 1, display: "block" }}>{subscriptionError}</Typography> : null}
+                {recoveryNotice ? <Alert severity="success" sx={{ mt: 1 }}>{recoveryNotice}</Alert> : null}
+                {recoveryError ? <Alert severity="error" sx={{ mt: 1 }}>{recoveryError}</Alert> : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
           <Button
             variant="outlined"
             size="small"

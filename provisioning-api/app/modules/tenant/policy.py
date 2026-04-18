@@ -47,6 +47,7 @@ DELETE_ALLOWED_STATUSES = {
 
 SUBSCRIPTION_PAID_STATUSES = {"active", "trialing"}
 SUBSCRIPTION_DELINQUENT_STATUSES = {"past_due", "cancelled", "paused", "pending"}
+TENANT_BILLING_BLOCKED_STATUSES = {"pending_payment", "suspended_billing"}
 
 
 def ensure_email_verified(owner: User) -> None:
@@ -91,6 +92,21 @@ def tenant_billing_status_compat(tenant: Tenant) -> str:
 
 def tenant_payment_confirmed(tenant: Tenant) -> bool:
     return tenant_subscription_status(tenant) in SUBSCRIPTION_PAID_STATUSES
+
+
+def tenant_billing_blocked(tenant: Tenant) -> bool:
+    tenant_status = (tenant.status or "").strip().lower()
+    if tenant_status in TENANT_BILLING_BLOCKED_STATUSES:
+        return True
+    return tenant_subscription_status(tenant) in SUBSCRIPTION_DELINQUENT_STATUSES
+
+
+def enforce_billing_operation_policy(tenant: Tenant, *, operation: str) -> None:
+    if tenant_billing_blocked(tenant):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"{operation} is blocked until billing is restored",
+        )
 
 
 def resolve_plan_and_app(plan: str, chosen_app: str | None) -> tuple[str, str | None]:
@@ -152,7 +168,10 @@ def enforce_retry_policy(tenant: Tenant) -> None:
     if tenant.status != "failed":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tenant is not in failed state")
     if not tenant_payment_confirmed(tenant):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Tenant payment is not confirmed")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Retry provisioning is blocked until billing is restored",
+        )
 
 
 def enforce_delete_policy(tenant: Tenant) -> None:

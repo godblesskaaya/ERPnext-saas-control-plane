@@ -9,6 +9,7 @@ import { TenantCreateForm } from "./TenantCreateForm";
 import { TenantTable } from "./TenantTable";
 import { useNotifications } from "../../shared/components/NotificationsProvider";
 import { ErrorState, LoadingState, PageHeader } from "../../shell/components";
+import { api } from "../../shared/lib/api";
 import type { Job, Tenant, TenantCreateResponse, UserProfile } from "../../shared/lib/types";
 import {
   deriveWorkspaceQueueSnapshot,
@@ -124,6 +125,7 @@ export function WorkspaceQueuePage({
   const [limit] = useState(20);
   const [total, setTotal] = useState(0);
   const [retryingTenantId, setRetryingTenantId] = useState<string | null>(null);
+  const [resumingCheckoutTenantId, setResumingCheckoutTenantId] = useState<string | null>(null);
   const [statusFilterValue, setStatusFilterValue] = useState("all");
   const [planFilter, setPlanFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -473,6 +475,35 @@ export function WorkspaceQueuePage({
       });
     } catch (err) {
       setBillingPortalError(toWorkspaceQueueErrorMessage(err, "Unable to open billing portal."));
+    }
+  };
+
+  const resumeTenantCheckout = async (tenantId: string) => {
+    setResumingCheckoutTenantId(tenantId);
+    try {
+      const resumed = await api.renewCheckout(tenantId);
+      if (!resumed.supported) {
+        setError("Checkout resume is not available on this backend.");
+        return;
+      }
+
+      const checkoutUrl = resumed.data.checkout_url;
+      if (!checkoutUrl) {
+        setError("No checkout URL was returned. Open tenant billing to continue.");
+        return;
+      }
+
+      window.open(checkoutUrl, "_blank", "noopener,noreferrer");
+      addNotification({
+        type: "success",
+        title: "Checkout ready",
+        body: "Opened the latest checkout session in a new tab.",
+      });
+      await load();
+    } catch (err) {
+      handleError(err, "Failed to resume checkout");
+    } finally {
+      setResumingCheckoutTenantId(null);
     }
   };
 
@@ -844,6 +875,10 @@ export function WorkspaceQueuePage({
           routeScope={routeScope}
           tenants={pagedTenants}
           jobsByTenant={jobsByTenant}
+          onResumeCheckout={resumeTenantCheckout}
+          resumingCheckoutTenantId={resumingCheckoutTenantId}
+          paymentCenterHref={billingFollowUpHref}
+          paymentCenterLabel={billingFollowUpLabel}
           showPaymentChannel={Boolean(paymentChannelFilter && paymentChannelFilter.length)}
           filterLabel={
             paymentChannelFilter && paymentChannelFilter.length

@@ -33,11 +33,16 @@ import type { Job, ResetAdminPasswordResult, Tenant } from "../../shared/lib/typ
 import { JobLogPanel } from "../../shared/components/JobLogPanel";
 import { EmptyState } from "../../shell/components";
 import { BUSINESS_APP_OPTIONS, getPlanMeta } from "../../onboarding/components/PlanSelector";
+import { isTenantBillingBlockedFromOperations } from "../domain/tenantBillingGate";
 
 type Props = {
   routeScope?: "workspace" | "admin";
   tenants: Tenant[];
   jobsByTenant: Record<string, Job | undefined>;
+  onResumeCheckout?: (id: string) => Promise<void>;
+  resumingCheckoutTenantId?: string | null;
+  paymentCenterHref?: string;
+  paymentCenterLabel?: string;
   onBackup: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onResetAdminPassword: (id: string, newPassword?: string) => Promise<ResetAdminPasswordResult>;
@@ -122,10 +127,20 @@ function getBillingLabel(tenant: Tenant): string {
   return "n/a";
 }
 
+const PAYMENT_ACTION_STATUSES = new Set(["pending", "pending_payment", "suspended_billing"]);
+
+function canResumeCheckout(status: string): boolean {
+  return ["pending", "pending_payment"].includes(status.toLowerCase());
+}
+
 export function TenantTable({
   routeScope = "workspace",
   tenants,
   jobsByTenant,
+  onResumeCheckout,
+  resumingCheckoutTenantId,
+  paymentCenterHref = "/app/billing/invoices",
+  paymentCenterLabel = "Open payment center",
   onBackup,
   onDelete,
   onResetAdminPassword,
@@ -236,6 +251,38 @@ export function TenantTable({
       setPlanError(err instanceof Error ? err.message : "Plan update failed");
       setPlanBusy(false);
     }
+  };
+
+  const renderPaymentActions = (tenant: Tenant) => {
+    const normalizedStatus = tenant.status.toLowerCase();
+    if (!PAYMENT_ACTION_STATUSES.has(normalizedStatus)) {
+      return null;
+    }
+
+    return (
+      <>
+        {canResumeCheckout(normalizedStatus) && onResumeCheckout ? (
+          <Button
+            size="small"
+            variant="outlined"
+            color="warning"
+            sx={{ borderRadius: 999 }}
+            disabled={resumingCheckoutTenantId === tenant.id}
+            onClick={() => {
+              void onResumeCheckout(tenant.id);
+            }}
+          >
+            {resumingCheckoutTenantId === tenant.id ? "Opening checkout..." : "Resume checkout"}
+          </Button>
+        ) : null}
+        <Button component={Link} href={paymentCenterHref} size="small" variant="outlined" sx={{ borderRadius: 999 }}>
+          {paymentCenterLabel}
+        </Button>
+        <Button component={Link} href={`/app/tenants/${tenant.id}/billing`} size="small" variant="outlined" sx={{ borderRadius: 999 }}>
+          Open tenant billing
+        </Button>
+      </>
+    );
   };
 
   const handleConfirm = async () => {
@@ -379,6 +426,7 @@ export function TenantTable({
           const plan = getPlanMeta(tenant.plan);
           const confirmationPhrase = tenant.subdomain.toUpperCase();
           const statusStyle = statusChipStyles(tenant.status);
+          const billingBlocked = isTenantBillingBlockedFromOperations(tenant);
 
           return (
             <Card key={tenant.id} variant="outlined" sx={{ borderRadius: 3, bgcolor: rowTone(tenant.status) ?? "background.paper" }}>
@@ -442,8 +490,9 @@ export function TenantTable({
                       variant="contained"
                       color="inherit"
                       sx={{ borderRadius: 999, bgcolor: "#0f172a", color: "#fff", "&:hover": { bgcolor: "#1e293b" } }}
-                      disabled={busyTenantId === tenant.id}
+                      disabled={busyTenantId === tenant.id || billingBlocked}
                       onClick={async () => {
+                        if (billingBlocked) return;
                         setBusyTenantId(tenant.id);
                         try {
                           await onBackup(tenant.id);
@@ -459,7 +508,9 @@ export function TenantTable({
                       variant="contained"
                       color="warning"
                       sx={{ borderRadius: 999 }}
+                      disabled={billingBlocked}
                       onClick={() => {
+                        if (billingBlocked) return;
                         setConfirmAction({ type: "reset", tenant, phrase: confirmationPhrase });
                         setConfirmInput("");
                         setNewPassword("");
@@ -482,6 +533,7 @@ export function TenantTable({
                         Change plan
                       </Button>
                     ) : null}
+                    {renderPaymentActions(tenant)}
                     <Button
                       size="small"
                       variant="contained"
@@ -558,6 +610,7 @@ export function TenantTable({
               const plan = getPlanMeta(tenant.plan);
               const confirmationPhrase = tenant.subdomain.toUpperCase();
               const statusStyle = statusChipStyles(tenant.status);
+              const billingBlocked = isTenantBillingBlockedFromOperations(tenant);
 
               return (
                 <Fragment key={tenant.id}>
@@ -623,8 +676,9 @@ export function TenantTable({
                           variant="contained"
                           color="inherit"
                           sx={{ borderRadius: 999, bgcolor: "#0f172a", color: "#fff", "&:hover": { bgcolor: "#1e293b" } }}
-                          disabled={busyTenantId === tenant.id}
+                          disabled={busyTenantId === tenant.id || billingBlocked}
                           onClick={async () => {
+                            if (billingBlocked) return;
                             setBusyTenantId(tenant.id);
                             try {
                               await onBackup(tenant.id);
@@ -640,7 +694,9 @@ export function TenantTable({
                           variant="contained"
                           color="warning"
                           sx={{ borderRadius: 999 }}
+                          disabled={billingBlocked}
                           onClick={() => {
+                            if (billingBlocked) return;
                             setConfirmAction({ type: "reset", tenant, phrase: confirmationPhrase });
                             setConfirmInput("");
                             setNewPassword("");
@@ -663,6 +719,7 @@ export function TenantTable({
                             Change plan
                           </Button>
                         ) : null}
+                        {renderPaymentActions(tenant)}
                         <Button
                           size="small"
                           variant="contained"

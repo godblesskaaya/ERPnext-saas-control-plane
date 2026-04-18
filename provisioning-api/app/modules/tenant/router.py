@@ -77,6 +77,7 @@ from app.modules.tenant.membership import (
     require_role,
 )
 from app.modules.tenant.policy import (
+    enforce_billing_operation_policy,
     enforce_backup_policy,
     enforce_delete_policy,
     enforce_plan_change_policy,
@@ -753,6 +754,7 @@ def restore_tenant(
 ) -> JobOut:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
     require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_OPERATE)
+    enforce_billing_operation_policy(tenant, operation="Restore")
     ensure_domain_operation_allowed(tenant=tenant, actor=current_user)
 
     manifest = db.get(BackupManifest, payload.backup_id)
@@ -939,6 +941,7 @@ def create_tenant_domain(
 ) -> DomainMappingOut:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
     require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_OPERATE)
+    enforce_billing_operation_policy(tenant, operation="Custom domain updates")
     ensure_domain_operation_allowed(tenant=tenant, actor=current_user)
 
     try:
@@ -999,6 +1002,7 @@ def verify_tenant_domain(
 ) -> DomainMappingOut:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
     require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_OPERATE)
+    enforce_billing_operation_policy(tenant, operation="Custom domain verification")
     ensure_domain_operation_allowed(tenant=tenant, actor=current_user)
 
     mapping = _get_domain_mapping(db, tenant=tenant, mapping_id=mapping_id)
@@ -1051,6 +1055,7 @@ def delete_tenant_domain(
 ) -> MessageResponse:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
     require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_OPERATE)
+    enforce_billing_operation_policy(tenant, operation="Custom domain removal")
     ensure_domain_operation_allowed(tenant=tenant, actor=current_user)
 
     mapping = _get_domain_mapping(db, tenant=tenant, mapping_id=mapping_id)
@@ -1146,6 +1151,7 @@ def invite_tenant_member(
 ) -> TenantMemberOut:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
     require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_MANAGE_TEAM)
+    enforce_billing_operation_policy(tenant, operation="Member invites")
 
     requested_role = payload.role
     if requested_role not in TENANT_ROLES:
@@ -1229,6 +1235,7 @@ def update_tenant_member_role(
 ) -> TenantMemberOut:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
     require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_MANAGE_TEAM)
+    enforce_billing_operation_policy(tenant, operation="Member role updates")
 
     membership = db.get(TenantMembership, member_id)
     if not membership or membership.tenant_id != tenant.id:
@@ -1287,6 +1294,7 @@ def remove_tenant_member(
 ) -> MessageResponse:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
     require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_MANAGE_TEAM)
+    enforce_billing_operation_policy(tenant, operation="Member removal")
 
     membership = db.get(TenantMembership, member_id)
     if not membership or membership.tenant_id != tenant.id:
@@ -1461,6 +1469,7 @@ def reset_admin_password(
 ) -> ResetAdminPasswordResponse:
     tenant = _get_accessible_tenant(tenant_id, db, current_user)
     require_role(db, tenant=tenant, user=current_user, allowed_roles=TENANT_ROLE_CAN_OPERATE)
+    enforce_billing_operation_policy(tenant, operation="Admin password reset")
     new_password = payload.new_password.strip() if payload.new_password else secrets.token_urlsafe(14)
 
     try:

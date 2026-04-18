@@ -6,6 +6,7 @@ import type {
   OptionalEndpointResult,
   SupportNote,
   Tenant,
+  TenantCreateResponse,
   TenantMember,
   TenantSubscription,
   TenantSummary,
@@ -26,6 +27,7 @@ import {
   fetchTenantSummary,
   fetchTenantSupportNotes,
   inviteTenantWorkspaceMember,
+  renewTenantCheckoutLink,
   removeTenantWorkspaceMember,
   restoreTenantByBackup,
   retryTenantById,
@@ -139,6 +141,10 @@ export async function suspendTenantAccess(tenantId: string, reason?: string) {
 
 export async function unsuspendTenantAccess(tenantId: string, reason?: string) {
   return unsuspendTenantWorkspace(tenantId, reason);
+}
+
+export async function renewTenantCheckout(tenantId: string): Promise<OptionalEndpointResult<TenantCreateResponse>> {
+  return renewTenantCheckoutLink(tenantId);
 }
 
 export function isTenantDetailSessionExpired(error: unknown): boolean {

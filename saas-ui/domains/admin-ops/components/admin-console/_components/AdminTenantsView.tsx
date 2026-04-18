@@ -148,82 +148,88 @@ export function AdminTenantsView({
             </TableRow>
           </TableHead>
           <TableBody>
-            {tenants.map((tenant) => (
-              <TableRow key={tenant.id} hover>
-                <TableCell>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                    {tenant.company_name}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    {tenant.domain}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                    {tenant.id}
-                  </Typography>
-                </TableCell>
-                <TableCell sx={{ fontSize: 12 }}>
-                  <Typography variant="caption" display="block">
-                    {tenant.plan}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {tenant.chosen_app || "auto"}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Chip size="small" color={resolveStatusChipColor(tenant.status)} variant="outlined" label={tenant.status} />
-                </TableCell>
-                <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>{tenant.payment_provider || "n/a"}</TableCell>
-                <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>{formatDate(tenant.created_at)}</TableCell>
-                <TableCell>
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Button component={Link} href={`/app/tenants/${tenant.id}/overview`} size="small" variant="outlined">
-                      Details
-                    </Button>
-                    {canManageTenantLifecycle ? (
-                      ["suspended", "suspended_admin", "suspended_billing"].includes(tenant.status.toLowerCase()) ? (
-                        <Button
-                          type="button"
-                          disabled={busyTenantId === tenant.id}
-                          size="small"
-                          color="success"
-                          variant="contained"
-                          onClick={() =>
-                            onOpenTenantAction({
-                              type: "unsuspend",
-                              tenant,
-                              phrase: buildTenantActionPhrase(tenant.subdomain),
-                            })
-                          }
-                        >
-                          {busyTenantId === tenant.id ? "Reactivating..." : "Unsuspend"}
-                        </Button>
+            {tenants.map((tenant) => {
+              const normalizedStatus = tenant.status.toLowerCase();
+              const isSuspendedTenant = ["suspended", "suspended_admin", "suspended_billing"].includes(normalizedStatus);
+              const billingSuspended = normalizedStatus === "suspended_billing";
+              return (
+                <TableRow key={tenant.id} hover>
+                  <TableCell>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                      {tenant.company_name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      {tenant.domain}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                      {tenant.id}
+                    </Typography>
+                  </TableCell>
+                  <TableCell sx={{ fontSize: 12 }}>
+                    <Typography variant="caption" display="block">
+                      {tenant.plan}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {tenant.chosen_app || "auto"}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip size="small" color={resolveStatusChipColor(tenant.status)} variant="outlined" label={tenant.status} />
+                  </TableCell>
+                  <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>{tenant.payment_provider || "n/a"}</TableCell>
+                  <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>{formatDate(tenant.created_at)}</TableCell>
+                  <TableCell>
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                      <Button component={Link} href={`/app/tenants/${tenant.id}/overview`} size="small" variant="outlined">
+                        Details
+                      </Button>
+                      {canManageTenantLifecycle ? (
+                        isSuspendedTenant ? (
+                          <Button
+                            type="button"
+                            disabled={busyTenantId === tenant.id || billingSuspended}
+                            size="small"
+                            color="success"
+                            variant="contained"
+                            title={billingSuspended ? "Resolve billing in payment recovery before unsuspending." : undefined}
+                            onClick={() =>
+                              onOpenTenantAction({
+                                type: "unsuspend",
+                                tenant,
+                                phrase: buildTenantActionPhrase(tenant.subdomain),
+                              })
+                            }
+                          >
+                            {billingSuspended ? "Resolve billing" : busyTenantId === tenant.id ? "Reactivating..." : "Unsuspend"}
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            disabled={busyTenantId === tenant.id}
+                            size="small"
+                            color="warning"
+                            variant="contained"
+                            onClick={() =>
+                              onOpenTenantAction({
+                                type: "suspend",
+                                tenant,
+                                phrase: buildTenantActionPhrase(tenant.subdomain),
+                              })
+                            }
+                          >
+                            {busyTenantId === tenant.id ? "Suspending..." : "Suspend"}
+                          </Button>
+                        )
                       ) : (
-                        <Button
-                          type="button"
-                          disabled={busyTenantId === tenant.id}
-                          size="small"
-                          color="warning"
-                          variant="contained"
-                          onClick={() =>
-                            onOpenTenantAction({
-                              type: "suspend",
-                              tenant,
-                              phrase: buildTenantActionPhrase(tenant.subdomain),
-                            })
-                          }
-                        >
-                          {busyTenantId === tenant.id ? "Suspending..." : "Suspend"}
-                        </Button>
-                      )
-                    ) : (
-                      <Typography variant="caption" color="text.secondary">
-                        Read-only scope
-                      </Typography>
-                    )}
-                  </Stack>
-                </TableCell>
-              </TableRow>
-            ))}
+                        <Typography variant="caption" color="text.secondary">
+                          Read-only scope
+                        </Typography>
+                      )}
+                    </Stack>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </TableContainer>

@@ -28,6 +28,7 @@ import {
   toTenantDetailErrorMessage,
   verifyTenantDomain,
 } from "../../../../../../domains/tenant-ops/application/tenantDetailUseCases";
+import { blockedActionReason, isTenantBillingBlocked } from "../../../../../../domains/tenant-ops/domain/lifecycleGates";
 import { TenantWorkspacePageLayout } from "../../../../../../domains/tenant-ops/ui/tenant-detail/components/TenantWorkspacePageLayout";
 import { useTenantRouteContext } from "../../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
 import type { DomainMapping } from "../../../../../../domains/shared/lib/types";
@@ -52,6 +53,7 @@ export default function TenantDomainsPage() {
   const [addingDomain, setAddingDomain] = useState(false);
   const [verifyingDomainId, setVerifyingDomainId] = useState<string | null>(null);
   const [removingDomainId, setRemovingDomainId] = useState<string | null>(null);
+  const billingBlocked = isTenantBillingBlocked(tenant);
 
   const loadDomainsData = useCallback(async () => {
     if (!id) return;
@@ -113,6 +115,7 @@ export default function TenantDomainsPage() {
           </Box>
           , then verify once DNS has propagated.
         </Typography>
+        {billingBlocked ? <Alert severity="warning" sx={{ mb: 2 }}>{blockedActionReason("Custom domain updates")}</Alert> : null}
 
         {domainsLoading ? (
           <Alert severity="info">Loading custom domains...</Alert>
@@ -138,7 +141,7 @@ export default function TenantDomainsPage() {
                   <Button
                     variant="outlined"
                     color="success"
-                    disabled={addingDomain || !domainInput.trim()}
+                    disabled={billingBlocked || addingDomain || !domainInput.trim()}
                     onClick={async () => {
                       if (!id) return;
                       setAddingDomain(true);
@@ -202,7 +205,7 @@ export default function TenantDomainsPage() {
                               variant="outlined"
                               color="success"
                               size="small"
-                              disabled={domain.status === "verified" || verifyingDomainId === domain.id}
+                              disabled={billingBlocked || domain.status === "verified" || verifyingDomainId === domain.id}
                               onClick={async () => {
                                 if (!id) return;
                                 setVerifyingDomainId(domain.id);
@@ -228,7 +231,7 @@ export default function TenantDomainsPage() {
                               variant="outlined"
                               color="error"
                               size="small"
-                              disabled={removingDomainId === domain.id}
+                              disabled={billingBlocked || removingDomainId === domain.id}
                               onClick={async () => {
                                 if (!id) return;
                                 setRemovingDomainId(domain.id);

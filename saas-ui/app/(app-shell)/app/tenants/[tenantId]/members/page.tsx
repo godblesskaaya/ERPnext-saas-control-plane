@@ -26,6 +26,7 @@ import {
   toTenantDetailErrorMessage,
   updateTenantMemberRole,
 } from "../../../../../../domains/tenant-ops/application/tenantDetailUseCases";
+import { blockedActionReason, isTenantBillingBlocked } from "../../../../../../domains/tenant-ops/domain/lifecycleGates";
 import { TenantWorkspacePageLayout } from "../../../../../../domains/tenant-ops/ui/tenant-detail/components/TenantWorkspacePageLayout";
 import {
   tenantDetailQueryKeys,
@@ -55,6 +56,7 @@ export default function TenantMembersPage() {
   const [inviteRole, setInviteRole] = useState("admin");
   const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const billingBlocked = isTenantBillingBlocked(tenant);
 
   const invalidateMembersAndRoute = useCallback(async () => {
     if (!id) return;
@@ -149,6 +151,7 @@ export default function TenantMembersPage() {
           <Alert severity="error">{membersError}</Alert>
         ) : (
           <Stack spacing={2}>
+            {billingBlocked ? <Alert severity="warning">{blockedActionReason("Team membership updates")}</Alert> : null}
             <Card variant="outlined" sx={{ borderRadius: 3 }}>
               <CardContent>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
@@ -178,7 +181,7 @@ export default function TenantMembersPage() {
                   <Button
                     variant="outlined"
                     color="success"
-                    disabled={inviteMutation.isPending || !inviteEmail.trim()}
+                    disabled={billingBlocked || inviteMutation.isPending || !inviteEmail.trim()}
                     onClick={async () => {
                       if (!id) return;
                       setMembersActionError(null);
@@ -241,7 +244,7 @@ export default function TenantMembersPage() {
                                   // handled via mutation onError
                                 }
                               }}
-                              disabled={updatingMemberId === member.id}
+                              disabled={billingBlocked || updatingMemberId === member.id}
                               SelectProps={{ native: true }}
                             >
                               {memberRoles.map((role) => (
@@ -263,7 +266,7 @@ export default function TenantMembersPage() {
                               variant="outlined"
                               color="error"
                               size="small"
-                              disabled={removingMemberId === member.id}
+                              disabled={billingBlocked || removingMemberId === member.id}
                               onClick={async () => {
                                 if (!id) return;
                                 setRemovingMemberId(member.id);

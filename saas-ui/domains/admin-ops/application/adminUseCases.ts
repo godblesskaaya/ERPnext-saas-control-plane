@@ -1,4 +1,4 @@
-import type { ImpersonationLink } from "../../shared/lib/types";
+import type { ImpersonationLink, OptionalEndpointResult, TenantCreateResponse } from "../../shared/lib/types";
 import { getApiErrorMessage } from "../../shared/lib/api";
 import {
   fetchAdminJobLogs,
@@ -12,6 +12,7 @@ import {
   fetchTenantCatalog,
   requeueDeadLetterJob,
   requestImpersonationLink,
+  renewTenantCheckoutLink,
   suspendTenant,
   unsuspendTenant,
   triggerBillingDunningCycle,
@@ -85,6 +86,12 @@ export async function issueSupportImpersonationLink(
   reason: string
 ): Promise<{ supported: boolean; link: ImpersonationLink | null }> {
   return requestImpersonationLink(targetEmail, reason);
+}
+
+export async function renewTenantCheckout(
+  tenantId: string
+): Promise<OptionalEndpointResult<TenantCreateResponse>> {
+  return renewTenantCheckoutLink(tenantId);
 }
 
 export function toAdminErrorMessage(error: unknown, fallback: string): string {

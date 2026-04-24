@@ -14,7 +14,7 @@ import ssl
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from rq import Retry
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.bench.validators import ValidationError, domain_from_subdomain, validate_custom_domain, validate_subdomain
 from app.bench.commands import build_set_admin_password_command
@@ -425,6 +425,11 @@ def check_subdomain_availability(
 def list_tenants(request: Request, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[TenantOut]:
     query = (
         db.query(Tenant)
+        .options(
+            joinedload(Tenant.subscription).joinedload(Subscription.plan),
+            joinedload(Tenant.owner),
+            joinedload(Tenant.organization),
+        )
         .outerjoin(Subscription, Subscription.tenant_id == Tenant.id)
         .outerjoin(Plan, Subscription.plan_id == Plan.id)
     )
@@ -529,7 +534,12 @@ def list_tenants_paginated(
         )
     total = query.count()
     tenants = (
-        query.order_by(Tenant.created_at.desc())
+        query.options(
+            joinedload(Tenant.subscription).joinedload(Subscription.plan),
+            joinedload(Tenant.owner),
+            joinedload(Tenant.organization),
+        )
+        .order_by(Tenant.created_at.desc())
         .offset((page - 1) * limit)
         .limit(limit)
         .all()

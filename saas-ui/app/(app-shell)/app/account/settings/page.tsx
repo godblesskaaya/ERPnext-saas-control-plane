@@ -26,8 +26,6 @@ import {
 } from "../../../../../domains/account/application/accountUseCases";
 import {
   DEFAULT_PREFERENCES,
-  PREFERENCES_STORAGE_KEY,
-  parsePreferences,
   type NotificationPreferences,
 } from "../../../../../domains/account/domain/settingsPreferences";
 import { EmptyState, ErrorState, LoadingState } from "../../../../../domains/shell/components";
@@ -92,16 +90,6 @@ export default function DashboardSettingsPage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setPreferences(parsePreferences(window.localStorage.getItem(PREFERENCES_STORAGE_KEY)));
-    setPreferencesLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (!preferencesLoaded || typeof window === "undefined") return;
-    window.localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(preferences));
-  }, [preferences, preferencesLoaded]);
 
   const savePhone = async () => {
     setPhoneBusy(true);
@@ -129,7 +117,7 @@ export default function DashboardSettingsPage() {
       setPreferencesNotice(
         result.supported
           ? "Notification preferences saved to your account."
-          : "Notification preferences saved on this device."
+          : "Notification preferences endpoint is not available on this backend."
       );
       window.setTimeout(() => setPreferencesNotice(null), 1800);
     } catch (err) {
@@ -245,7 +233,7 @@ export default function DashboardSettingsPage() {
           Notification preferences
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-          Choose which alert categories should remain enabled for this browser session.
+          Choose which alert categories should be saved to your account across devices.
         </Typography>
 
         <Grid container spacing={1.5} sx={{ mt: 1.25 }}>

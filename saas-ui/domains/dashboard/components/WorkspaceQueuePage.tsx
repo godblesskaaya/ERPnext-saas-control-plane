@@ -1,30 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Alert, Box, Button, Card, CardContent, Chip, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { TenantCreateForm } from "./TenantCreateForm";
 import { TenantTable } from "./TenantTable";
 import { useNotifications } from "../../shared/components/NotificationsProvider";
 import { ErrorState, LoadingState, PageHeader } from "../../shell/components";
 import { api } from "../../shared/lib/api";
-import type { Job, Tenant, TenantCreateResponse, UserProfile } from "../../shared/lib/types";
+import type { Job, TenantCreateResponse } from "../../shared/lib/types";
 import {
   deriveWorkspaceQueueSnapshot,
-  isWorkspaceQueueSessionExpired,
   loadWorkspaceCurrentUserProfile,
   loadWorkspaceBillingPortal,
   loadWorkspaceQueue,
-  onWorkspaceSessionExpired,
-  queueWorkspaceBackup,
-  queueWorkspaceTenantDelete,
   resendWorkspaceVerificationEmail,
-  resetWorkspaceTenantAdminPassword,
   retryWorkspaceProvisioning,
   toWorkspaceQueueErrorMessage,
-  updateWorkspaceTenantPlan,
 } from "../../tenant-ops/application/workspaceQueueUseCases";
 
 const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed", "deleted", "canceled", "cancelled"]);
@@ -110,47 +105,34 @@ export function WorkspaceQueuePage({
   emptyStateActionLabel,
   emptyStateActionHref,
 }: QueueConfig) {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [metricsTenants, setMetricsTenants] = useState<Tenant[]>([]);
   const [jobsByTenant, setJobsByTenant] = useState<Record<string, Job | undefined>>({});
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
-  const [resendBusy, setResendBusy] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [page, setPage] = useState(1);
-  const [limit] = useState(20);
-  const [total, setTotal] = useState(0);
-  const [retryingTenantId, setRetryingTenantId] = useState<string | null>(null);
-  const [resumingCheckoutTenantId, setResumingCheckoutTenantId] = useState<string | null>(null);
+  const limit = 20;
   const [statusFilterValue, setStatusFilterValue] = useState("all");
   const [planFilter, setPlanFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [billingPortalUrl, setBillingPortalUrl] = useState<string | null>(null);
   const [billingPortalError, setBillingPortalError] = useState<string | null>(null);
   const { addNotification } = useNotifications();
-  const [updatingTenantId, setUpdatingTenantId] = useState<string | null>(null);
-  const totalPages = Math.max(1, Math.ceil(total / limit));
 
-  const handleError = useCallback(
-    (err: unknown, fallback: string) => {
-      if (isWorkspaceQueueSessionExpired(err)) {
-        setError("Session expired. Please log in again.");
-        router.push("/login?reason=session-expired");
-        return;
-      }
-      setError(toWorkspaceQueueErrorMessage(err, fallback));
-    },
-    [router]
-  );
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const queue = await loadWorkspaceQueue({
+  const queueQuery = useQuery({
+    queryKey: [
+      "workspace-queue",
+      page,
+      limit,
+      showStatusFilter,
+      statusFilter,
+      statusFilterValue,
+      search,
+      planFilter,
+      billingFilter,
+      paymentChannelFilter,
+      billingFilterMode,
+    ],
+    queryFn: () =>
+      loadWorkspaceQueue({
         page,
         limit,
         showStatusFilter,
@@ -161,63 +143,53 @@ export function WorkspaceQueuePage({
         billingFilter,
         paymentChannelFilter,
         billingFilterMode,
-      });
-      setTenants(queue.visibleTenants);
-      setMetricsTenants(queue.metricsTenants);
-      setTotal(queue.total);
-      if (queue.page !== page) {
-        setPage(queue.page);
-      }
-      setError(null);
-      setLastUpdated(new Date());
-      setJobsByTenant((previous) => {
-        const activeTenantIds = new Set(queue.visibleTenants.map((tenant) => tenant.id));
-        const next: Record<string, Job | undefined> = {};
-        for (const [tenantId, job] of Object.entries(previous)) {
-          if (activeTenantIds.has(tenantId)) {
-            next[tenantId] = job;
-          }
-        }
-        return next;
-      });
-    } catch (err) {
-      handleError(err, "Failed to load tenants");
-    } finally {
-      setLoading(false);
-    }
-  }, [
-    billingFilter,
-    billingFilterMode,
-    handleError,
-    limit,
-    page,
-    paymentChannelFilter,
-    planFilter,
-    search,
-    showStatusFilter,
-    statusFilter,
-    statusFilterValue,
-  ]);
+      }),
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
 
-  const loadCurrentUser = useCallback(async () => {
-    try {
-      const user = await loadWorkspaceCurrentUserProfile();
-      setCurrentUser(user);
-      if (user.email_verified) {
-        setVerificationNotice(null);
-      }
-    } catch (err) {
-      handleError(err, "Failed to load profile");
-    }
-  }, [handleError]);
+  const currentUserQuery = useQuery({
+    queryKey: ["workspace-current-user"],
+    queryFn: loadWorkspaceCurrentUserProfile,
+    staleTime: 60_000,
+  });
+
+  const tenants = useMemo(() => queueQuery.data?.visibleTenants ?? [], [queueQuery.data?.visibleTenants]);
+  const metricsTenants = useMemo(() => queueQuery.data?.metricsTenants ?? [], [queueQuery.data?.metricsTenants]);
+  const total = queueQuery.data?.total ?? 0;
+  const currentUser = currentUserQuery.data ?? null;
+  const error = queueQuery.error
+    ? toWorkspaceQueueErrorMessage(queueQuery.error, "Failed to load tenants")
+    : currentUserQuery.error
+      ? toWorkspaceQueueErrorMessage(currentUserQuery.error, "Failed to load profile")
+      : null;
+  const loading = queueQuery.isFetching || currentUserQuery.isFetching;
+  const lastUpdated = queueQuery.dataUpdatedAt ? new Date(queueQuery.dataUpdatedAt) : null;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (queueQuery.data?.page && queueQuery.data.page !== page) {
+      setPage(queueQuery.data.page);
+    }
+  }, [page, queueQuery.data?.page]);
 
   useEffect(() => {
-    void loadCurrentUser();
-  }, [loadCurrentUser]);
+    if (!queueQuery.data) return;
+    setJobsByTenant((previous) => {
+      const activeTenantIds = new Set(queueQuery.data.visibleTenants.map((tenant) => tenant.id));
+      const next: Record<string, Job | undefined> = {};
+      for (const [tenantId, job] of Object.entries(previous)) {
+        if (activeTenantIds.has(tenantId)) next[tenantId] = job;
+      }
+      return next;
+    });
+  }, [queueQuery.data]);
+
+  useEffect(() => {
+    if (currentUser?.email_verified) {
+      setVerificationNotice(null);
+    }
+  }, [currentUser?.email_verified]);
 
   useEffect(() => {
     setPage(1);
@@ -241,12 +213,6 @@ export function WorkspaceQueuePage({
     }
   }, [searchParams]);
 
-  useEffect(() => {
-    return onWorkspaceSessionExpired(() => {
-      setError("Session expired. Please log in again.");
-      router.push("/login?reason=session-expired");
-    });
-  }, [router]);
 
   const activeJobs = useMemo(
     () => Object.values(jobsByTenant).filter((job): job is Job => Boolean(job)).length,
@@ -401,24 +367,21 @@ export function WorkspaceQueuePage({
     setJobsByTenant((previous) => ({ ...previous, [tenantId]: job }));
   };
 
-  const resendVerification = async () => {
-    setResendBusy(true);
-    try {
-      const result = await resendWorkspaceVerificationEmail();
+  const resendVerificationMutation = useMutation({
+    mutationFn: resendWorkspaceVerificationEmail,
+    onSuccess: (result) => {
       setVerificationNotice(result.message || "Verification email sent. Check your inbox.");
-    } catch (err) {
+    },
+    onError: (err) => {
       setVerificationNotice(toWorkspaceQueueErrorMessage(err, "Failed to resend verification email."));
-    } finally {
-      setResendBusy(false);
-    }
-  };
+    },
+  });
 
-  const retryProvisioning = async (tenantId: string) => {
-    setRetryingTenantId(tenantId);
-    try {
-      const result = await retryWorkspaceProvisioning(tenantId);
+  const retryProvisioningMutation = useMutation({
+    mutationFn: retryWorkspaceProvisioning,
+    onSuccess: async (result, tenantId) => {
       if (!result.supported) {
-        setError("Retry endpoint is not available on this backend.");
+        setBillingPortalError("Retry endpoint is not available on this backend.");
         return;
       }
       setTenantJob(tenantId, result.data);
@@ -427,36 +390,37 @@ export function WorkspaceQueuePage({
         title: "Provisioning retried",
         body: "A new provisioning job has been queued.",
       });
-      await load();
-    } catch (err) {
-      setError(toWorkspaceQueueErrorMessage(err, "Failed to retry provisioning."));
-    } finally {
-      setRetryingTenantId(null);
-    }
-  };
+      await queueQuery.refetch();
+    },
+    onError: (err) => {
+      setBillingPortalError(toWorkspaceQueueErrorMessage(err, "Failed to retry provisioning."));
+    },
+  });
 
-  const updateTenantPlan = async (tenantId: string, payload: { plan: string; chosen_app?: string }) => {
-    setUpdatingTenantId(tenantId);
-    try {
-      const result = await updateWorkspaceTenantPlan(tenantId, payload);
-      if (!result.supported) {
-        setError("Plan update is not available on this backend.");
+  const resumeCheckoutMutation = useMutation({
+    mutationFn: (tenantId: string) => api.renewCheckout(tenantId),
+    onSuccess: async (resumed) => {
+      if (!resumed.supported) {
+        setBillingPortalError("Checkout resume is not available on this backend.");
         return;
       }
-      setTenants((prev) => prev.map((tenant) => (tenant.id === tenantId ? result.data : tenant)));
-      setMetricsTenants((prev) => prev.map((tenant) => (tenant.id === tenantId ? result.data : tenant)));
+      const checkoutUrl = resumed.data.checkout_url;
+      if (!checkoutUrl) {
+        setBillingPortalError("No checkout URL was returned. Open tenant billing to continue.");
+        return;
+      }
+      window.open(checkoutUrl, "_blank", "noopener,noreferrer");
       addNotification({
         type: "success",
-        title: "Plan updated",
-        body: `Workspace ${result.data.domain} is now on ${result.data.plan}.`,
+        title: "Checkout ready",
+        body: "Opened the latest checkout session in a new tab.",
       });
-    } catch (err) {
-      setError(toWorkspaceQueueErrorMessage(err, "Failed to update plan."));
-    } finally {
-      setUpdatingTenantId(null);
-    }
-  };
-
+      await queueQuery.refetch();
+    },
+    onError: (err) => {
+      setBillingPortalError(toWorkspaceQueueErrorMessage(err, "Failed to resume checkout"));
+    },
+  });
   const canCreateTenants = !currentUser || currentUser.email_verified;
 
   const loadBillingPortal = async () => {
@@ -475,35 +439,6 @@ export function WorkspaceQueuePage({
       });
     } catch (err) {
       setBillingPortalError(toWorkspaceQueueErrorMessage(err, "Unable to open ERPNext billing."));
-    }
-  };
-
-  const resumeTenantCheckout = async (tenantId: string) => {
-    setResumingCheckoutTenantId(tenantId);
-    try {
-      const resumed = await api.renewCheckout(tenantId);
-      if (!resumed.supported) {
-        setError("Checkout resume is not available on this backend.");
-        return;
-      }
-
-      const checkoutUrl = resumed.data.checkout_url;
-      if (!checkoutUrl) {
-        setError("No checkout URL was returned. Open tenant billing to continue.");
-        return;
-      }
-
-      window.open(checkoutUrl, "_blank", "noopener,noreferrer");
-      addNotification({
-        type: "success",
-        title: "Checkout ready",
-        body: "Opened the latest checkout session in a new tab.",
-      });
-      await load();
-    } catch (err) {
-      handleError(err, "Failed to resume checkout");
-    } finally {
-      setResumingCheckoutTenantId(null);
     }
   };
 
@@ -528,7 +463,7 @@ export function WorkspaceQueuePage({
                   size="small"
                   sx={{ borderRadius: 1.5 }}
                   onClick={() => {
-                    void load();
+                    void queueQuery.refetch();
                   }}
                   disabled={loading}
                 >
@@ -640,12 +575,12 @@ export function WorkspaceQueuePage({
                 color="warning"
                 size="small"
                 sx={{ borderRadius: 999, alignSelf: { xs: "flex-start", sm: "auto" } }}
-                disabled={resendBusy}
+                disabled={resendVerificationMutation.isPending}
                 onClick={() => {
-                  void resendVerification();
+                  resendVerificationMutation.mutate();
                 }}
               >
-                {resendBusy ? "Sending..." : "Resend verification"}
+                {resendVerificationMutation.isPending ? "Sending..." : "Resend verification"}
               </Button>
             </Stack>
             {verificationNotice ? (
@@ -834,11 +769,11 @@ export function WorkspaceQueuePage({
               title: "Workspace requested",
               body: `Workspace ${result.tenant.domain} is queued for setup.`,
             });
-            await load();
+            await queueQuery.refetch();
           }}
           canCreate={canCreateTenants}
           verificationNotice={verificationNotice}
-          onResendVerification={resendVerification}
+          onResendVerification={async () => { void (await resendVerificationMutation.mutateAsync()); }}
         />
       ) : null}
 
@@ -861,7 +796,7 @@ export function WorkspaceQueuePage({
               color="error"
               size="small"
               onClick={() => {
-                void load();
+                void queueQuery.refetch();
               }}
             >
               Retry
@@ -875,8 +810,8 @@ export function WorkspaceQueuePage({
           routeScope={routeScope}
           tenants={pagedTenants}
           jobsByTenant={jobsByTenant}
-          onResumeCheckout={resumeTenantCheckout}
-          resumingCheckoutTenantId={resumingCheckoutTenantId}
+          onResumeCheckout={(tenantId) => Promise.resolve(resumeCheckoutMutation.mutate(tenantId))}
+          resumingCheckoutTenantId={resumeCheckoutMutation.variables ?? null}
           paymentCenterHref={billingFollowUpHref}
           paymentCenterLabel={billingFollowUpLabel}
           showPaymentChannel={Boolean(paymentChannelFilter && paymentChannelFilter.length)}
@@ -885,63 +820,14 @@ export function WorkspaceQueuePage({
               ? `Payment channel filter: ${paymentChannelFilter.join(", ").replace(/_/g, " ")}`
               : undefined
           }
-          onBackup={async (id) => {
-            try {
-              const job = await queueWorkspaceBackup(id);
-              setTenantJob(id, job);
-              setError(null);
-              addNotification({
-                type: "info",
-                title: "Backup started",
-                body: "A backup job was queued for this workspace.",
-              });
-              await load();
-            } catch (err) {
-              handleError(err, "Failed to trigger backup");
-              throw err;
-            }
-          }}
-          onResetAdminPassword={async (id, newPassword) => {
-            try {
-              const result = await resetWorkspaceTenantAdminPassword(id, newPassword);
-              setError(null);
-              addNotification({
-                type: "warning",
-                title: isAdminScope ? "Admin password reset" : "Workspace password reset",
-                body: `Credentials reset for ${result.domain}. Share securely with ${isAdminScope ? "the owner" : "your workspace owner"}.`,
-              });
-              return result;
-            } catch (err) {
-              handleError(err, isAdminScope ? "Failed to reset admin password" : "Failed to reset workspace password");
-              throw err;
-            }
-          }}
-          onDelete={async (id) => {
-            try {
-              const job = await queueWorkspaceTenantDelete(id);
-              setTenantJob(id, job);
-              setError(null);
-              addNotification({
-                type: "warning",
-                title: "Workspace deletion queued",
-                body: "Deletion has been scheduled. Monitor job logs for completion.",
-              });
-              await load();
-            } catch (err) {
-              handleError(err, "Failed to delete tenant");
-              throw err;
-            }
-          }}
           onJobUpdate={(job) => {
             setTenantJob(job.tenant_id, job);
             if (TERMINAL_JOB_STATUSES.has(job.status.toLowerCase())) {
-              void load();
+              void queueQuery.refetch();
             }
           }}
-          onRetryProvisioning={retryProvisioning}
-          retryingTenantId={retryingTenantId}
-          onUpdatePlan={updateTenantPlan}
-          updatingTenantId={updatingTenantId}
+          onRetryProvisioning={(tenantId) => Promise.resolve(retryProvisioningMutation.mutate(tenantId))}
+          retryingTenantId={retryProvisioningMutation.variables ?? null}
           emptyStateTitle={emptyStateTitle}
           emptyStateBody={emptyStateBody}
           emptyStateActionLabel={emptyStateActionLabel}

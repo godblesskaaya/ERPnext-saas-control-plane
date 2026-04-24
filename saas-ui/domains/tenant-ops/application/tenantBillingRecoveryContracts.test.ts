@@ -110,15 +110,14 @@ test("tenant detail sections keep billing-block UX markers for gated actions", (
   }
 });
 
-test("admin tenant console keeps billing suspension unsuspend guard rails", () => {
+test("admin tenant console redirects lifecycle interventions into tenant detail", () => {
   const source = readSource("domains/admin-ops/components/admin-console/_components/AdminTenantsView.tsx");
 
   for (const marker of [
-    'normalizedStatus === "suspended_billing"',
-    "disabled={busyTenantId === tenant.id || billingSuspended}",
-    '"Resolve billing"',
+    'href={`/app/tenants/${tenant.id}/overview`}',
+    "Suspend, unsuspend, and billing recovery live on tenant details.",
   ]) {
-    assert.equal(source.includes(marker), true, `missing admin unsuspend billing marker: ${marker}`);
+    assert.equal(source.includes(marker), true, `missing admin tenant detail redirect marker: ${marker}`);
   }
 });
 
@@ -132,20 +131,28 @@ test("billing-gate wrappers keep delegating to shared helper contract", () => {
   }
 });
 
-test("tenant action entry points keep blocked-action copy wiring markers", () => {
-  const backupsSource = readSource("app/(app-shell)/app/tenants/[tenantId]/backups/page.tsx");
-  const domainsSource = readSource("app/(app-shell)/app/tenants/[tenantId]/domains/page.tsx");
-  const membersSource = readSource("app/(app-shell)/app/tenants/[tenantId]/members/page.tsx");
+test("tenant heavy actions move from queue table to tenant detail surface", () => {
+  const overviewSource = readSource("app/(app-shell)/app/tenants/[tenantId]/overview/page.tsx");
   const tenantTableSource = readSource("domains/dashboard/components/TenantTable.tsx");
-  const dashboardGateSource = readSource("domains/dashboard/domain/tenantBillingGate.ts");
-  const lifecycleGatesSource = readSource("domains/tenant-ops/domain/lifecycleGates.ts");
 
-  for (const source of [dashboardGateSource, lifecycleGatesSource]) {
-    assert.equal(source.includes("billingBlockedActionReason"), true, "wrapper should delegate blocked-action copy to shared helper");
+  for (const marker of [
+    "Quick actions",
+    "Reset admin login",
+    "Delete workspace",
+    "Credential resets were moved from table actions into the tenant details surface.",
+    "Destructive workspace deletion now lives on the tenant overview so operators leave list views lightweight.",
+  ]) {
+    assert.equal(overviewSource.includes(marker), true, `missing tenant detail heavy-action marker: ${marker}`);
   }
 
-  assert.equal(backupsSource.includes('blockedActionReason("Backup restore")'), true);
-  assert.equal(domainsSource.includes('blockedActionReason("Custom domain updates")'), true);
-  assert.equal(membersSource.includes('blockedActionReason("Team membership updates")'), true);
-  assert.equal(tenantTableSource.includes('blockedActionReasonFromOperations("Backup and credential reset actions")'), true);
+  for (const marker of [
+    "Heavy workspace actions now live in tenant details.",
+    'component={Link} href={`/app/tenants/${tenant.id}/overview`}',
+  ]) {
+    assert.equal(tenantTableSource.includes(marker), true, `missing queue table redirect marker: ${marker}`);
+  }
+
+  for (const removedMarker of ["Reset admin login", "Delete workspace", "Backup now"]) {
+    assert.equal(tenantTableSource.includes(removedMarker), false, `queue table should not keep heavy action marker: ${removedMarker}`);
+  }
 });

@@ -1,11 +1,12 @@
 import { getApiErrorMessage } from "../../shared/lib/api";
-import type { Job, Tenant } from "../../shared/lib/types";
+import type { Job, Tenant, TenantRuntimeConsistencyReport } from "../../shared/lib/types";
 import {
   fetchAdminJobs,
   fetchApiHealth,
   fetchAuthHealth,
   fetchBillingHealth,
   fetchTenantList,
+  fetchTenantRuntimeConsistency,
   rebuildAssets,
   syncTenantTls,
   type ApiHealth,
@@ -18,24 +19,34 @@ export type PlatformHealthSnapshot = {
   tenants: Tenant[];
   authHealth: string;
   billingHealth: string;
+  tenantRuntimeConsistency: TenantRuntimeConsistencyReport | null;
 };
 
 export async function loadPlatformHealthSnapshot(): Promise<PlatformHealthSnapshot> {
-  const [{ health, available }, jobsResult, tenantList, authResult, billingResult] = await Promise.all([
+  const results = await Promise.allSettled([
     fetchApiHealth(),
     fetchAdminJobs(80),
     fetchTenantList(),
     fetchAuthHealth(),
     fetchBillingHealth(),
-  ]);
+    fetchTenantRuntimeConsistency(),
+  ] as const);
+
+  const healthResult = results[0].status === "fulfilled" ? results[0].value : { health: null, available: false };
+  const jobsResult = results[1].status === "fulfilled" ? results[1].value : { supported: false, data: null };
+  const tenantList = results[2].status === "fulfilled" ? results[2].value : [];
+  const authResult = results[3].status === "fulfilled" ? results[3].value : { supported: false, data: null };
+  const billingResult = results[4].status === "fulfilled" ? results[4].value : { supported: false, data: null };
+  const consistencyResult = results[5].status === "fulfilled" ? results[5].value : { supported: false, data: null };
 
   return {
-    health,
-    healthAvailable: available,
+    health: healthResult.health,
+    healthAvailable: healthResult.available,
     jobs: jobsResult.supported ? (jobsResult.data ?? []) : [],
     tenants: tenantList,
-    authHealth: authResult.supported ? (authResult.data.message ?? "ok") : "unsupported",
-    billingHealth: billingResult.supported ? (billingResult.data.message ?? "ok") : "unsupported",
+    authHealth: authResult.supported ? (authResult.data?.message ?? "ok") : "unsupported",
+    billingHealth: billingResult.supported ? (billingResult.data?.message ?? "ok") : "unsupported",
+    tenantRuntimeConsistency: consistencyResult.supported ? (consistencyResult.data ?? null) : null,
   };
 }
 

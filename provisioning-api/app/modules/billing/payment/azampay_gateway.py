@@ -10,6 +10,16 @@ from app.modules.billing.payment.base import CheckoutResult, PaymentGateway, Web
 
 
 class AzamPayGateway(PaymentGateway):
+    @staticmethod
+    def _amount_from_minor_units(value: int | None, *, default: str) -> str:
+        if value is None:
+            return default
+        return f"{(int(value) or 0) / 100:.2f}"
+
+    def _currency_for_invoice(self, invoice, *, default: str) -> str:
+        if invoice is None:
+            return default
+        return str(getattr(invoice, "currency", None) or default)
     @property
     def provider_name(self) -> str:
         return "azampay"
@@ -80,6 +90,10 @@ class AzamPayGateway(PaymentGateway):
         return f"{parsed.scheme}://{parsed.netloc}"
 
     def create_checkout(self, tenant, owner) -> CheckoutResult:
+        return self.create_invoice_checkout(None, tenant, owner)
+
+    def create_invoice_checkout(self, invoice, tenant, owner, *, return_url: str | None = None, cancel_url: str | None = None, channel_hint: str | None = None) -> CheckoutResult:
+        del channel_hint
         settings = get_settings()
         if self.mock_mode:
             if not settings.mock_billing_allowed:
@@ -102,14 +116,14 @@ class AzamPayGateway(PaymentGateway):
             "clientId": settings.azampay_client_id,
             "vendorId": settings.azampay_vendor_id or settings.azampay_client_id,
             "vendorName": settings.azampay_vendor_name or tenant.company_name,
-            "amount": settings.azampay_checkout_amount,
-            "currency": settings.azampay_currency,
+            "amount": self._amount_from_minor_units(getattr(invoice, "amount_due", None) if invoice is not None else None, default=settings.azampay_checkout_amount),
+            "currency": self._currency_for_invoice(invoice, default=settings.azampay_currency),
             "externalId": tenant.id,
             "language": settings.azampay_language,
-            "redirectSuccessUrl": settings.billing_checkout_success_url,
-            "redirectFailUrl": settings.billing_checkout_cancel_url,
+            "redirectSuccessUrl": return_url or settings.billing_checkout_success_url,
+            "redirectFailUrl": cancel_url or settings.billing_checkout_cancel_url,
             "requestOrigin": request_origin,
-            "cart": {"items": [{"name": f"{tenant.company_name} - {tenant.plan}"}]},
+            "cart": {"items": [{"name": f"{tenant.company_name} - {(getattr(invoice, 'invoice_number', None) or tenant.plan)}"}]},
         }
         endpoint = f"{self._api_base_url()}{settings.azampay_checkout_path}"
         with httpx.Client(timeout=20.0) as client:

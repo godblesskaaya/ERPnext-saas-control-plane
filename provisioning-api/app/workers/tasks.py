@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import traceback
+from datetime import timedelta, timezone
 
 from sqlalchemy import or_
 
@@ -11,14 +12,16 @@ from app.bench.commands import (
 from app.bench.runner import BenchCommandError, run_bench_command
 from app.config import get_settings
 from app.db import SessionLocal
+from app.models import BackupManifest, BillingInvoice, Job, PaymentAttempt, Tenant, User
 from app.modules.observability.logging import get_logger
-from app.models import BackupManifest, Job, Tenant, User
+from app.queue.redis import get_redis_connection
 from app.modules.subscription.models import Subscription
 from app.modules.subscription.trial_lifecycle import resolve_trial_subscription_status
 from app.schemas import BillingPayload
 from app.modules.audit.service import record_audit_event
+from app.modules.billing.reconciliation import reconcile_tenant_billing
 from app.modules.tenant.policy import tenant_subscription_status
-from app.modules.support.dunning import resolve_dunning_context
+from app.modules.support.dunning import is_billing_dunning_candidate, resolve_dunning_context
 from app.modules.tenant.backup_service import persist_backup_manifest
 from app.modules.support.job_service import append_log, mark_job_failed, mark_job_running, mark_job_success
 from app.modules.notifications.service import NotificationMessage, notification_service
@@ -32,6 +35,27 @@ from app.utils.time import utcnow
 platform_erp_client = PlatformERPClient()
 log = get_logger(__name__)
 settings = get_settings()
+
+
+RUNTIME_EXPECTED_STATUSES = frozenset({
+    "active",
+    "suspended",
+    "suspended_admin",
+    "suspended_billing",
+    "upgrading",
+    "restoring",
+})
+
+
+def _tenant_runtime_exists(tenant: Tenant) -> bool:
+    runtime_name = (tenant.site_name or tenant.domain or "").strip()
+    return platform_erp_client.runtime_exists(runtime_name)
+
+
+def _tenant_runtime_visible_for_dunning(tenant: Tenant) -> bool:
+    if (tenant.status or "").strip().lower() not in RUNTIME_EXPECTED_STATUSES:
+        return True
+    return _tenant_runtime_exists(tenant)
 
 
 def _bench_output(exc: BenchCommandError) -> str:
@@ -145,7 +169,13 @@ def provision_tenant(job_id: str, tenant_id: str, owner_email: str, admin_passwo
         )
         task_log.info("tenant.provision.succeeded", platform_customer_id=customer_id)
         owner = db.query(User).filter(User.email == owner_email).first()
-        notification_service.send_provisioning_complete(owner_email, tenant.domain, owner.phone if owner else None)
+        if owner and owner.notification_provisioning_alerts:
+            notification_service.send_provisioning_success(
+                owner.email,
+                tenant.domain,
+                f"https://{tenant.domain}",
+                owner.phone,
+            )
     except BenchCommandError as exc:
         job, tenant = _load_entities(db, job_id, tenant_id)
         append_log(job, exc.result.stdout)
@@ -251,8 +281,8 @@ def backup_tenant(job_id: str, tenant_id: str) -> None:
             s3_key=manifest.s3_key,
         )
         owner = db.get(User, tenant.owner_id)
-        if owner:
-            notification_service.send_backup_succeeded(owner.email, tenant.domain, manifest.file_size_bytes, owner.phone)
+        if owner and owner.notification_provisioning_alerts:
+            notification_service.send_backup_completed(owner.email, tenant.domain, manifest.created_at, owner.phone)
     except Exception as exc:
         job, tenant = _load_entities(db, job_id, tenant_id)
         append_log(job, traceback.format_exc())
@@ -561,6 +591,62 @@ def sync_tenant_tls_routes_task(admin_id: str | None = None, prime_certs: bool =
         db.close()
 
 
+def _as_utc(value):
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _send_trial_expiration_warnings(db, *, now, dry_run: bool) -> int:
+    warning_window_end = now + timedelta(days=7)
+    warning_candidates = (
+        db.query(Subscription)
+        .filter(
+            Subscription.status == "trialing",
+            Subscription.trial_ends_at.isnot(None),
+            Subscription.trial_ends_at > now,
+            Subscription.trial_ends_at <= warning_window_end,
+        )
+        .all()
+    )
+    if not warning_candidates or dry_run:
+        return 0
+
+    redis = get_redis_connection()
+    sent_count = 0
+    now_utc = _as_utc(now)
+    for subscription in warning_candidates:
+        trial_end_utc = _as_utc(subscription.trial_ends_at)
+        if trial_end_utc is None or now_utc is None:
+            continue
+        days_remaining = max(0, (trial_end_utc.date() - now_utc.date()).days)
+        warning_days = 7 if days_remaining >= 4 else 3
+        if warning_days not in {7, 3}:
+            continue
+        tenant = db.get(Tenant, subscription.tenant_id)
+        if tenant is None or not tenant.owner_id:
+            continue
+        owner = db.get(User, tenant.owner_id)
+        if owner is None:
+            continue
+        key = f"trial_warning_sent:{subscription.id}:{warning_days}"
+        if not redis.set(key, "1", nx=True, ex=45 * 24 * 60 * 60):
+            continue
+        if notification_service.send_trial_expiring_soon(
+            owner.email,
+            tenant.domain,
+            subscription.trial_ends_at,
+            warning_days,
+            owner.phone,
+        ):
+            sent_count += 1
+        else:
+            redis.delete(key)
+    return sent_count
+
+
 def run_trial_lifecycle_cycle(admin_id: str | None = None, dry_run: bool = False) -> None:
     db = SessionLocal()
     task_log = log.bind(task="run_trial_lifecycle_cycle", actor_id=admin_id, dry_run=dry_run)
@@ -573,10 +659,13 @@ def run_trial_lifecycle_cycle(admin_id: str | None = None, dry_run: bool = False
         "past_due": 0,
         "tenant_pending_payment": 0,
         "tenant_suspended": 0,
+        "trial_warnings_sent": 0,
         "dry_run": dry_run,
     }
 
     try:
+        summary["trial_warnings_sent"] = _send_trial_expiration_warnings(db, now=now, dry_run=dry_run)
+
         candidates = (
             db.query(Subscription)
             .filter(
@@ -662,6 +751,87 @@ def run_trial_lifecycle_cycle(admin_id: str | None = None, dry_run: bool = False
         db.close()
 
 
+def run_billing_reconciliation_cycle(admin_id: str | None = None) -> None:
+    db = SessionLocal()
+    task_log = log.bind(task="run_billing_reconciliation_cycle", actor_id=admin_id)
+    task_log.info("billing.reconciliation_cycle.start")
+    admin = db.get(User, admin_id) if admin_id else None
+    summary = {
+        "candidate_tenants": 0,
+        "inspected_invoices": 0,
+        "reconciled_invoices": 0,
+        "settled_invoices": 0,
+        "payment_attempts_updated": 0,
+        "entitlement_repairs": 0,
+        "provisioning_requeues": 0,
+        "exceptions_opened": 0,
+        "exceptions_resolved": 0,
+        "failed_tenants": 0,
+    }
+
+    try:
+        candidates = (
+            db.query(Tenant)
+            .outerjoin(Subscription, Subscription.tenant_id == Tenant.id)
+            .outerjoin(BillingInvoice, BillingInvoice.tenant_id == Tenant.id)
+            .outerjoin(PaymentAttempt, PaymentAttempt.tenant_id == Tenant.id)
+            .filter(
+                or_(
+                    Tenant.status.in_(["pending_payment", "pending", "suspended_billing", "failed"]),
+                    Subscription.status.in_(["past_due", "pending", "cancelled"]),
+                    BillingInvoice.invoice_status.in_(["payment_pending", "past_due", "draft"]),
+                    PaymentAttempt.status.in_([
+                        "created",
+                        "checkout_started",
+                        "pending_provider_confirmation",
+                        "settlement_pending",
+                        "reconciliation_required",
+                        "paid",
+                    ]),
+                )
+            )
+            .order_by(Tenant.updated_at.asc())
+            .distinct()
+            .all()
+        )
+        summary["candidate_tenants"] = len(candidates)
+
+        for tenant in candidates:
+            try:
+                tenant_summary = reconcile_tenant_billing(db, tenant=tenant)
+            except Exception:
+                db.rollback()
+                summary["failed_tenants"] += 1
+                task_log.exception("billing.reconciliation_cycle.tenant_failed", tenant_id=tenant.id)
+                continue
+
+            summary["inspected_invoices"] += tenant_summary.inspected_invoice_count
+            summary["reconciled_invoices"] += tenant_summary.reconciled_invoice_count
+            summary["settled_invoices"] += tenant_summary.settled_invoice_count
+            summary["payment_attempts_updated"] += tenant_summary.payment_attempts_updated
+            summary["entitlement_repairs"] += tenant_summary.entitlement_repairs
+            summary["provisioning_requeues"] += tenant_summary.provisioning_requeues
+            summary["exceptions_opened"] += tenant_summary.exceptions_opened
+            summary["exceptions_resolved"] += tenant_summary.exceptions_resolved
+
+        record_audit_event(
+            db,
+            action="billing.reconciliation_cycle_completed",
+            resource="billing",
+            actor=admin,
+            actor_role="system" if admin is None else None,
+            metadata=summary,
+        )
+        db.commit()
+        task_log.info("billing.reconciliation_cycle.completed", **summary)
+    except Exception:
+        db.rollback()
+        task_log.exception("billing.reconciliation_cycle.failed")
+        raise
+    finally:
+        db.close()
+
+
 def run_billing_dunning_cycle(admin_id: str | None = None, dry_run: bool = False) -> None:
     db = SessionLocal()
     task_log = log.bind(task="run_billing_dunning_cycle", actor_id=admin_id, dry_run=dry_run)
@@ -690,9 +860,12 @@ def run_billing_dunning_cycle(admin_id: str | None = None, dry_run: bool = False
             .order_by(Tenant.updated_at.asc())
             .all()
         )
-        summary["flagged"] = len(flagged)
+        flagged = [tenant for tenant in flagged if is_billing_dunning_candidate(tenant)]
+        visible_flagged = [tenant for tenant in flagged if _tenant_runtime_visible_for_dunning(tenant)]
+        summary["flagged"] = len(visible_flagged)
+        summary["skipped_missing_runtime"] = len(flagged) - len(visible_flagged)
 
-        for tenant in flagged:
+        for tenant in visible_flagged:
             owner = db.get(User, tenant.owner_id) if tenant.owner_id else None
             context = resolve_dunning_context(tenant, platform_erp_client)
             due_for_retry = bool(context.next_retry_at and context.next_retry_at <= now)
@@ -735,10 +908,13 @@ def run_billing_dunning_cycle(admin_id: str | None = None, dry_run: bool = False
                         },
                     )
 
+            should_suspend_runtime = _tenant_runtime_exists(tenant)
+
             if (
                 due_for_escalation
                 and tenant.status not in {"suspended_billing", "deleted", "deleting", "pending_deletion"}
                 and tenant_subscription_status(tenant) not in {"active", "trialing"}
+                and should_suspend_runtime
             ):
                 summary["due_for_escalation"] += 1
                 if not dry_run:

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { memo, useMemo, type ReactNode } from "react";
 import Link from "next/link";
 import {
   Alert,
@@ -9,15 +9,6 @@ import {
   Card,
   CardContent,
   Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
   Stack,
   Table,
   TableBody,
@@ -25,15 +16,13 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  TextField,
   Typography,
 } from "@mui/material";
 
-import type { Job, ResetAdminPasswordResult, Tenant } from "../../shared/lib/types";
-import { JobLogPanel } from "../../shared/components/JobLogPanel";
+import type { Job, Tenant } from "../../shared/lib/types";
 import { EmptyState } from "../../shell/components";
-import { BUSINESS_APP_OPTIONS, getPlanMeta } from "../../onboarding/components/PlanSelector";
-import { blockedActionReasonFromOperations, isTenantBillingBlockedFromOperations } from "../domain/tenantBillingGate";
+import { TenantStatusChip } from "../../shared/components/TenantStatusChip";
+import { formatTimestamp, getPlanChip, getTenantRowToneSx, getTenantStatusHint } from "../../shared/lib/tenantDisplayUtils";
 
 type Props = {
   routeScope?: "workspace" | "admin";
@@ -43,14 +32,9 @@ type Props = {
   resumingCheckoutTenantId?: string | null;
   paymentCenterHref?: string;
   paymentCenterLabel?: string;
-  onBackup: (id: string) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
-  onResetAdminPassword: (id: string, newPassword?: string) => Promise<ResetAdminPasswordResult>;
   onJobUpdate?: (job: Job) => void;
   onRetryProvisioning?: (id: string) => Promise<void>;
   retryingTenantId?: string | null;
-  onUpdatePlan?: (id: string, payload: { plan: string; chosen_app?: string }) => Promise<void>;
-  updatingTenantId?: string | null;
   emptyStateTitle?: string;
   emptyStateBody?: string;
   emptyStateActionLabel?: string;
@@ -58,65 +42,6 @@ type Props = {
   filterLabel?: string;
   showPaymentChannel?: boolean;
 };
-
-type ConfirmAction = {
-  type: "delete" | "reset";
-  tenant: Tenant;
-  phrase: string;
-};
-
-function statusChipStyles(status: string): { color: "default" | "error" | "success" | "warning"; sx?: Record<string, string> } {
-  const normalized = status.toLowerCase();
-  if (normalized === "active") return { color: "success" };
-  if (["provisioning", "pending", "deleting", "upgrading", "restoring", "pending_deletion"].includes(normalized)) {
-    return { color: "warning" };
-  }
-  if (normalized === "failed") return { color: "error" };
-  if (normalized === "deleted") return { color: "default" };
-  if (["suspended", "suspended_admin", "suspended_billing"].includes(normalized)) {
-    return { color: "warning", sx: { bgcolor: "#ffedd5", color: "#9a3412" } };
-  }
-  return { color: "default", sx: { bgcolor: "#e0f2fe", color: "#0369a1" } };
-}
-
-function statusHint(status: string, isAdminScope: boolean): string {
-  const normalized = status.toLowerCase();
-  if (normalized === "active") return isAdminScope ? "Serving daily operations" : "Serving daily workspace activity";
-  if (normalized === "pending_payment") return "Waiting for checkout confirmation";
-  if (normalized === "pending" || normalized === "provisioning") return "Setup in progress";
-  if (normalized === "upgrading") return "Upgrade running";
-  if (normalized === "restoring") return "Restore in progress";
-  if (normalized === "pending_deletion") return "Deletion scheduled";
-  if (normalized === "failed") return isAdminScope ? "Needs operator follow-up" : "Needs support follow-up";
-  if (normalized === "suspended_admin") return isAdminScope ? "Paused by admin" : "Access paused";
-  if (normalized === "suspended_billing") return "Paused for billing";
-  if (normalized === "suspended") return "Access paused";
-  if (normalized === "deleted") return "Archived";
-  return "Status under review";
-}
-
-function rowTone(status: string): string | undefined {
-  const normalized = status.toLowerCase();
-  if (normalized === "failed") return "rgba(254, 242, 242, 1)";
-  if (["pending", "pending_payment", "provisioning", "upgrading", "restoring", "pending_deletion"].includes(normalized)) {
-    return "rgba(255, 251, 235, 0.65)";
-  }
-  return undefined;
-}
-
-function planChipStyle(plan: string): Record<string, string> {
-  const normalized = plan.toLowerCase();
-  if (normalized === "enterprise") return { bgcolor: "#e2e8f0", color: "#334155" };
-  if (normalized === "business") return { bgcolor: "rgba(13,106,106,0.15)", color: "primary.main" };
-  return { bgcolor: "#fef3c7", color: "#92400e" };
-}
-
-function formatDate(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
 
 function getBillingLabel(tenant: Tenant): string {
   if (tenant.billing_status?.trim()) return tenant.billing_status;
@@ -129,11 +54,7 @@ function getBillingLabel(tenant: Tenant): string {
 
 const PAYMENT_ACTION_STATUSES = new Set(["pending", "pending_payment", "suspended_billing"]);
 
-function canResumeCheckout(status: string): boolean {
-  return ["pending", "pending_payment"].includes(status.toLowerCase());
-}
-
-export function TenantTable({
+function TenantTableComponent({
   routeScope = "workspace",
   tenants,
   jobsByTenant,
@@ -141,14 +62,8 @@ export function TenantTable({
   resumingCheckoutTenantId,
   paymentCenterHref = "/app/billing/invoices",
   paymentCenterLabel = "Open ERPNext billing",
-  onBackup,
-  onDelete,
-  onResetAdminPassword,
-  onJobUpdate,
   onRetryProvisioning,
   retryingTenantId,
-  onUpdatePlan,
-  updatingTenantId,
   emptyStateTitle,
   emptyStateBody,
   emptyStateActionLabel,
@@ -157,22 +72,6 @@ export function TenantTable({
   showPaymentChannel = false,
 }: Props) {
   const isAdminScope = routeScope === "admin";
-  const [expandedTenantId, setExpandedTenantId] = useState<string | null>(null);
-  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
-  const [confirmInput, setConfirmInput] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmError, setConfirmError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [busyTenantId, setBusyTenantId] = useState<string | null>(null);
-  const [passwordResult, setPasswordResult] = useState<ResetAdminPasswordResult | null>(null);
-  const [passwordExpiry, setPasswordExpiry] = useState<number | null>(null);
-  const [passwordNow, setPasswordNow] = useState<number>(Date.now());
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
-  const [planActionTenant, setPlanActionTenant] = useState<Tenant | null>(null);
-  const [planChoice, setPlanChoice] = useState("starter");
-  const [planAppChoice, setPlanAppChoice] = useState(BUSINESS_APP_OPTIONS[0]?.id ?? "crm");
-  const [planError, setPlanError] = useState<string | null>(null);
-  const [planBusy, setPlanBusy] = useState(false);
 
   const failedCount = useMemo(() => tenants.filter((tenant) => tenant.status.toLowerCase() === "failed").length, [tenants]);
   const setupCount = useMemo(
@@ -194,85 +93,21 @@ export function TenantTable({
     return counts;
   }, [tenants]);
 
-  const remainingSeconds = useMemo(() => {
-    if (!passwordExpiry) return 0;
-    return Math.max(0, Math.ceil((passwordExpiry - passwordNow) / 1000));
-  }, [passwordExpiry, passwordNow]);
-
-  useEffect(() => {
-    if (!passwordResult) {
-      setPasswordExpiry(null);
-      return;
-    }
-
-    const expiresAt = Date.now() + 30_000;
-    setPasswordExpiry(expiresAt);
-    setPasswordNow(Date.now());
-
-    const timeout = window.setTimeout(() => {
-      setPasswordResult(null);
-      setCopyState("idle");
-      setPasswordExpiry(null);
-    }, 30_000);
-
-    const interval = window.setInterval(() => {
-      setPasswordNow(Date.now());
-    }, 1000);
-
-    return () => {
-      window.clearTimeout(timeout);
-      window.clearInterval(interval);
-    };
-  }, [passwordResult]);
-
-  const closeConfirm = () => {
-    setConfirmAction(null);
-    setConfirmInput("");
-    setNewPassword("");
-    setConfirmError(null);
-    setIsSubmitting(false);
-  };
-
-  const closePlanModal = () => {
-    setPlanActionTenant(null);
-    setPlanError(null);
-    setPlanBusy(false);
-  };
-
-  const submitPlanUpdate = async () => {
-    if (!planActionTenant || !onUpdatePlan) return;
-    setPlanBusy(true);
-    setPlanError(null);
-    try {
-      const payload = planChoice === "business" ? { plan: planChoice, chosen_app: planAppChoice } : { plan: planChoice };
-      await onUpdatePlan(planActionTenant.id, payload);
-      closePlanModal();
-    } catch (err) {
-      setPlanError(err instanceof Error ? err.message : "Plan update failed");
-      setPlanBusy(false);
-    }
-  };
-
   const renderPaymentActions = (tenant: Tenant) => {
     const normalizedStatus = tenant.status.toLowerCase();
-    if (!PAYMENT_ACTION_STATUSES.has(normalizedStatus)) {
-      return null;
-    }
+    if (!PAYMENT_ACTION_STATUSES.has(normalizedStatus)) return null;
 
     return (
       <>
-        {canResumeCheckout(normalizedStatus) && onResumeCheckout ? (
+        {onResumeCheckout && ["pending", "pending_payment"].includes(normalizedStatus) ? (
           <Button
             size="small"
             variant="outlined"
-            color="warning"
-            sx={{ borderRadius: 999 }}
             disabled={resumingCheckoutTenantId === tenant.id}
-            onClick={() => {
-              void onResumeCheckout(tenant.id);
-            }}
+            onClick={() => void onResumeCheckout(tenant.id)}
+            sx={{ borderRadius: 999 }}
           >
-            {resumingCheckoutTenantId === tenant.id ? "Opening checkout..." : "Resume checkout"}
+            {resumingCheckoutTenantId === tenant.id ? "Opening..." : "Resume checkout"}
           </Button>
         ) : null}
         <Button component={Link} href={paymentCenterHref} size="small" variant="outlined" sx={{ borderRadius: 999 }}>
@@ -285,47 +120,23 @@ export function TenantTable({
     );
   };
 
-  const handleConfirm = async () => {
-    if (!confirmAction || confirmInput !== confirmAction.phrase) {
-      return;
-    }
-
-    setIsSubmitting(true);
-    setConfirmError(null);
-
-    try {
-      if (confirmAction.type === "delete") {
-        await onDelete(confirmAction.tenant.id);
-      } else {
-        const result = await onResetAdminPassword(confirmAction.tenant.id, newPassword || undefined);
-        setPasswordResult(result);
-      }
-      closeConfirm();
-    } catch (err) {
-      setConfirmError(err instanceof Error ? err.message : "Action failed");
-      setIsSubmitting(false);
-    }
-  };
-
   if (!tenants.length) {
     const title = emptyStateTitle ?? "No workspaces yet";
     const body = emptyStateBody ?? "Create your first workspace to start onboarding and daily operations.";
-    const actionLabel = emptyStateActionLabel ?? "Create first workspace";
-    const actionHref = emptyStateActionHref ?? "#create-tenant";
 
     return (
       <EmptyState
         title={title}
         description={body}
         action={
-          actionHref ? (
+          (emptyStateActionHref ?? "#create-tenant") ? (
             <Button
               component="a"
-              href={actionHref}
+              href={emptyStateActionHref ?? "#create-tenant"}
               variant="contained"
               sx={{ borderRadius: 999, bgcolor: "primary.main", "&:hover": { bgcolor: "primary.dark" } }}
             >
-              {actionLabel}
+              {emptyStateActionLabel ?? "Create first workspace"}
             </Button>
           ) : undefined
         }
@@ -335,11 +146,7 @@ export function TenantTable({
 
   return (
     <Box sx={{ display: "grid", gap: 2 }}>
-      {filterLabel ? (
-        <Alert severity="warning" sx={{ borderRadius: 2 }}>
-          {filterLabel}
-        </Alert>
-      ) : null}
+      {filterLabel ? <Alert severity="warning" sx={{ borderRadius: 2 }}>{filterLabel}</Alert> : null}
 
       {showPaymentChannel ? (
         <Card variant="outlined">
@@ -353,247 +160,28 @@ export function TenantTable({
         </Card>
       ) : null}
 
-      {passwordResult ? (
-        <Alert
-          severity="success"
-          sx={{
-            alignItems: "flex-start",
-            "& .MuiAlert-message": { width: "100%" },
-          }}
-        >
-          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-            Administrator password reset complete
-          </Typography>
-          <Typography variant="body2">Tenant: {passwordResult.domain}</Typography>
-          <Typography variant="body2">User: {passwordResult.administrator_user}</Typography>
-          <Box sx={{ mt: 1, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
-            <Chip label={passwordResult.admin_password} size="small" sx={{ fontFamily: "monospace" }} />
-            <Button
-              size="small"
-              variant="outlined"
-              color="success"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(passwordResult.admin_password);
-                  setCopyState("copied");
-                } catch {
-                  setCopyState("error");
-                }
-              }}
-            >
-              Copy
-            </Button>
-            {copyState === "copied" ? <Typography variant="caption">Copied</Typography> : null}
-            {copyState === "error" ? (
-              <Typography variant="caption" color="error">
-                Copy failed
-              </Typography>
-            ) : null}
-          </Box>
-          <Typography variant="caption" sx={{ mt: 0.5, display: "block" }}>
-            Auto-dismisses in {remainingSeconds}s.
-          </Typography>
-        </Alert>
-      ) : null}
-
       <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" } }}>
-        <Card variant="outlined" sx={{ bgcolor: "#ecfdf5", borderColor: "#86efac" }}>
-          <CardContent sx={{ py: "10px !important" }}>
-            <Typography variant="body2" color="#065f46">
-              Live environments: <Box component="span" sx={{ fontWeight: 700 }}>{liveCount}</Box>
-            </Typography>
-          </CardContent>
-        </Card>
-        <Card variant="outlined" sx={{ bgcolor: "#fffbeb", borderColor: "#fcd34d" }}>
-          <CardContent sx={{ py: "10px !important" }}>
-            <Typography variant="body2" color="#92400e">
-              In setup flow: <Box component="span" sx={{ fontWeight: 700 }}>{setupCount}</Box>
-            </Typography>
-          </CardContent>
-        </Card>
-        <Card variant="outlined" sx={{ bgcolor: "#fef2f2", borderColor: "#fca5a5" }}>
-          <CardContent sx={{ py: "10px !important" }}>
-            <Typography variant="body2" color="#b91c1c">
-              Need intervention: <Box component="span" sx={{ fontWeight: 700 }}>{failedCount}</Box>
-            </Typography>
-          </CardContent>
-        </Card>
+        <MetricCard color="#065f46" bg="#ecfdf5" border="#86efac" label="Live environments" value={liveCount} />
+        <MetricCard color="#92400e" bg="#fffbeb" border="#fcd34d" label="In setup flow" value={setupCount} />
+        <MetricCard color="#b91c1c" bg="#fef2f2" border="#fca5a5" label="Need intervention" value={failedCount} />
       </Box>
 
+      <Alert severity="info" sx={{ borderRadius: 3 }}>
+        Heavy workspace actions now live in tenant details. Use <strong>Details</strong> for backups, plan changes, credential resets,
+        and deletion.
+      </Alert>
+
       <Box sx={{ display: { xs: "grid", md: "none" }, gap: 1.5 }}>
-        {tenants.map((tenant) => {
-          const job = jobsByTenant[tenant.id];
-          const plan = getPlanMeta(tenant.plan);
-          const confirmationPhrase = tenant.subdomain.toUpperCase();
-          const statusStyle = statusChipStyles(tenant.status);
-          const billingBlocked = isTenantBillingBlockedFromOperations(tenant);
-
-          return (
-            <Card key={tenant.id} variant="outlined" sx={{ borderRadius: 3, bgcolor: rowTone(tenant.status) ?? "background.paper" }}>
-              <CardContent sx={{ p: 2 }}>
-                <Stack spacing={1.25}>
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{tenant.company_name}</Typography>
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      {tenant.subdomain}
-                    </Typography>
-                    <Button
-                      component="a"
-                      href={`https://${tenant.domain}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      size="small"
-                      sx={{ textTransform: "none", p: 0, minWidth: 0, mt: 0.5 }}
-                    >
-                      {tenant.domain}
-                    </Button>
-                  </Box>
-
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    <Chip size="small" label={plan?.label ?? tenant.plan} sx={{ ...planChipStyle(tenant.plan) }} />
-                    <Chip size="small" label={tenant.status} color={statusStyle.color} sx={statusStyle.sx} />
-                  </Box>
-
-                  <Stack spacing={0.5}>
-                    <Typography variant="caption" color="text.secondary">
-                      Focus: <Box component="span" sx={{ color: "text.primary" }}>{tenant.chosen_app || "auto"}</Box>
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Billing: <Box component="span" sx={{ color: "text.primary" }}>{getBillingLabel(tenant)}</Box>
-                    </Typography>
-                    {showPaymentChannel ? (
-                      <Typography variant="caption" color="text.secondary">
-                        Channel: <Box component="span" sx={{ color: "text.primary" }}>{tenant.payment_channel ? tenant.payment_channel.replace(/_/g, " ") : "—"}</Box>
-                      </Typography>
-                    ) : null}
-                    <Typography variant="caption" color="text.secondary">
-                      Created: <Box component="span" sx={{ color: "text.primary" }}>{formatDate(tenant.created_at)}</Box>
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Health: <Box component="span" sx={{ color: "text.primary" }}>{statusHint(tenant.status, isAdminScope)}</Box>
-                    </Typography>
-                    {job ? (
-                      <Typography variant="caption" color="text.secondary">
-                        Job: <Box component="span" sx={{ color: "text.primary" }}>{job.status}</Box>
-                      </Typography>
-                    ) : null}
-                  </Stack>
-
-                  <Divider />
-
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    <Button component={Link} href={`/app/tenants/${tenant.id}/overview`} size="small" variant="outlined" sx={{ borderRadius: 999 }}>
-                      Details
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      color="inherit"
-                      sx={{ borderRadius: 999, bgcolor: "#0f172a", color: "#fff", "&:hover": { bgcolor: "#1e293b" } }}
-                      disabled={busyTenantId === tenant.id || billingBlocked}
-                      onClick={async () => {
-                        if (billingBlocked) return;
-                        setBusyTenantId(tenant.id);
-                        try {
-                          await onBackup(tenant.id);
-                        } finally {
-                          setBusyTenantId(null);
-                        }
-                      }}
-                    >
-                      Backup now
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      color="warning"
-                      sx={{ borderRadius: 999 }}
-                      disabled={billingBlocked}
-                      onClick={() => {
-                        if (billingBlocked) return;
-                        setConfirmAction({ type: "reset", tenant, phrase: confirmationPhrase });
-                        setConfirmInput("");
-                        setNewPassword("");
-                        setConfirmError(null);
-                      }}
-                    >
-                      {isAdminScope ? "Reset admin login" : "Reset workspace login"}
-                    </Button>
-                    {onUpdatePlan ? (
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        sx={{ borderRadius: 999 }}
-                        onClick={() => {
-                          setPlanActionTenant(tenant);
-                          setPlanChoice(tenant.plan);
-                          setPlanAppChoice(tenant.chosen_app || BUSINESS_APP_OPTIONS[0]?.id || "crm");
-                        }}
-                      >
-                        Change plan
-                      </Button>
-                    ) : null}
-                    {renderPaymentActions(tenant)}
-                    <Button
-                      size="small"
-                      variant="contained"
-                      color="error"
-                      sx={{ borderRadius: 999 }}
-                      onClick={() => {
-                        setConfirmAction({ type: "delete", tenant, phrase: confirmationPhrase });
-                        setConfirmInput("");
-                        setConfirmError(null);
-                      }}
-                    >
-                      Delete workspace
-                    </Button>
-                    {tenant.status.toLowerCase() === "failed" && onRetryProvisioning ? (
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        sx={{ borderRadius: 999 }}
-                        disabled={retryingTenantId === tenant.id}
-                        onClick={() => {
-                          void onRetryProvisioning(tenant.id);
-                        }}
-                      >
-                        {retryingTenantId === tenant.id ? "Retrying..." : "Retry provisioning"}
-                      </Button>
-                    ) : null}
-                    {job ? (
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        sx={{ borderRadius: 999 }}
-                        onClick={() => setExpandedTenantId((current) => (current === tenant.id ? null : tenant.id))}
-                      >
-                        {expandedTenantId === tenant.id ? "Hide logs" : "Show logs"}
-                      </Button>
-                    ) : null}
-                  </Box>
-                  {billingBlocked ? (
-                    <Alert severity="warning" sx={{ py: 0.25 }}>
-                      {blockedActionReasonFromOperations("Backup and credential reset actions")}
-                    </Alert>
-                  ) : null}
-
-                  {job && expandedTenantId === tenant.id ? (
-                    <Box sx={{ pt: 1 }}>
-                      <JobLogPanel
-                        jobId={job.id}
-                        logs={job.logs}
-                        status={job.status}
-                        onJobUpdate={(nextJob: Job) => {
-                          onJobUpdate?.(nextJob);
-                        }}
-                      />
-                    </Box>
-                  ) : null}
-                </Stack>
-              </CardContent>
-            </Card>
-          );
-        })}
+        {tenants.map((tenant) => (
+          <TenantMobileCard
+            key={tenant.id}
+            tenant={tenant}
+            job={jobsByTenant[tenant.id]}
+            isAdminScope={isAdminScope}
+            showPaymentChannel={showPaymentChannel}
+            renderPaymentActions={renderPaymentActions}
+          />
+        ))}
       </Box>
 
       <TableContainer component={Card} variant="outlined" sx={{ borderRadius: 3, display: { xs: "none", md: "block" } }}>
@@ -610,302 +198,148 @@ export function TenantTable({
             </TableRow>
           </TableHead>
           <TableBody>
-            {tenants.map((tenant) => {
-              const job = jobsByTenant[tenant.id];
-              const plan = getPlanMeta(tenant.plan);
-              const confirmationPhrase = tenant.subdomain.toUpperCase();
-              const statusStyle = statusChipStyles(tenant.status);
-              const billingBlocked = isTenantBillingBlockedFromOperations(tenant);
-
-              return (
-                <Fragment key={tenant.id}>
-                  <TableRow hover sx={{ verticalAlign: "top", bgcolor: rowTone(tenant.status) }}>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{tenant.company_name}</Typography>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        {tenant.subdomain}
-                      </Typography>
-                      <Button
-                        component="a"
-                        href={`https://${tenant.domain}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        size="small"
-                        sx={{ textTransform: "none", p: 0, minWidth: 0, mt: 0.5 }}
-                      >
-                        {tenant.domain}
-                      </Button>
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: "grid", gap: 0.5 }}>
-                        <Chip size="small" label={plan?.label ?? tenant.plan} sx={{ width: "fit-content", ...planChipStyle(tenant.plan) }} />
-                        <Typography variant="caption" color="text.secondary">
-                          Focus: <Box component="span" sx={{ color: "text.primary" }}>{tenant.chosen_app || "auto"}</Box>
-                        </Typography>
-                        {tenant.payment_provider ? (
-                          <Typography variant="caption" color="text.secondary">Provider: {tenant.payment_provider}</Typography>
-                        ) : null}
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Chip size="small" label={tenant.status} color={statusStyle.color} sx={statusStyle.sx} />
-                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: "block" }}>
-                        {statusHint(tenant.status, isAdminScope)}
-                      </Typography>
-                      {job ? (
-                        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
-                          Job: {job.status}
-                        </Typography>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" color="text.secondary">{getBillingLabel(tenant)}</Typography>
-                    </TableCell>
-                    {showPaymentChannel ? (
-                      <TableCell>
-                        <Typography variant="caption" color="text.secondary">
-                          {tenant.payment_channel ? tenant.payment_channel.replace(/_/g, " ") : "—"}
-                        </Typography>
-                      </TableCell>
-                    ) : null}
-                    <TableCell>
-                      <Typography variant="caption" color="text.secondary">{formatDate(tenant.created_at)}</Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                        <Button component={Link} href={`/app/tenants/${tenant.id}/overview`} size="small" variant="outlined" sx={{ borderRadius: 999 }}>
-                          Details
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="contained"
-                          color="inherit"
-                          sx={{ borderRadius: 999, bgcolor: "#0f172a", color: "#fff", "&:hover": { bgcolor: "#1e293b" } }}
-                          disabled={busyTenantId === tenant.id || billingBlocked}
-                          onClick={async () => {
-                            if (billingBlocked) return;
-                            setBusyTenantId(tenant.id);
-                            try {
-                              await onBackup(tenant.id);
-                            } finally {
-                              setBusyTenantId(null);
-                            }
-                          }}
-                        >
-                          Backup now
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="contained"
-                          color="warning"
-                          sx={{ borderRadius: 999 }}
-                          disabled={billingBlocked}
-                          onClick={() => {
-                            if (billingBlocked) return;
-                            setConfirmAction({ type: "reset", tenant, phrase: confirmationPhrase });
-                            setConfirmInput("");
-                            setNewPassword("");
-                            setConfirmError(null);
-                          }}
-                        >
-                          {isAdminScope ? "Reset admin login" : "Reset workspace login"}
-                        </Button>
-                        {onUpdatePlan ? (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            sx={{ borderRadius: 999 }}
-                            onClick={() => {
-                              setPlanActionTenant(tenant);
-                              setPlanChoice(tenant.plan);
-                              setPlanAppChoice(tenant.chosen_app || BUSINESS_APP_OPTIONS[0]?.id || "crm");
-                            }}
-                          >
-                            Change plan
-                          </Button>
-                        ) : null}
-                        {renderPaymentActions(tenant)}
-                        <Button
-                          size="small"
-                          variant="contained"
-                          color="error"
-                          sx={{ borderRadius: 999 }}
-                          onClick={() => {
-                            setConfirmAction({ type: "delete", tenant, phrase: confirmationPhrase });
-                            setConfirmInput("");
-                            setConfirmError(null);
-                          }}
-                        >
-                          Delete workspace
-                        </Button>
-                        {tenant.status.toLowerCase() === "failed" && onRetryProvisioning ? (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            sx={{ borderRadius: 999 }}
-                            disabled={retryingTenantId === tenant.id}
-                            onClick={() => {
-                              void onRetryProvisioning(tenant.id);
-                            }}
-                          >
-                            {retryingTenantId === tenant.id ? "Retrying..." : "Retry provisioning"}
-                          </Button>
-                        ) : null}
-                        {job ? (
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            sx={{ borderRadius: 999 }}
-                            onClick={() => setExpandedTenantId((current) => (current === tenant.id ? null : tenant.id))}
-                          >
-                            {expandedTenantId === tenant.id ? "Hide logs" : "Show logs"}
-                          </Button>
-                        ) : null}
-                      </Box>
-                      {billingBlocked ? (
-                        <Alert severity="warning" sx={{ mt: 1, py: 0.25 }}>
-                          {blockedActionReasonFromOperations("Backup and credential reset actions")}
-                        </Alert>
-                      ) : null}
-                    </TableCell>
-                  </TableRow>
-
-                  {job && expandedTenantId === tenant.id ? (
-                    <TableRow sx={{ bgcolor: "#fffaf4" }}>
-                      <TableCell colSpan={showPaymentChannel ? 7 : 6} sx={{ py: 2 }}>
-                        <JobLogPanel
-                          jobId={job.id}
-                          logs={job.logs}
-                          status={job.status}
-                          onJobUpdate={(nextJob: Job) => {
-                            onJobUpdate?.(nextJob);
-                          }}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ) : null}
-                </Fragment>
-              );
-            })}
+            {tenants.map((tenant) => (
+              <TenantTableRow
+                key={tenant.id}
+                tenant={tenant}
+                job={jobsByTenant[tenant.id]}
+                isAdminScope={isAdminScope}
+                showPaymentChannel={showPaymentChannel}
+                renderPaymentActions={renderPaymentActions}
+                onRetryProvisioning={onRetryProvisioning}
+                retryingTenantId={retryingTenantId}
+              />
+            ))}
           </TableBody>
         </Table>
       </TableContainer>
-
-      <Dialog open={Boolean(confirmAction)} onClose={isSubmitting ? undefined : closeConfirm} fullWidth maxWidth="sm">
-        <DialogTitle>
-          {confirmAction?.type === "delete"
-            ? "Confirm workspace deletion"
-            : isAdminScope
-            ? "Confirm admin password reset"
-            : "Confirm workspace password reset"}
-        </DialogTitle>
-        <DialogContent sx={{ display: "grid", gap: 2, pt: 1 }}>
-          {confirmAction ? (
-            <>
-              <Typography variant="body2" color="text.secondary">
-                Tenant: <Box component="span" sx={{ color: "text.primary", fontWeight: 700 }}>{confirmAction.tenant.company_name}</Box>
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Type <Chip label={confirmAction.phrase} size="small" sx={{ fontFamily: "monospace" }} /> to continue.
-              </Typography>
-            </>
-          ) : null}
-          <TextField
-            value={confirmInput}
-            onChange={(event) => setConfirmInput(event.target.value.toUpperCase())}
-            placeholder="Type confirmation text"
-            fullWidth
-            size="small"
-          />
-          {confirmAction?.type === "reset" ? (
-            <TextField
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              placeholder="Optional: set a specific new password"
-              fullWidth
-              size="small"
-            />
-          ) : null}
-          {confirmError ? (
-            <Typography variant="body2" color="error">
-              {confirmError}
-            </Typography>
-          ) : null}
-        </DialogContent>
-        <DialogActions>
-          <Button disabled={isSubmitting} onClick={closeConfirm}>
-            Cancel
-          </Button>
-          <Button
-            color="error"
-            variant="contained"
-            disabled={isSubmitting || confirmInput !== confirmAction?.phrase}
-            onClick={() => {
-              void handleConfirm();
-            }}
-          >
-            {isSubmitting ? "Processing..." : "Confirm"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={Boolean(planActionTenant)} onClose={planBusy ? undefined : closePlanModal} fullWidth maxWidth="sm">
-        <DialogTitle>Change plan</DialogTitle>
-        <DialogContent sx={{ display: "grid", gap: 2, pt: 1 }}>
-          {planActionTenant ? (
-            <Typography variant="body2" color="text.secondary">
-              Tenant: <Box component="span" sx={{ color: "text.primary", fontWeight: 700 }}>{planActionTenant.company_name}</Box>
-            </Typography>
-          ) : null}
-          <FormControl fullWidth size="small">
-            <InputLabel id="tenant-plan-label">Plan</InputLabel>
-            <Select
-              labelId="tenant-plan-label"
-              label="Plan"
-              value={planChoice}
-              onChange={(event) => setPlanChoice(event.target.value)}
-            >
-              <MenuItem value="starter">Starter</MenuItem>
-              <MenuItem value="business">Business</MenuItem>
-              <MenuItem value="enterprise">Enterprise</MenuItem>
-            </Select>
-          </FormControl>
-          {planChoice === "business" ? (
-            <FormControl fullWidth size="small">
-              <InputLabel id="tenant-plan-focus-label">Business focus</InputLabel>
-              <Select
-                labelId="tenant-plan-focus-label"
-                label="Business focus"
-                value={planAppChoice}
-                onChange={(event) => setPlanAppChoice(event.target.value)}
-              >
-                {BUSINESS_APP_OPTIONS.map((option: { id: string; label: string }) => (
-                  <MenuItem key={option.id} value={option.id}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          ) : null}
-          {planError ? (
-            <Typography variant="body2" color="error">
-              {planError}
-            </Typography>
-          ) : null}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closePlanModal}>Cancel</Button>
-          <Button
-            variant="contained"
-            sx={{ bgcolor: "primary.main", "&:hover": { bgcolor: "primary.dark" } }}
-            disabled={planBusy || (planActionTenant ? updatingTenantId === planActionTenant.id : false)}
-            onClick={() => void submitPlanUpdate()}
-          >
-            {planBusy || (planActionTenant ? updatingTenantId === planActionTenant.id : false) ? "Updating..." : "Confirm change"}
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 }
+
+function MetricCard({ label, value, color, bg, border }: { label: string; value: number; color: string; bg: string; border: string }) {
+  return (
+    <Card variant="outlined" sx={{ bgcolor: bg, borderColor: border }}>
+      <CardContent sx={{ py: "10px !important" }}>
+        <Typography variant="body2" color={color}>
+          {label}: <Box component="span" sx={{ fontWeight: 700 }}>{value}</Box>
+        </Typography>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TenantMobileCard({
+  tenant,
+  job,
+  isAdminScope,
+  showPaymentChannel,
+  renderPaymentActions,
+}: {
+  tenant: Tenant;
+  job: Job | undefined;
+  isAdminScope: boolean;
+  showPaymentChannel: boolean;
+  renderPaymentActions: (tenant: Tenant) => ReactNode;
+}) {
+  const plan = getPlanChip(tenant.plan);
+  return (
+    <Card variant="outlined" sx={{ borderRadius: 3, bgcolor: getTenantRowToneSx(tenant.status) ?? "background.paper" }}>
+      <CardContent sx={{ p: 2 }}>
+        <Stack spacing={1.25}>
+          <TenantIdentity tenant={tenant} />
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+            <Chip size="small" label={plan.label} color={plan.color} sx={plan.sx} />
+            <TenantStatusChip status={tenant.status} />
+          </Box>
+          <TenantMeta tenant={tenant} job={job} isAdminScope={isAdminScope} showPaymentChannel={showPaymentChannel} />
+          <TenantActions tenant={tenant} renderPaymentActions={renderPaymentActions} />
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TenantIdentity({ tenant }: { tenant: Tenant }) {
+  return (
+    <Box>
+      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{tenant.company_name}</Typography>
+      <Typography variant="caption" color="text.secondary" display="block">{tenant.subdomain}</Typography>
+      <Button component="a" href={`https://${tenant.domain}`} target="_blank" rel="noreferrer" size="small" sx={{ textTransform: "none", p: 0, minWidth: 0, mt: 0.5 }}>
+        {tenant.domain}
+      </Button>
+    </Box>
+  );
+}
+
+function TenantMeta({ tenant, job, isAdminScope, showPaymentChannel }: { tenant: Tenant; job: Job | undefined; isAdminScope: boolean; showPaymentChannel: boolean }) {
+  return (
+    <Stack spacing={0.5}>
+      <Typography variant="caption" color="text.secondary">Focus: <Box component="span" sx={{ color: "text.primary" }}>{tenant.chosen_app || "auto"}</Box></Typography>
+      <Typography variant="caption" color="text.secondary">Billing: <Box component="span" sx={{ color: "text.primary" }}>{getBillingLabel(tenant)}</Box></Typography>
+      {showPaymentChannel ? <Typography variant="caption" color="text.secondary">Channel: <Box component="span" sx={{ color: "text.primary" }}>{tenant.payment_channel ? tenant.payment_channel.replace(/_/g, " ") : "—"}</Box></Typography> : null}
+      <Typography variant="caption" color="text.secondary">Created: <Box component="span" sx={{ color: "text.primary" }}>{formatTimestamp(tenant.created_at)}</Box></Typography>
+      <Typography variant="caption" color="text.secondary">Health: <Box component="span" sx={{ color: "text.primary" }}>{getTenantStatusHint(tenant.status, isAdminScope)}</Box></Typography>
+      {job ? <Typography variant="caption" color="text.secondary">Job: <Box component="span" sx={{ color: "text.primary" }}>{job.status}</Box></Typography> : null}
+    </Stack>
+  );
+}
+
+function TenantActions({ tenant, renderPaymentActions }: { tenant: Tenant; renderPaymentActions: (tenant: Tenant) => ReactNode }) {
+  return (
+    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+      <Button component={Link} href={`/app/tenants/${tenant.id}/overview`} size="small" variant="outlined" sx={{ borderRadius: 999 }}>Details</Button>
+      <Button component={Link} href={`/app/tenants/${tenant.id}/jobs`} size="small" variant="outlined" sx={{ borderRadius: 999 }}>Jobs</Button>
+      <Button component={Link} href={`/app/tenants/${tenant.id}/backups`} size="small" variant="outlined" sx={{ borderRadius: 999 }}>Backups</Button>
+      {renderPaymentActions(tenant)}
+    </Box>
+  );
+}
+
+const TenantTableRow = memo(function TenantTableRow({
+  tenant,
+  job,
+  isAdminScope,
+  showPaymentChannel,
+  renderPaymentActions,
+  onRetryProvisioning,
+  retryingTenantId,
+}: {
+  tenant: Tenant;
+  job: Job | undefined;
+  isAdminScope: boolean;
+  showPaymentChannel: boolean;
+  renderPaymentActions: (tenant: Tenant) => ReactNode;
+  onRetryProvisioning?: (id: string) => Promise<void>;
+  retryingTenantId?: string | null;
+}) {
+  const plan = getPlanChip(tenant.plan);
+  return (
+    <TableRow hover sx={{ verticalAlign: "top", bgcolor: getTenantRowToneSx(tenant.status) }}>
+      <TableCell><TenantIdentity tenant={tenant} /></TableCell>
+      <TableCell>
+        <Box sx={{ display: "grid", gap: 0.5 }}>
+          <Chip size="small" label={plan.label} color={plan.color} sx={{ width: "fit-content", ...plan.sx }} />
+          <Typography variant="caption" color="text.secondary">Focus: <Box component="span" sx={{ color: "text.primary" }}>{tenant.chosen_app || "auto"}</Box></Typography>
+          {tenant.payment_provider ? <Typography variant="caption" color="text.secondary">Provider: {tenant.payment_provider}</Typography> : null}
+        </Box>
+      </TableCell>
+      <TableCell>
+        <TenantStatusChip status={tenant.status} />
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: "block" }}>{getTenantStatusHint(tenant.status, isAdminScope)}</Typography>
+        {job ? <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>Job: {job.status}</Typography> : null}
+        {tenant.status.toLowerCase() === "failed" && onRetryProvisioning ? (
+          <Button size="small" variant="outlined" disabled={retryingTenantId === tenant.id} onClick={() => void onRetryProvisioning(tenant.id)} sx={{ mt: 1, borderRadius: 999 }}>
+            {retryingTenantId === tenant.id ? "Retrying..." : "Retry"}
+          </Button>
+        ) : null}
+      </TableCell>
+      <TableCell><Typography variant="caption" color="text.secondary">{getBillingLabel(tenant)}</Typography></TableCell>
+      {showPaymentChannel ? <TableCell><Typography variant="caption" color="text.secondary">{tenant.payment_channel ? tenant.payment_channel.replace(/_/g, " ") : "—"}</Typography></TableCell> : null}
+      <TableCell><Typography variant="caption" color="text.secondary">{formatTimestamp(tenant.created_at)}</Typography></TableCell>
+      <TableCell><TenantActions tenant={tenant} renderPaymentActions={renderPaymentActions} /></TableCell>
+    </TableRow>
+  );
+});
+
+export const TenantTable = memo(TenantTableComponent);

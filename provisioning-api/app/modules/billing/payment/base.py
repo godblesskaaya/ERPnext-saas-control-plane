@@ -33,5 +33,18 @@ class PaymentGateway(ABC):
     @abstractmethod
     def create_checkout(self, tenant, owner) -> CheckoutResult: ...
 
+    def create_invoice_checkout(
+        self,
+        invoice,
+        tenant,
+        owner,
+        *,
+        return_url: str | None = None,
+        cancel_url: str | None = None,
+        channel_hint: str | None = None,
+    ) -> CheckoutResult:
+        del invoice, return_url, cancel_url, channel_hint
+        return self.create_checkout(tenant, owner)
+
     @abstractmethod
     def parse_webhook(self, payload: bytes, headers: dict[str, str]) -> WebhookEvent: ...

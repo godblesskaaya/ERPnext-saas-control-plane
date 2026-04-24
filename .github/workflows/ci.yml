@@ -55,7 +55,7 @@ jobs:
         run: |
           cd provisioning-api
           alembic upgrade head
-          alembic check
+          alembic check || { echo "::error::Schema drift detected — add a migration"; exit 1; }
 
       - name: Backend unit/integration tests with coverage gate (>=70%)
         env:
@@ -253,6 +253,17 @@ jobs:
           chmod 700 ~/.ssh
           printf "%s\n" "${PROD_SSH_KNOWN_HOSTS}" >> ~/.ssh/known_hosts
           chmod 600 ~/.ssh/known_hosts
+
+      - name: Create pre-migration production database backup
+        env:
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
+        run: |
+          set -euo pipefail
+          ssh "${PROD_SSH_USER}@${PROD_SSH_HOST}" \
+            "mkdir -p /var/backups \
+            && pg_dump -Fc erp_saas > /var/backups/erp_saas_pre_deploy_$(date +%Y%m%d_%H%M%S).dump \
+            && echo 'Backup complete'"
 
       - name: Roll out on production host
         env:

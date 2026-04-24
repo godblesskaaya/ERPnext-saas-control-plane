@@ -7,11 +7,34 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.deps import get_current_user
-from app.models import Tenant, TenantMembership, User
-from app.schemas import BillingInvoiceListResponse, BillingInvoiceOut, BillingPortalResponse, MessageResponse
+from app.models import BillingInvoice, Tenant, TenantMembership, User
+from app.schemas import (
+    BillingAccountWorkspaceOut,
+    BillingInvoiceDetailResponse,
+    BillingInvoiceListByTenantResponse,
+    BillingInvoiceListResponse,
+    BillingInvoiceOut,
+    BillingPortalResponse,
+    BillingTimelineResponse,
+    MessageResponse,
+    PaymentAttemptCreateRequest,
+    PaymentAttemptCreateResponse,
+    PaymentAttemptListResponse,
+)
 from app.modules.audit.service import record_audit_event
 from app.modules.support.platform_erp_client import PlatformERPClient
+from app.modules.billing.invoice_sync import sync_platform_invoices_for_tenant
+from app.modules.billing.reconciliation import reconcile_tenant_billing
 from app.modules.billing.payment.factory import get_payment_gateway
+from app.modules.billing.payment_attempt_service import InvoicePaymentError, create_payment_attempt_for_invoice
+from app.modules.billing.read_models import (
+    build_invoice_detail,
+    build_invoice_list_response,
+    build_payment_attempt_list_response,
+    build_payment_attempt_summary,
+    build_timeline_response,
+    build_workspace,
+)
 from app.modules.billing.webhook_service import (
     BAD_REQUEST_400_RESPONSE,
     INTERNAL_500_RESPONSE,
@@ -19,6 +42,7 @@ from app.modules.billing.webhook_service import (
     sanitize_headers,
     to_minor_units,
 )
+from app.modules.tenant.membership import ensure_membership
 from app.rate_limits import authenticated_default_rate_limit
 
 
@@ -34,6 +58,14 @@ def _gateway_payment_provider(tenant: Tenant) -> str:
         return provider
     configured_provider = (get_settings().active_payment_provider or "").strip().lower()
     return configured_provider or "azampay"
+
+
+def _get_accessible_tenant(tenant_id: str, db: Session, current_user: User) -> Tenant:
+    tenant = db.get(Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+    ensure_membership(db, tenant=tenant, user=current_user)
+    return tenant
 
 
 @router.get(
@@ -241,6 +273,274 @@ def list_billing_invoices(
         metadata={"count": len(invoices)},
     )
     return BillingInvoiceListResponse(invoices=invoices)
+
+
+@router.get(
+    "/accounts/{tenant_id}",
+    response_model=BillingAccountWorkspaceOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {"description": "Unauthorized."},
+        status.HTTP_403_FORBIDDEN: {"description": "Forbidden."},
+        status.HTTP_404_NOT_FOUND: {"description": "Tenant not found."},
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def get_billing_account_workspace(
+    tenant_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BillingAccountWorkspaceOut:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    platform_client = PlatformERPClient()
+    sync_platform_invoices_for_tenant(db, tenant=tenant, platform_client=platform_client)
+    db.commit()
+    db.refresh(tenant)
+    workspace = build_workspace(tenant, platform_base_url=platform_client.base_url)
+    record_audit_event(
+        db,
+        action="billing.account_workspace_viewed",
+        resource="billing_accounts",
+        actor=current_user,
+        resource_id=workspace.billing_account_id or tenant.id,
+        request=request,
+        metadata={"tenant_id": tenant.id},
+    )
+    return workspace
+
+
+@router.get(
+    "/invoices/{tenant_id}",
+    response_model=BillingInvoiceListByTenantResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {"description": "Unauthorized."},
+        status.HTTP_403_FORBIDDEN: {"description": "Forbidden."},
+        status.HTTP_404_NOT_FOUND: {"description": "Tenant not found."},
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def list_billing_invoices_for_tenant(
+    tenant_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BillingInvoiceListByTenantResponse:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    platform_client = PlatformERPClient()
+    sync_platform_invoices_for_tenant(db, tenant=tenant, platform_client=platform_client)
+    db.commit()
+    db.refresh(tenant)
+    response = build_invoice_list_response(tenant, platform_base_url=platform_client.base_url)
+    record_audit_event(
+        db,
+        action="billing.tenant_invoices_viewed",
+        resource="billing_invoices",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+        metadata={"tenant_id": tenant.id, "count": len(response.invoices)},
+    )
+    return response
+
+
+@router.get(
+    "/invoice/{invoice_id}",
+    response_model=BillingInvoiceDetailResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {"description": "Unauthorized."},
+        status.HTTP_403_FORBIDDEN: {"description": "Forbidden."},
+        status.HTTP_404_NOT_FOUND: {"description": "Invoice not found."},
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def get_billing_invoice_detail(
+    invoice_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BillingInvoiceDetailResponse:
+    invoice = db.get(BillingInvoice, invoice_id)
+    if invoice is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+    tenant = _get_accessible_tenant(invoice.tenant_id, db, current_user)
+    platform_client = PlatformERPClient()
+    sync_platform_invoices_for_tenant(db, tenant=tenant, platform_client=platform_client)
+    db.commit()
+    db.refresh(tenant)
+    invoice = db.get(BillingInvoice, invoice_id)
+    response = build_invoice_detail(invoice, tenant, platform_base_url=platform_client.base_url)
+    record_audit_event(
+        db,
+        action="billing.invoice_viewed",
+        resource="billing_invoices",
+        actor=current_user,
+        resource_id=invoice.id,
+        request=request,
+        metadata={"tenant_id": tenant.id, "invoice_id": invoice.id},
+    )
+    return response
+
+
+@router.post(
+    "/invoice/{invoice_id}/reconcile",
+    response_model=MessageResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {"description": "Unauthorized."},
+        status.HTTP_403_FORBIDDEN: {"description": "Forbidden."},
+        status.HTTP_404_NOT_FOUND: {"description": "Invoice not found."},
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def reconcile_billing_invoice(
+    invoice_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MessageResponse:
+    invoice = db.get(BillingInvoice, invoice_id)
+    if invoice is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+
+    tenant = _get_accessible_tenant(invoice.tenant_id, db, current_user)
+    platform_client = PlatformERPClient()
+    summary = reconcile_tenant_billing(db, tenant=tenant, invoice_id=invoice.id, platform_client=platform_client)
+
+    record_audit_event(
+        db,
+        action="billing.invoice_reconciled",
+        resource="billing_invoices",
+        actor=current_user,
+        resource_id=invoice.id,
+        request=request,
+        metadata={
+            "tenant_id": tenant.id,
+            "invoice_id": invoice.id,
+            "reconciled_invoice_count": summary.reconciled_invoice_count,
+            "payment_attempts_updated": summary.payment_attempts_updated,
+            "provisioning_requeues": summary.provisioning_requeues,
+            "exceptions_opened": summary.exceptions_opened,
+            "exceptions_resolved": summary.exceptions_resolved,
+        },
+    )
+    return MessageResponse(message="Billing settlement reconciled.")
+
+
+@router.post(
+    "/invoice/{invoice_id}/payment-attempts",
+    response_model=PaymentAttemptCreateResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_400_BAD_REQUEST: {"description": "Invoice payment attempt could not be created."},
+        status.HTTP_401_UNAUTHORIZED: {"description": "Unauthorized."},
+        status.HTTP_403_FORBIDDEN: {"description": "Forbidden."},
+        status.HTTP_404_NOT_FOUND: {"description": "Invoice not found."},
+        status.HTTP_409_CONFLICT: {"description": "Invoice is not payable or an active attempt already exists."},
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def create_invoice_payment_attempt(
+    invoice_id: str,
+    payload: PaymentAttemptCreateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PaymentAttemptCreateResponse:
+    invoice = db.get(BillingInvoice, invoice_id)
+    if invoice is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+
+    tenant = _get_accessible_tenant(invoice.tenant_id, db, current_user)
+    owner = db.get(User, tenant.owner_id) if tenant.owner_id else None
+    if owner is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Tenant owner missing")
+
+    try:
+        created = create_payment_attempt_for_invoice(
+            db=db,
+            request=request,
+            tenant=tenant,
+            owner=owner,
+            invoice=invoice,
+            actor=current_user,
+            provider=payload.provider,
+            return_url=payload.return_url,
+            cancel_url=payload.cancel_url,
+            channel_hint=payload.channel_hint,
+        )
+    except InvoicePaymentError as exc:
+        detail = str(exc)
+        status_code = status.HTTP_409_CONFLICT if detail in {"billing_invoice_not_payable", "billing_payment_attempt_already_active"} else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(status_code=status_code, detail=detail) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    return PaymentAttemptCreateResponse(payment_attempt=build_payment_attempt_summary(created.payment_attempt))
+
+
+@router.get(
+    "/payment-attempts/{tenant_id}",
+    response_model=PaymentAttemptListResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {"description": "Unauthorized."},
+        status.HTTP_403_FORBIDDEN: {"description": "Forbidden."},
+        status.HTTP_404_NOT_FOUND: {"description": "Tenant not found."},
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def list_payment_attempts_for_tenant(
+    tenant_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PaymentAttemptListResponse:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    response = build_payment_attempt_list_response(tenant)
+    record_audit_event(
+        db,
+        action="billing.payment_attempts_viewed",
+        resource="payment_attempts",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+        metadata={"tenant_id": tenant.id, "count": len(response.payment_attempts)},
+    )
+    return response
+
+
+@router.get(
+    "/timeline/{tenant_id}",
+    response_model=BillingTimelineResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {"description": "Unauthorized."},
+        status.HTTP_403_FORBIDDEN: {"description": "Forbidden."},
+        status.HTTP_404_NOT_FOUND: {"description": "Tenant not found."},
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def get_billing_timeline(
+    tenant_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BillingTimelineResponse:
+    tenant = _get_accessible_tenant(tenant_id, db, current_user)
+    response = build_timeline_response(tenant)
+    record_audit_event(
+        db,
+        action="billing.timeline_viewed",
+        resource="billing_events",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+        metadata={"tenant_id": tenant.id, "count": len(response.events)},
+    )
+    return response
 
 
 @router.post(

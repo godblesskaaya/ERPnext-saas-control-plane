@@ -5,7 +5,7 @@ from importlib import import_module
 from unittest.mock import patch
 
 from app.config import get_settings
-from app.models import AuditLog, BackupManifest, Job, Tenant, TenantMembership, User
+from app.models import AuditLog, BackupManifest, BillingException, Job, Tenant, TenantMembership, User
 from app.modules.subscription.models import Plan, Subscription
 from app.modules.subscription.service import ensure_default_plan_catalog
 
@@ -788,6 +788,46 @@ def test_mock_billing_checkout_blocked_in_production(_, monkeypatch, client, db_
     get_settings.cache_clear()
 
 
+@patch(f"{SUPPORT_ADMIN_ROUTER_MODULE}.PlatformERPClient.runtime_exists")
+def test_admin_list_hides_stale_db_only_tenants(mock_runtime_exists, client, db_session):
+    owner = User(email="owner-stale-admin@example.com", password_hash="hash", role="user")
+    db_session.add(owner)
+    db_session.commit()
+    db_session.refresh(owner)
+
+    visible = Tenant(
+        owner_id=owner.id,
+        subdomain="visible-runtime",
+        domain="visible-runtime.erp.blenkotechnologies.co.tz",
+        site_name="visible-runtime.erp.blenkotechnologies.co.tz",
+        company_name="Visible Runtime Ltd",
+        plan="starter",
+        status="active",
+        billing_status="paid",
+    )
+    stale = Tenant(
+        owner_id=owner.id,
+        subdomain="stale-runtime",
+        domain="stale-runtime.erp.blenkotechnologies.co.tz",
+        site_name="stale-runtime.erp.blenkotechnologies.co.tz",
+        company_name="Stale Runtime Ltd",
+        plan="starter",
+        status="active",
+        billing_status="paid",
+    )
+    db_session.add_all([visible, stale])
+    db_session.commit()
+
+    mock_runtime_exists.side_effect = lambda runtime_name: runtime_name != stale.site_name
+
+    headers = _admin_headers(client, db_session)
+    response = client.get("/admin/tenants", headers=headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [row["subdomain"] for row in payload] == ["visible-runtime"]
+
+
 def test_admin_list_and_suspend_audit_state_changes(client, db_session):
     user = User(email="owner2@example.com", password_hash="hash", role="user")
     db_session.add(user)
@@ -832,6 +872,56 @@ def test_admin_list_and_suspend_audit_state_changes(client, db_session):
     assert "admin.view_all_tenants" in actions
     assert "admin.suspend_tenant" in actions
     assert "admin.unsuspend_tenant" in actions
+
+
+@patch(f"{SUPPORT_ADMIN_ROUTER_MODULE}._partition_runtime_visible_tenants")
+def test_admin_list_hides_runtime_missing_tenants(partition_runtime, client, db_session):
+    owner = User(email="owner-runtime-admin@example.com", password_hash="hash", role="user")
+    db_session.add(owner)
+    db_session.commit()
+    db_session.refresh(owner)
+
+    visible_tenant = Tenant(
+        owner_id=owner.id,
+        subdomain="runtime-visible",
+        domain="runtime-visible.erp.blenkotechnologies.co.tz",
+        site_name="runtime-visible.erp.blenkotechnologies.co.tz",
+        company_name="Runtime Visible Ltd",
+        plan="starter",
+        status="active",
+        billing_status="paid",
+    )
+    stale_tenant = Tenant(
+        owner_id=owner.id,
+        subdomain="runtime-stale",
+        domain="runtime-stale.erp.blenkotechnologies.co.tz",
+        site_name="runtime-stale.erp.blenkotechnologies.co.tz",
+        company_name="Runtime Stale Ltd",
+        plan="starter",
+        status="active",
+        billing_status="paid",
+    )
+    db_session.add_all([visible_tenant, stale_tenant])
+    db_session.commit()
+    db_session.refresh(visible_tenant)
+    db_session.refresh(stale_tenant)
+
+    partition_runtime.return_value = ([visible_tenant], [stale_tenant])
+
+    headers = _admin_headers(client, db_session)
+    response = client.get("/admin/tenants", headers=headers)
+    assert response.status_code == 200
+    payload = response.json()
+    assert [row["id"] for row in payload] == [visible_tenant.id]
+
+    audit = (
+        db_session.query(AuditLog)
+        .filter(AuditLog.action == "admin.view_all_tenants")
+        .order_by(AuditLog.created_at.desc())
+        .first()
+    )
+    assert audit is not None
+    assert audit.metadata_json["hidden_runtime_missing"] == 1
 
 
 def test_admin_jobs_and_logs_view(client, db_session):
@@ -879,6 +969,77 @@ def test_admin_jobs_and_logs_view(client, db_session):
     assert "admin.view_job_logs" in actions
 
 
+@patch(f"{SUPPORT_ADMIN_ROUTER_MODULE}._partition_runtime_visible_tenants")
+@patch(f"{SUPPORT_ADMIN_ROUTER_MODULE}.PlatformERPClient")
+@patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())
+def test_admin_billing_dunning_keeps_pending_payment_visible_while_hiding_runtime_missing_tenants(
+    _,
+    platform_client_cls,
+    partition_runtime,
+    client,
+    db_session,
+):
+    owner_headers = _auth_headers(client, db_session)
+
+    visible_create = client.post(
+        "/tenants",
+        headers=owner_headers,
+        json={"subdomain": "dunning-visible", "company_name": "Dunning Visible Ltd", "plan": "starter"},
+    )
+    stale_create = client.post(
+        "/tenants",
+        headers=owner_headers,
+        json={"subdomain": "dunning-stale", "company_name": "Dunning Stale Ltd", "plan": "starter"},
+    )
+    assert visible_create.status_code == 202
+    assert stale_create.status_code == 202
+
+    visible_id = visible_create.json()["tenant"]["id"]
+    stale_id = stale_create.json()["tenant"]["id"]
+    visible = db_session.get(Tenant, visible_id)
+    stale = db_session.get(Tenant, stale_id)
+    assert visible is not None
+    assert stale is not None
+
+    visible.status = "pending_payment"
+    visible.billing_status = "unpaid"
+    visible.platform_customer_id = "CUST-VISIBLE"
+    stale.status = "suspended_billing"
+    stale.billing_status = "unpaid"
+    stale.platform_customer_id = "CUST-STALE"
+    db_session.add_all([visible, stale])
+    db_session.commit()
+
+    partition_runtime.return_value = ([visible], [stale])
+
+    platform_client = platform_client_cls.return_value
+    platform_client.is_configured.return_value = True
+    platform_client.list_invoices.return_value = [
+        {
+            "name": "SINV-0001",
+            "posting_date": "2026-03-10",
+            "due_date": "2026-03-14",
+        }
+    ]
+
+    admin_headers = _admin_headers(client, db_session)
+    response = client.get("/admin/billing/dunning", headers=admin_headers)
+
+    assert response.status_code == 200
+    tenant_ids = {item["tenant_id"] for item in response.json()}
+    assert visible_id in tenant_ids
+    assert stale_id not in tenant_ids
+
+    audit = (
+        db_session.query(AuditLog)
+        .filter(AuditLog.action == "admin.view_billing_dunning")
+        .order_by(AuditLog.created_at.desc())
+        .first()
+    )
+    assert audit is not None
+    assert audit.metadata_json["hidden_runtime_missing"] == 1
+
+
 @patch(f"{SUPPORT_ADMIN_ROUTER_MODULE}.PlatformERPClient")
 @patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())
 def test_admin_billing_dunning_includes_schedule_and_invoice_context(_, platform_client_cls, client, db_session):
@@ -920,6 +1081,181 @@ def test_admin_billing_dunning_includes_schedule_and_invoice_context(_, platform
     assert row["grace_ends_at"] is not None
 
 
+@patch(f"{SUPPORT_ADMIN_ROUTER_MODULE}._partition_runtime_visible_tenants")
+@patch(f"{SUPPORT_ADMIN_ROUTER_MODULE}.PlatformERPClient")
+@patch("app.modules.tenant.service.get_payment_gateway", return_value=DummyGateway())
+def test_admin_billing_dunning_hides_runtime_missing_tenants(_, platform_client_cls, partition_runtime, client, db_session):
+    owner_headers = _auth_headers(client, db_session)
+    create = client.post(
+        "/tenants",
+        headers=owner_headers,
+        json={"subdomain": "billing-runtime-hidden", "company_name": "Billing Hidden Ltd", "plan": "starter"},
+    )
+    assert create.status_code == 202
+    tenant_id = create.json()["tenant"]["id"]
+
+    tenant = db_session.get(Tenant, tenant_id)
+    assert tenant is not None
+    tenant.status = "suspended_billing"
+    tenant.billing_status = "unpaid"
+    tenant.platform_customer_id = "CUST-HIDDEN"
+    db_session.add(tenant)
+    db_session.commit()
+
+    partition_runtime.return_value = ([], [tenant])
+    platform_client = platform_client_cls.return_value
+    platform_client.is_configured.return_value = True
+    platform_client.list_invoices.return_value = []
+
+    admin_headers = _admin_headers(client, db_session)
+    response = client.get("/admin/billing/dunning", headers=admin_headers)
+    assert response.status_code == 200
+    assert response.json() == []
+
+    audit = (
+        db_session.query(AuditLog)
+        .filter(AuditLog.action == "admin.view_billing_dunning")
+        .order_by(AuditLog.created_at.desc())
+        .first()
+    )
+    assert audit is not None
+    assert audit.metadata_json["hidden_runtime_missing"] == 1
+
+
+
+
+def test_admin_billing_dunning_excludes_deleted_pending_subscription_rows(client, db_session):
+    owner_headers = _auth_headers(client, db_session)
+    create = client.post(
+        "/tenants",
+        headers=owner_headers,
+        json={"subdomain": "deleted-dunning-api", "company_name": "Deleted Dunning API Ltd", "plan": "starter"},
+    )
+    assert create.status_code == 202
+    tenant_id = create.json()["tenant"]["id"]
+
+    tenant = db_session.get(Tenant, tenant_id)
+    assert tenant is not None
+    tenant.status = "deleted"
+    tenant.billing_status = "pending"
+    db_session.add(tenant)
+    db_session.commit()
+
+    admin_headers = _admin_headers(client, db_session)
+    response = client.get("/admin/billing/dunning", headers=admin_headers)
+
+    assert response.status_code == 200
+    tenant_ids = {item["tenant_id"] for item in response.json()}
+    assert tenant_id not in tenant_ids
+
+
+
+@patch(f"{SUPPORT_ADMIN_ROUTER_MODULE}.PlatformERPClient.list_runtime_sites")
+def test_admin_runtime_consistency_report_classifies_reconciliation_gaps(mock_list_runtime_sites, client, db_session):
+    owner = User(email="consistency-owner@example.com", password_hash="hash", role="user")
+    db_session.add(owner)
+    db_session.commit()
+    db_session.refresh(owner)
+
+    active_missing = Tenant(
+        owner_id=owner.id,
+        subdomain="active-missing",
+        domain="active-missing.erp.blenkotechnologies.co.tz",
+        site_name="active-missing.erp.blenkotechnologies.co.tz",
+        company_name="Active Missing Ltd",
+        plan="starter",
+        status="active",
+        billing_status="paid",
+    )
+    pending_no_runtime = Tenant(
+        owner_id=owner.id,
+        subdomain="pending-no-runtime",
+        domain="pending-no-runtime.erp.blenkotechnologies.co.tz",
+        site_name="pending-no-runtime.erp.blenkotechnologies.co.tz",
+        company_name="Pending No Runtime Ltd",
+        plan="starter",
+        status="pending",
+        billing_status="pending",
+    )
+    pending_payment_no_runtime = Tenant(
+        owner_id=owner.id,
+        subdomain="pending-payment-no-runtime",
+        domain="pending-payment-no-runtime.erp.blenkotechnologies.co.tz",
+        site_name="pending-payment-no-runtime.erp.blenkotechnologies.co.tz",
+        company_name="Pending Payment No Runtime Ltd",
+        plan="starter",
+        status="pending_payment",
+        billing_status="pending",
+    )
+    deleted_with_runtime = Tenant(
+        owner_id=owner.id,
+        subdomain="deleted-with-runtime",
+        domain="deleted-with-runtime.erp.blenkotechnologies.co.tz",
+        site_name="deleted-with-runtime.erp.blenkotechnologies.co.tz",
+        company_name="Deleted With Runtime Ltd",
+        plan="starter",
+        status="deleted",
+        billing_status="pending",
+    )
+    db_session.add_all([active_missing, pending_no_runtime, pending_payment_no_runtime, deleted_with_runtime])
+    db_session.commit()
+
+    mock_list_runtime_sites.return_value = [
+        "deleted-with-runtime.erp.blenkotechnologies.co.tz",
+        "orphan-runtime.erp.blenkotechnologies.co.tz",
+    ]
+
+    headers = _admin_headers(client, db_session)
+    response = client.get("/admin/tenants/runtime-consistency", headers=headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["runtime_expected_missing"] == 1
+    assert payload["pending_without_runtime"] == 1
+    assert payload["pending_payment_without_runtime"] == 1
+    assert payload["deleted_with_runtime"] == 1
+    assert payload["runtime_sites_without_db_entry"] == 1
+    assert payload["runtime_only_sites"] == ["orphan-runtime.erp.blenkotechnologies.co.tz"]
+
+    by_domain = {entry["domain"]: entry for entry in payload["entries"]}
+    assert by_domain[active_missing.domain]["classification"] == "runtime_expected_missing"
+    assert by_domain[pending_no_runtime.domain]["classification"] == "pending_without_runtime"
+    assert by_domain[pending_payment_no_runtime.domain]["classification"] == "pending_payment_without_runtime"
+    assert by_domain[deleted_with_runtime.domain]["classification"] == "deleted_with_runtime"
+
+
+@patch(f"{SUPPORT_ADMIN_ROUTER_MODULE}.PlatformERPClient.list_runtime_sites")
+def test_admin_runtime_consistency_report_normalizes_site_names(mock_list_runtime_sites, client, db_session):
+    owner = User(email="normalized-owner@example.com", password_hash="hash", role="user")
+    db_session.add(owner)
+    db_session.commit()
+    db_session.refresh(owner)
+
+    tenant = Tenant(
+        owner_id=owner.id,
+        subdomain="normalized-site",
+        domain="normalized-site.erp.blenkotechnologies.co.tz",
+        site_name="https://normalized-site.erp.blenkotechnologies.co.tz",
+        company_name="Normalized Site Ltd",
+        plan="starter",
+        status="active",
+        billing_status="paid",
+    )
+    db_session.add(tenant)
+    db_session.commit()
+
+    mock_list_runtime_sites.return_value = ["normalized-site.erp.blenkotechnologies.co.tz"]
+
+    headers = _admin_headers(client, db_session)
+    response = client.get("/admin/tenants/runtime-consistency", headers=headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["runtime_expected_missing"] == 0
+    assert payload["runtime_sites_without_db_entry"] == 0
+    assert payload["entries"] == []
+
+
 @patch(f"{SUPPORT_ADMIN_ROUTER_MODULE}.get_queue")
 def test_admin_can_queue_billing_dunning_cycle(mock_get_queue, client, db_session):
     mock_get_queue.return_value.enqueue = fake_enqueue
@@ -931,6 +1267,58 @@ def test_admin_can_queue_billing_dunning_cycle(mock_get_queue, client, db_sessio
 
     actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
     assert "admin.run_billing_dunning_cycle" in actions
+
+
+def test_admin_can_list_billing_reconciliation_exceptions(client, db_session):
+    owner = User(email="billing-exception-owner@example.com", password_hash="hash", role="user")
+    db_session.add(owner)
+    db_session.commit()
+    db_session.refresh(owner)
+
+    tenant = Tenant(
+        owner_id=owner.id,
+        subdomain="billing-exception",
+        domain="billing-exception.erp.blenkotechnologies.co.tz",
+        site_name="billing-exception.erp.blenkotechnologies.co.tz",
+        company_name="Billing Exception Ltd",
+        plan="starter",
+        status="pending_payment",
+        billing_status="failed",
+    )
+    db_session.add(tenant)
+    db_session.commit()
+    db_session.refresh(tenant)
+
+    exception = BillingException(
+        tenant_id=tenant.id,
+        subscription_id=None,
+        billing_account_id=None,
+        billing_invoice_id="inv-local-1",
+        payment_attempt_id="attempt-1",
+        exception_type="erp_mismatch",
+        status="open",
+        reason="ERP invoice remains open while the platform marks payment as settled",
+        details_json={"source": "test"},
+    )
+    db_session.add(exception)
+    db_session.commit()
+
+    headers = _admin_headers(client, db_session)
+    response = client.get("/admin/billing/queues/reconciliation-exceptions", headers=headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload) == 1
+    assert payload[0]["tenant_id"] == tenant.id
+    assert payload[0]["invoice_id"] == "inv-local-1"
+    assert payload[0]["payment_attempt_id"] == "attempt-1"
+    assert payload[0]["exception_type"] == "erp_mismatch"
+    assert payload[0]["severity"] == "high"
+    assert payload[0]["status"] == "open"
+    assert "platform marks payment as settled" in payload[0]["summary"]
+
+    actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
+    assert "admin.view_billing_reconciliation_exceptions" in actions
 
 
 def test_support_role_can_access_scoped_admin_reads_and_interventions(client, db_session):

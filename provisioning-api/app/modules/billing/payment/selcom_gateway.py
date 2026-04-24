@@ -14,6 +14,16 @@ from app.modules.billing.payment.base import CheckoutResult, PaymentGateway, Web
 
 
 class SelcomGateway(PaymentGateway):
+    @staticmethod
+    def _amount_from_minor_units(value: int | None, *, default: str) -> str:
+        if value is None:
+            return default
+        return f"{(int(value) or 0) / 100:.2f}"
+
+    def _currency_for_invoice(self, invoice, *, default: str) -> str:
+        if invoice is None:
+            return default
+        return str(getattr(invoice, "currency", None) or default)
     @property
     def provider_name(self) -> str:
         return "selcom"
@@ -78,6 +88,10 @@ class SelcomGateway(PaymentGateway):
         return decoded if decoded.startswith(("http://", "https://")) else value
 
     def create_checkout(self, tenant, owner) -> CheckoutResult:
+        return self.create_invoice_checkout(None, tenant, owner)
+
+    def create_invoice_checkout(self, invoice, tenant, owner, *, return_url: str | None = None, cancel_url: str | None = None, channel_hint: str | None = None) -> CheckoutResult:
+        del channel_hint
         settings = get_settings()
         if self.mock_mode:
             if not settings.mock_billing_allowed:
@@ -103,14 +117,14 @@ class SelcomGateway(PaymentGateway):
             "buyer_name": owner.email.split("@")[0] or tenant.company_name,
             "buyer_user_id": owner.id,
             "buyer_phone": settings.selcom_default_buyer_phone,
-            "amount": settings.selcom_checkout_amount,
-            "currency": settings.selcom_currency,
+            "amount": self._amount_from_minor_units(getattr(invoice, "amount_due", None) if invoice is not None else None, default=settings.selcom_checkout_amount),
+            "currency": self._currency_for_invoice(invoice, default=settings.selcom_currency),
             "payment_methods": payment_methods,
-            "redirect_url": self._b64_encode(settings.billing_checkout_success_url),
-            "cancel_url": self._b64_encode(settings.billing_checkout_cancel_url),
+            "redirect_url": self._b64_encode(return_url or settings.billing_checkout_success_url),
+            "cancel_url": self._b64_encode(cancel_url or settings.billing_checkout_cancel_url),
             "webhook": self._b64_encode(webhook_url),
             "buyer_remarks": f"{tenant.company_name} subscription",
-            "merchant_remarks": f"plan={tenant.plan}",
+            "merchant_remarks": f"plan={tenant.plan};invoice_id={getattr(invoice, 'id', '')};invoice_number={getattr(invoice, 'invoice_number', '')}",
             "no_of_items": 1,
         }
         signed_fields = list(payload.keys())

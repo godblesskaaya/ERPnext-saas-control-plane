@@ -9,7 +9,7 @@ import {
   runPlatformMaintenanceAction,
   type MaintenanceAction,
 } from "../../../../../domains/platform-ops/application/platformHealthUseCases";
-import type { Job, Tenant } from "../../../../../domains/shared/lib/types";
+import type { Job, Tenant, TenantRuntimeConsistencyReport } from "../../../../../domains/shared/lib/types";
 
 type ApiHealth = {
   status?: string;
@@ -17,11 +17,30 @@ type ApiHealth = {
   checks?: Record<string, string>;
 };
 
+function runtimeClassificationLabel(classification: string): string {
+  switch (classification) {
+    case "runtime_expected_missing":
+      return "Expected runtime missing";
+    case "pending_without_runtime":
+      return "Pending without runtime";
+    case "pending_payment_without_runtime":
+      return "Pending payment without runtime";
+    case "deleted_with_runtime":
+      return "Deleted row still has runtime";
+    default:
+      return classification.replace(/_/g, " ");
+  }
+}
+
 function formatDate(value?: string | null): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return `${date.toLocaleString()} EAT`;
+  return date.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZoneName: "short",
+  });
 }
 
 export default function PlatformHealthPage() {
@@ -36,6 +55,7 @@ export default function PlatformHealthPage() {
   const [maintenanceMessage, setMaintenanceMessage] = useState<string | null>(null);
   const [maintenanceError, setMaintenanceError] = useState<string | null>(null);
   const [maintenanceBusy, setMaintenanceBusy] = useState(false);
+  const [tenantRuntimeConsistency, setTenantRuntimeConsistency] = useState<TenantRuntimeConsistencyReport | null>(null);
   const canRunAdminOnlyActions = operatorRole === "admin";
 
   useEffect(() => {
@@ -53,6 +73,7 @@ export default function PlatformHealthPage() {
       setTenants(snapshot.tenants);
       setAuthHealth(snapshot.authHealth);
       setBillingHealth(snapshot.billingHealth);
+      setTenantRuntimeConsistency(snapshot.tenantRuntimeConsistency);
       if (!snapshot.healthAvailable) {
         setHealthError("API health endpoint is not available.");
       }
@@ -96,6 +117,10 @@ export default function PlatformHealthPage() {
     () => tenants.filter((tenant) => tenant.status.toLowerCase().includes("suspended")).length,
     [tenants]
   );
+  const runtimeGapCount = useMemo(() => {
+    if (!tenantRuntimeConsistency) return 0;
+    return tenantRuntimeConsistency.entries.length + tenantRuntimeConsistency.runtime_only_sites.length;
+  }, [tenantRuntimeConsistency]);
 
   return (
     <section className="space-y-8">
@@ -138,6 +163,94 @@ export default function PlatformHealthPage() {
           <p className="mt-1 text-xs opacity-80">Billing/Admin suspensions</p>
         </article>
       </div>
+
+
+<div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">
+  <div className="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 className="text-lg font-semibold text-slate-900">Tenant runtime consistency</h2>
+      <p className="mt-1 text-sm text-slate-600">
+        Highlights tenant rows that do not reconcile with actual ERP runtimes so operators can clean stale state before it leaks into billing or support workflows.
+      </p>
+    </div>
+    <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700">
+      {runtimeGapCount} open reconciliation signal(s)
+    </div>
+  </div>
+
+  {tenantRuntimeConsistency ? (
+    <>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <article className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <p className="text-xs uppercase tracking-wide opacity-80">Expected runtime missing</p>
+          <p className="mt-1 text-2xl font-semibold">{tenantRuntimeConsistency.runtime_expected_missing}</p>
+        </article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900">
+          <p className="text-xs uppercase tracking-wide opacity-80">Pending without runtime</p>
+          <p className="mt-1 text-2xl font-semibold">{tenantRuntimeConsistency.pending_without_runtime}</p>
+        </article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900">
+          <p className="text-xs uppercase tracking-wide opacity-80">Pending payment without runtime</p>
+          <p className="mt-1 text-2xl font-semibold">{tenantRuntimeConsistency.pending_payment_without_runtime}</p>
+        </article>
+        <article className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800">
+          <p className="text-xs uppercase tracking-wide opacity-80">Deleted with runtime</p>
+          <p className="mt-1 text-2xl font-semibold">{tenantRuntimeConsistency.deleted_with_runtime}</p>
+        </article>
+        <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-900">
+          <p className="text-xs uppercase tracking-wide opacity-80">Runtime-only sites</p>
+          <p className="mt-1 text-2xl font-semibold">{tenantRuntimeConsistency.runtime_sites_without_db_entry}</p>
+        </article>
+      </div>
+
+      {tenantRuntimeConsistency.entries.length ? (
+        <div className="mt-4 space-y-3">
+          {tenantRuntimeConsistency.entries.map((entry) => (
+            <div key={entry.tenant_id} className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{entry.domain}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {runtimeClassificationLabel(entry.classification)} · status={entry.status} · subscription={entry.subscription_status ?? "n/a"} · plan={entry.plan ?? "n/a"}
+                  </p>
+                </div>
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
+                  {entry.runtime_exists ? "runtime found" : "runtime missing"}
+                </span>
+              </div>
+              <div className="mt-3 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
+                <p>Owner: <span className="font-medium text-slate-900">{entry.owner_email ?? "—"}</span></p>
+                <p>Last job: <span className="font-medium text-slate-900">{entry.last_job_type ?? "—"} {entry.last_job_status ? `(${entry.last_job_status})` : ""}</span></p>
+                <p>Last job at: <span className="font-medium text-slate-900">{formatDate(entry.last_job_at)}</span></p>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+          No tenant-runtime mismatches detected right now.
+        </p>
+      )}
+
+      {tenantRuntimeConsistency.runtime_only_sites.length ? (
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Runtime sites without DB rows</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {tenantRuntimeConsistency.runtime_only_sites.map((site) => (
+              <span key={site} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700">
+                {site}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </>
+  ) : (
+    <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+      Tenant runtime consistency report is not available on this backend deployment.
+    </p>
+  )}
+</div>
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">

@@ -50,6 +50,7 @@ export type Tenant = {
   id: string;
   organization_id?: string | null;
   owner_id: string;
+  owner_email?: string | null;
   subdomain: string;
   domain: string;
   site_name: string;
@@ -276,6 +277,34 @@ export type MetricsSummary = {
   support_due_soon_notes: number;
 };
 
+export type TenantRuntimeConsistencyEntry = {
+  tenant_id: string;
+  subdomain: string;
+  domain: string;
+  status: string;
+  subscription_status?: string | null;
+  plan?: string | null;
+  owner_email?: string | null;
+  runtime_expected: boolean;
+  runtime_exists: boolean;
+  classification: string;
+  last_job_type?: string | null;
+  last_job_status?: string | null;
+  last_job_at?: string | null;
+};
+
+export type TenantRuntimeConsistencyReport = {
+  generated_at: string;
+  total_tenants: number;
+  runtime_expected_missing: number;
+  pending_without_runtime: number;
+  pending_payment_without_runtime: number;
+  deleted_with_runtime: number;
+  runtime_sites_without_db_entry: number;
+  entries: TenantRuntimeConsistencyEntry[];
+  runtime_only_sites: string[];
+};
+
 export type TenantSummary = {
   tenant_id: string;
   last_job?: Job | null;
@@ -288,7 +317,14 @@ export type TenantSubscription = {
   id: string;
   tenant_id: string;
   plan_id: string;
-  status: "pending" | "trialing" | "active" | "past_due" | "cancelled" | "paused" | (string & {});
+  status:
+    | "pending"
+    | "trialing"
+    | "active"
+    | "past_due"
+    | "cancelled"
+    | "paused"
+    | (string & {});
   trial_ends_at?: string | null;
   current_period_start?: string | null;
   current_period_end?: string | null;

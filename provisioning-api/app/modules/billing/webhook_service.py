@@ -123,6 +123,7 @@ def handle_gateway_webhook(
             request=request,
             background_tasks=background_tasks,
             db=db,
+            provider=provider_for_logs,
             event_type=event.event_type,
             tenant_id=event.tenant_id,
             subscription_id=event.subscription_id,

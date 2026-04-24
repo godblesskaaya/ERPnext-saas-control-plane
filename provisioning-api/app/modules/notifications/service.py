@@ -15,7 +15,6 @@ from app.modules.observability.logging import get_logger
 
 log = get_logger(__name__)
 
-
 @dataclass
 class NotificationMessage:
     to_email: str
@@ -259,19 +258,24 @@ class NotificationService:
             )
         )
 
-    def send_provisioning_complete(self, email: str, domain: str, phone: str | None = None) -> bool:
+    def send_provisioning_success(
+        self,
+        to_email: str,
+        domain: str,
+        workspace_url: str,
+        to_phone: str | None = None,
+    ) -> bool:
         return self.send(
             NotificationMessage(
-                to_email=email,
-                to_phone=phone,
-                subject="Your ERP instance is ready",
-                text=(
-                    "Provisioning completed successfully.\n\n"
-                    f"ERP URL: https://{domain}\n"
-                    "Username: Administrator"
-                ),
+                to_email=to_email,
+                to_phone=to_phone,
+                subject="Your workspace is ready",
+                text=f"Your workspace {domain} is ready. Open it at {workspace_url}.",
             )
         )
+
+    def send_provisioning_complete(self, email: str, domain: str, phone: str | None = None) -> bool:
+        return self.send_provisioning_success(email, domain, f"https://{domain}", phone)
 
     def send_provisioning_failed(self, email: str, domain: str, error_summary: str, phone: str | None = None) -> bool:
         settings = get_settings()
@@ -285,6 +289,22 @@ class NotificationService:
                     f"Error summary: {error_summary}\n\n"
                     f"Please contact support at {settings.mail_support_email}."
                 ),
+            )
+        )
+
+    def send_backup_completed(
+        self,
+        to_email: str,
+        domain: str,
+        backup_created_at: datetime,
+        to_phone: str | None = None,
+    ) -> bool:
+        return self.send(
+            NotificationMessage(
+                to_email=to_email,
+                to_phone=to_phone,
+                subject="Backup completed",
+                text=f"Backup of {domain} completed at {backup_created_at.isoformat()}.",
             )
         )
 
@@ -369,19 +389,29 @@ class NotificationService:
             )
         )
 
-    def send_trial_expiring(self, email: str, domain: str, trial_ends_at: datetime, phone: str | None = None) -> bool:
+    def send_trial_expiring_soon(
+        self,
+        to_email: str,
+        domain: str,
+        trial_ends_at: datetime,
+        days_remaining: int,
+        to_phone: str | None = None,
+    ) -> bool:
         return self.send(
             NotificationMessage(
-                to_email=email,
-                to_phone=phone,
+                to_email=to_email,
+                to_phone=to_phone,
                 subject="Trial ending soon",
                 text=(
-                    f"Your trial for {domain} is ending soon.\n\n"
-                    f"Trial end: {trial_ends_at.isoformat()}\n"
-                    "Add or confirm payment details to avoid interruption."
+                    f"Your trial for {domain} ends in {days_remaining} days. "
+                    "Upgrade to keep access.\n\n"
+                    f"Trial end: {trial_ends_at.isoformat()}"
                 ),
             )
         )
+
+    def send_trial_expiring(self, email: str, domain: str, trial_ends_at: datetime, phone: str | None = None) -> bool:
+        return self.send_trial_expiring_soon(email, domain, trial_ends_at, 7, phone)
 
     def send_trial_converted(self, email: str, domain: str, phone: str | None = None) -> bool:
         return self.send(

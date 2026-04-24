@@ -72,7 +72,7 @@ def test_tenant_subscription_endpoint_returns_plan_detail(_, client, db_session)
     assert response.status_code == 200
     payload = response.json()
     assert payload["tenant_id"] == tenant_id
-    assert payload["status"] == "pending"
+    assert payload["status"] == "trialing"
     assert payload["plan"]["slug"] == "business"
     assert payload["selected_app"] == "crm"
 

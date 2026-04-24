@@ -84,3 +84,7 @@ def build_assets_command(*, force: bool = True) -> list[str]:
     if force:
         command.append("--force")
     return command
+
+
+def build_list_sites_command() -> list[str]:
+    return _docker_compose_prefix() + ["bench", "list-sites"]

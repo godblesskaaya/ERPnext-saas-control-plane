@@ -4,6 +4,7 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db import get_db
 from app.models import User
 from app.modules.identity.security import decode_access_token
@@ -11,6 +12,17 @@ from app.token_store import get_token_store
 
 
 bearer_scheme = HTTPBearer(auto_error=False)
+settings = get_settings()
+
+
+def _token_issued_at(payload: dict) -> float:
+    issued_at = payload.get("iat")
+    if issued_at is not None:
+        return float(issued_at)
+    expires_at = payload.get("exp")
+    if expires_at is None:
+        return 0.0
+    return float(expires_at) - (settings.jwt_access_token_expire_minutes * 60)
 
 
 def get_current_user(
@@ -31,6 +43,10 @@ def get_current_user(
     token_jti = payload.get("jti")
     if not token_jti or token_store.exists(f"revoked:{token_jti}"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked")
+
+    revoked_before = token_store.get(f"revoked_before:{user_id}") if user_id else None
+    if revoked_before and _token_issued_at(payload) < float(revoked_before):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session revoked")
 
     user = db.get(User, user_id)
     if not user:

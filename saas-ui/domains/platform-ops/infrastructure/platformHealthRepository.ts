@@ -1,5 +1,5 @@
 import { api } from "../../shared/lib/api";
-import type { Job, MessageResponse, OptionalEndpointResult, Tenant } from "../../shared/lib/types";
+import type { Job, MessageResponse, OptionalEndpointResult, Tenant, TenantRuntimeConsistencyReport } from "../../shared/lib/types";
 
 export type ApiHealth = {
   status?: string;
@@ -38,4 +38,9 @@ export async function rebuildAssets(): Promise<OptionalEndpointResult<MessageRes
 
 export async function syncTenantTls(primeCerts: boolean): Promise<OptionalEndpointResult<MessageResponse>> {
   return api.syncTenantTLS(primeCerts);
+}
+
+
+export async function fetchTenantRuntimeConsistency(): Promise<OptionalEndpointResult<TenantRuntimeConsistencyReport>> {
+  return api.getTenantRuntimeConsistency();
 }

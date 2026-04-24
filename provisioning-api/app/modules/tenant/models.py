@@ -11,7 +11,20 @@ from app.db import Base
 from app.utils.time import utcnow
 
 if TYPE_CHECKING:
-    from app.models import BackupManifest, DomainMapping, Job, Organization, SupportNote, TenantMembership, User
+    from app.models import (
+        BackupManifest,
+        BillingAccount,
+        BillingEvent,
+        BillingException,
+        BillingInvoice,
+        DomainMapping,
+        Job,
+        Organization,
+        PaymentAttempt,
+        SupportNote,
+        TenantMembership,
+        User,
+    )
     from app.modules.subscription.models import Subscription
 
 
@@ -69,6 +82,11 @@ class Tenant(Base):
     domain_mappings: Mapped[list["DomainMapping"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
     support_notes: Mapped[list["SupportNote"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
     subscription: Mapped["Subscription | None"] = relationship("Subscription", back_populates="tenant", uselist=False)
+    billing_account: Mapped["BillingAccount | None"] = relationship("BillingAccount", back_populates="tenant", uselist=False)
+    billing_invoices: Mapped[list["BillingInvoice"]] = relationship("BillingInvoice", back_populates="tenant")
+    payment_attempts: Mapped[list["PaymentAttempt"]] = relationship("PaymentAttempt", back_populates="tenant")
+    billing_events: Mapped[list["BillingEvent"]] = relationship("BillingEvent", back_populates="tenant")
+    billing_exceptions: Mapped[list["BillingException"]] = relationship("BillingException", back_populates="tenant")
 
     def __init__(self, **kwargs):
         legacy_plan = kwargs.pop("plan", None)
@@ -128,7 +146,11 @@ class Tenant(Base):
     def billing_status(self, value: str) -> None:
         mapped = _to_subscription_status(value)
         if self.subscription is not None:
-            self.subscription.status = mapped
+            current = _normalize(self.subscription.status)
+            # AGENT-NOTE: Legacy billing_status writes for unpaid/pending are compatibility hints.
+            # Do not downgrade an explicit trial/active subscription back to pending through this shim.
+            if mapped != "pending" or current in {"", "pending"}:
+                self.subscription.status = mapped
         self._compat_subscription_status = mapped
 
     @property

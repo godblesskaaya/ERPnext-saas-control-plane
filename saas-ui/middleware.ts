@@ -56,31 +56,6 @@ function buildLoginUrl(request: NextRequest, sessionExpired: boolean): URL {
   return loginUrl;
 }
 
-function forbiddenHtml(): string {
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>403 Forbidden</title>
-    <style>
-      body { margin: 0; font-family: Inter, system-ui, -apple-system, sans-serif; background: #020617; color: #e2e8f0; display: grid; min-height: 100vh; place-items: center; }
-      .card { width: min(90vw, 560px); border: 1px solid #334155; background: rgba(15, 23, 42, 0.8); border-radius: 16px; padding: 28px; }
-      h1 { margin: 0 0 10px; font-size: 1.5rem; }
-      p { margin: 0 0 16px; color: #cbd5e1; line-height: 1.5; }
-      a { color: #7dd3fc; }
-    </style>
-  </head>
-  <body>
-    <div class="card">
-      <h1>403 — Admin or support access required</h1>
-      <p>Your account does not have permission to view this operator route.</p>
-      <p><a href="/app/overview">Return to overview</a></p>
-    </div>
-  </body>
-</html>`;
-}
-
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(TOKEN_COOKIE)?.value;
@@ -134,13 +109,10 @@ export function middleware(request: NextRequest) {
 
   const role = request.cookies.get(ROLE_COOKIE)?.value ?? payload?.role;
   if (isAdminRoute(pathname) && !isAdminOperatorRole(role)) {
-    return new NextResponse(forbiddenHtml(), {
-      status: 403,
-      headers: {
-        "content-type": "text/html; charset=utf-8",
-        "cache-control": "no-store",
-      },
-    });
+    return new NextResponse(
+      "<!doctype html><html><body><h1>403 — Admin or support access required</h1></body></html>",
+      { status: 403, headers: { "content-type": "text/html; charset=utf-8" } },
+    );
   }
 
   return NextResponse.next();

@@ -10,6 +10,16 @@ from app.modules.billing.payment.base import CheckoutResult, PaymentGateway, Web
 
 
 class DPOGateway(PaymentGateway):
+    @staticmethod
+    def _amount_from_minor_units(value: int | None, *, default: str) -> str:
+        if value is None:
+            return default
+        return f"{(int(value) or 0) / 100:.2f}"
+
+    def _currency_for_invoice(self, invoice, *, default: str) -> str:
+        if invoice is None:
+            return default
+        return str(getattr(invoice, "currency", None) or default)
     @property
     def provider_name(self) -> str:
         return "dpo"
@@ -20,6 +30,10 @@ class DPOGateway(PaymentGateway):
         return not (settings.dpo_company_token and settings.dpo_service_type)
 
     def create_checkout(self, tenant, owner) -> CheckoutResult:
+        return self.create_invoice_checkout(None, tenant, owner)
+
+    def create_invoice_checkout(self, invoice, tenant, owner, *, return_url: str | None = None, cancel_url: str | None = None, channel_hint: str | None = None) -> CheckoutResult:
+        del channel_hint
         settings = get_settings()
         if self.mock_mode:
             if not settings.mock_billing_allowed:
@@ -39,12 +53,12 @@ class DPOGateway(PaymentGateway):
         payload = {
             "CompanyToken": settings.dpo_company_token,
             "ServiceType": settings.dpo_service_type,
-            "PaymentAmount": "1.00",
-            "PaymentCurrency": "USD",
+            "PaymentAmount": self._amount_from_minor_units(getattr(invoice, "amount_due", None) if invoice is not None else None, default="1.00"),
+            "PaymentCurrency": self._currency_for_invoice(invoice, default="USD"),
             "CustomerFirstName": owner.email.split("@")[0] or "Customer",
             "CustomerEmail": owner.email,
-            "RedirectURL": settings.billing_checkout_success_url,
-            "BackURL": settings.billing_checkout_cancel_url,
+            "RedirectURL": return_url or settings.billing_checkout_success_url,
+            "BackURL": cancel_url or settings.billing_checkout_cancel_url,
             "CompanyRef": tenant.id,
         }
 

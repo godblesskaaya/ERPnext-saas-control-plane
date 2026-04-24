@@ -23,6 +23,7 @@ import type {
   TenantCreateResponse,
   TenantSummary,
   TenantReadiness,
+  TenantRuntimeConsistencyReport,
   TenantSubscription,
   TenantUpdatePayload,
   UserProfile,
@@ -729,6 +730,9 @@ export const api = {
   listBillingInvoices: () => requestOptionalEndpoint<BillingInvoiceListResponse>("/billing/invoices"),
 
   getAdminMetrics: () => requestOptionalEndpoint<MetricsSummary>("/admin/metrics"),
+
+  getTenantRuntimeConsistency: () =>
+    requestOptionalEndpoint<TenantRuntimeConsistencyReport>("/admin/tenants/runtime-consistency"),
 
   authHealth: () => requestOptionalEndpoint<MessageResponse>("/auth/health"),
 

@@ -5,12 +5,13 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.db import Base
 from app.utils.time import utcnow
 
 if TYPE_CHECKING:
+    from app.models import BillingEvent, BillingException, BillingInvoice, PaymentAttempt
     from app.modules.tenant.models import Tenant
 
 
@@ -80,3 +81,17 @@ class Subscription(Base):
 
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="subscription")
     plan: Mapped[Plan] = relationship(back_populates="subscriptions")
+    billing_invoices: Mapped[list["BillingInvoice"]] = relationship(back_populates="subscription")
+    payment_attempts: Mapped[list["PaymentAttempt"]] = relationship(back_populates="subscription")
+    billing_events: Mapped[list["BillingEvent"]] = relationship(back_populates="subscription")
+    billing_exceptions: Mapped[list["BillingException"]] = relationship(back_populates="subscription")
+
+    @validates("status")
+    def _validate_status_transition(self, key: str, value: str) -> str:
+        del key
+        from app.modules.subscription.state import validate_subscription_status_transition
+
+        new_status = (value or "pending").strip().lower()
+        current_status = getattr(self, "status", None)
+        validate_subscription_status_transition(current_status, new_status)
+        return new_status

@@ -2,6 +2,7 @@ name: erp-saas
 services:
   postgres:
     image: postgres:16-alpine
+    restart: on-failure
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-erp_saas}
       POSTGRES_USER: ${POSTGRES_USER:-erp_saas}
@@ -16,13 +17,20 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - saas-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   api:
     build:
       context: ./provisioning-api
+    restart: unless-stopped
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-production}
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://erp_saas:change-me@postgres:5432/erp_saas}
@@ -114,7 +122,12 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1g
     networks:
       default: null
       proxy: {}
@@ -149,6 +162,7 @@ services:
   worker:
     build:
       context: ./provisioning-api
+    restart: unless-stopped
     command: ["python", "-m", "app.worker"]
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-production}
@@ -238,7 +252,12 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2g
     volumes:
       - ../:/workspace:ro
       - /var/run/docker.sock:/var/run/docker.sock
@@ -251,6 +270,7 @@ services:
         API_PROXY_TARGET: ${SAAS_API_PROXY_TARGET:-http://api:8000}
         NEXT_PUBLIC_PLATFORM_DOMAIN: ${SAAS_PLATFORM_DOMAIN:-erp.blenkotechnologies.co.tz}
         NEXT_PUBLIC_TENANT_DOMAIN_SUFFIX: ${SAAS_TENANT_DOMAIN_SUFFIX:-erp.blenkotechnologies.co.tz}
+    restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_BASE_URL: ${SAAS_PUBLIC_API_BASE_URL:-/api}
       API_PROXY_TARGET: ${SAAS_API_PROXY_TARGET:-http://api:8000}
@@ -259,6 +279,11 @@ services:
     depends_on:
       api:
         condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512m
     networks:
       default: null
       proxy: {}

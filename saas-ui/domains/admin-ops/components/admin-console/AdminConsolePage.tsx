@@ -10,7 +10,11 @@ import { AdminRecoveryView } from "./_components/AdminRecoveryView";
 import { AdminSupportView } from "./_components/AdminSupportView";
 import { AdminTenantsView } from "./_components/AdminTenantsView";
 import { TenantActionModal } from "./_components/TenantActionModal";
-import { ADMIN_VIEW_DETAILS, ADMIN_VIEWS, type AdminView } from "./_components/adminConsoleConfig";
+import {
+  ADMIN_VIEW_DETAILS,
+  ADMIN_VIEWS,
+  type AdminView,
+} from "./_components/adminConsoleConfig";
 import { useAdminConsoleController } from "./_components/useAdminConsoleController";
 
 type AdminConsolePageProps = {
@@ -22,16 +26,25 @@ export function AdminConsolePage({ forcedView }: AdminConsolePageProps) {
 
   return (
     <Stack component="section" spacing={3}>
-      <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems={{ md: "center" }} gap={2}>
+      <Stack
+        direction={{ xs: "column", md: "row" }}
+        justifyContent="space-between"
+        alignItems={{ md: "center" }}
+        gap={2}
+      >
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 700 }}>
             Admin Control Center
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Keep tenant reliability high with fast attention routing for setup delays, failures, and governance tasks.
+            Keep tenant reliability high with fast attention routing for setup
+            delays, failures, and governance tasks.
           </Typography>
         </Box>
-        <Chip label={`View: ${ADMIN_VIEW_DETAILS[controller.currentView].label}`} variant="outlined" />
+        <Chip
+          label={`View: ${ADMIN_VIEW_DETAILS[controller.currentView].label}`}
+          variant="outlined"
+        />
       </Stack>
 
       <Paper variant="outlined" sx={{ p: 1.5 }}>
@@ -42,7 +55,9 @@ export function AdminConsolePage({ forcedView }: AdminConsolePageProps) {
               component={Link}
               href={controller.buildViewHref(view)}
               size="small"
-              variant={controller.currentView === view ? "contained" : "outlined"}
+              variant={
+                controller.currentView === view ? "contained" : "outlined"
+              }
             >
               {ADMIN_VIEW_DETAILS[view].label}
             </Button>
@@ -97,14 +112,18 @@ export function AdminConsolePage({ forcedView }: AdminConsolePageProps) {
           tenantPlanFilter={controller.tenantPlanFilter}
           onTenantPlanFilterChange={controller.setTenantPlanFilter}
           tenants={controller.tenants}
-          busyTenantId={controller.busyTenantId}
-          onOpenTenantAction={controller.openTenantAction}
-          canManageTenantLifecycle={true}
           tenantPage={controller.tenantPage}
           tenantTotalPages={controller.tenantTotalPages}
           tenantTotal={controller.tenantTotal}
-          onPreviousPage={() => controller.setTenantPage((prev) => Math.max(1, prev - 1))}
-          onNextPage={() => controller.setTenantPage((prev) => Math.min(controller.tenantTotalPages, prev + 1))}
+          onPreviousPage={() =>
+            controller.setTenantPage((prev) => Math.max(1, prev - 1))
+          }
+          onNextPage={() =>
+            controller.setTenantPage((prev) =>
+              Math.min(controller.tenantTotalPages, prev + 1),
+            )
+          }
+          canRunAdminOnlyActions={controller.canRunAdminOnlyActions}
         />
       ) : null}
 
@@ -124,8 +143,14 @@ export function AdminConsolePage({ forcedView }: AdminConsolePageProps) {
           auditPage={controller.auditPage}
           auditTotalPages={controller.auditTotalPages}
           auditTotal={controller.auditTotal}
-          onPreviousPage={() => controller.setAuditPage((prev) => Math.max(1, prev - 1))}
-          onNextPage={() => controller.setAuditPage((prev) => Math.min(controller.auditTotalPages, prev + 1))}
+          onPreviousPage={() =>
+            controller.setAuditPage((prev) => Math.max(1, prev - 1))
+          }
+          onNextPage={() =>
+            controller.setAuditPage((prev) =>
+              Math.min(controller.auditTotalPages, prev + 1),
+            )
+          }
         />
       ) : null}
 

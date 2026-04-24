@@ -13,6 +13,31 @@ from app.token_store import get_token_store
 SUPPORT_ADMIN_ROUTER_MODULE = import_module("app.modules.support.admin_router").list_all_tenants.__module__
 
 
+class LegacyAtomicTokenStore:
+    def __init__(self) -> None:
+        self._items: dict[str, str] = {}
+
+    def set(self, key: str, value: str) -> None:
+        self._items[key] = value
+
+    def eval(self, script: str, numkeys: int, key: str) -> str | None:
+        assert numkeys == 1
+        assert "redis.call('GET'" in script
+        value = self._items.get(key)
+        self._items.pop(key, None)
+        return value
+
+
+def test_consume_single_use_token_is_atomic_for_legacy_store() -> None:
+    from app.modules.identity.router import _consume_single_use_token
+
+    store = LegacyAtomicTokenStore()
+    store.set("single-use-key", "payload-123")
+
+    assert _consume_single_use_token(store, "single-use-key") == "payload-123"
+    assert _consume_single_use_token(store, "single-use-key") is None
+
+
 def test_signup_login_refresh_and_logout_revokes_access_token(client, db_session):
     signup = client.post(
         "/auth/signup",
@@ -67,6 +92,25 @@ def test_signup_accepts_optional_phone(client, db_session):
     assert user.phone == "+255700000000"
 
 
+def test_signup_duplicate_returns_created_without_second_verification_email(client, db_session):
+    first = client.post(
+        "/auth/signup",
+        json={"email": "duplicate@example.com", "password": "Secret123!"},
+    )
+    assert first.status_code == 201
+
+    second = client.post(
+        "/auth/signup",
+        json={"email": "duplicate@example.com", "password": "Secret123!"},
+    )
+    assert second.status_code == 201
+    assert second.json()["email"] == "duplicate@example.com"
+    assert db_session.query(User).filter(User.email == "duplicate@example.com").count() == 1
+
+    actions = [row.action for row in db_session.query(AuditLog).order_by(AuditLog.created_at.asc()).all()]
+    assert actions == ["auth.signup", "auth.signup_duplicate"]
+
+
 @patch("app.modules.identity.router.secrets.token_urlsafe", side_effect=["email-verify-token-1234567890"])
 def test_verify_email_and_me_endpoint(mock_token, client):
     del mock_token
@@ -94,6 +138,24 @@ def test_verify_email_and_me_endpoint(mock_token, client):
     assert me.status_code == 200
     assert me.json()["email_verified"] is True
     assert me.json()["email_verified_at"] is not None
+
+
+def test_logout_all_revokes_existing_access_tokens(client):
+    signup = client.post("/auth/signup", json={"email": "all-sessions@example.com", "password": "Secret123!"})
+    assert signup.status_code == 201
+
+    first_login = client.post("/auth/login", json={"email": "all-sessions@example.com", "password": "Secret123!"})
+    second_login = client.post("/auth/login", json={"email": "all-sessions@example.com", "password": "Secret123!"})
+    first_token = first_login.json()["access_token"]
+    second_token = second_login.json()["access_token"]
+
+    logout_all = client.post("/auth/logout-all", headers={"Authorization": f"Bearer {first_token}"})
+    assert logout_all.status_code == 200
+    assert logout_all.json()["message"] == "Logged out all sessions"
+
+    revoked = client.get("/auth/me", headers={"Authorization": f"Bearer {second_token}"})
+    assert revoked.status_code == 401
+    assert revoked.json()["detail"] == "Session revoked"
 
 
 def test_update_me_phone_and_clear_phone(client, db_session):

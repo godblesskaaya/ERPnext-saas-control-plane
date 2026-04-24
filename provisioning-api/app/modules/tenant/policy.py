@@ -5,6 +5,14 @@ from typing import TYPE_CHECKING
 from fastapi import HTTPException, status
 
 from app.bench.validators import BUSINESS_APPS, ValidationError, validate_app_name, validate_plan
+from app.modules.billing.lifecycle import (
+    DELINQUENT_SUBSCRIPTION_STATUSES as SUBSCRIPTION_DELINQUENT_STATUSES,
+    PAID_SUBSCRIPTION_STATUSES as SUBSCRIPTION_PAID_STATUSES,
+    entitlement_to_legacy_billing_status,
+    evaluate_tenant_billing_policy,
+    subscription_status_for_tenant,
+)
+
 
 if TYPE_CHECKING:
     from app.models import Tenant, User
@@ -62,46 +70,33 @@ def ensure_email_verified(owner: User) -> None:
 
 
 def tenant_subscription_status(tenant: Tenant) -> str:
-    subscription = getattr(tenant, "subscription", None)
-    if subscription and getattr(subscription, "status", None):
-        return str(subscription.status).strip().lower()
-
-    # AGENT-NOTE: Phase 5 removes runtime dependence on legacy tenant billing columns.
-    # Keep a best-effort fallback for mixed rollout windows where subscription rows may
-    # be temporarily absent for old tenants.
-    legacy_billing_status = str(getattr(tenant, "billing_status", "") or "").strip().lower()
-    if legacy_billing_status == "paid":
-        return "active"
-    if legacy_billing_status == "failed":
-        return "past_due"
-    if legacy_billing_status == "cancelled":
-        return "cancelled"
-    return "pending"
+    return subscription_status_for_tenant(tenant)
 
 
 def tenant_billing_status_compat(tenant: Tenant) -> str:
-    subscription_status = tenant_subscription_status(tenant)
-    if subscription_status in {"active", "trialing"}:
-        return "paid"
-    if subscription_status == "past_due":
-        return "failed"
-    if subscription_status == "cancelled":
-        return "cancelled"
-    return "pending"
+    snapshot = evaluate_tenant_billing_policy(tenant)
+    return entitlement_to_legacy_billing_status(snapshot.entitlement_state)
 
 
 def tenant_payment_confirmed(tenant: Tenant) -> bool:
-    return tenant_subscription_status(tenant) in SUBSCRIPTION_PAID_STATUSES
+    return evaluate_tenant_billing_policy(tenant).payment_confirmed
 
 
 def tenant_billing_blocked(tenant: Tenant) -> bool:
-    tenant_status = (tenant.status or "").strip().lower()
-    if tenant_status in TENANT_BILLING_BLOCKED_STATUSES:
-        return True
-    return tenant_subscription_status(tenant) in SUBSCRIPTION_DELINQUENT_STATUSES
+    return evaluate_tenant_billing_policy(tenant).billing_blocked
 
 
 def enforce_billing_operation_policy(tenant: Tenant, *, operation: str) -> None:
+    # AGENT-NOTE: the lifecycle model treats active/past_due subscriptions as grace,
+    # so we keep general tenant actions aligned with the snapshot instead of globally
+    # blocking all delinquent subscriptions. Sensitive credential rotation remains
+    # blocked once a subscription becomes delinquent to avoid administrative changes
+    # while billing is unresolved.
+    if operation == "Admin password reset" and tenant_subscription_status(tenant) in SUBSCRIPTION_DELINQUENT_STATUSES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"{operation} is blocked until billing is restored",
+        )
     if tenant_billing_blocked(tenant):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

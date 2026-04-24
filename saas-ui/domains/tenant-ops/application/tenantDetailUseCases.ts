@@ -4,6 +4,7 @@ import type {
   DomainMapping,
   Job,
   OptionalEndpointResult,
+  ResetAdminPasswordResult,
   SupportNote,
   Tenant,
   TenantCreateResponse,
@@ -16,6 +17,8 @@ import {
   createTenantDomainMapping,
   createTenantSupportNoteRecord,
   deleteTenantDomainMapping,
+  enqueueTenantBackup,
+  enqueueTenantDelete,
   fetchCurrentUserProfile,
   fetchTenantAuditLog,
   fetchTenantBackups,
@@ -28,12 +31,14 @@ import {
   fetchTenantSupportNotes,
   inviteTenantWorkspaceMember,
   renewTenantCheckoutLink,
+  resetTenantAdminPassword,
   removeTenantWorkspaceMember,
   restoreTenantByBackup,
   retryTenantById,
   suspendTenantWorkspace,
   unsuspendTenantWorkspace,
   updateTenantSupportNoteRecord,
+  updateTenantWorkspace,
   updateTenantWorkspaceMemberRole,
   verifyTenantDomainMapping,
 } from "../infrastructure/tenantRepository";
@@ -54,6 +59,28 @@ export async function loadTenantBackupManifest(
   tenantId: string
 ): Promise<OptionalEndpointResult<BackupManifestEntry[]>> {
   return fetchTenantBackups(tenantId);
+}
+
+export async function queueTenantBackupJob(tenantId: string): Promise<Job> {
+  return enqueueTenantBackup(tenantId);
+}
+
+export async function resetTenantAdministratorPassword(
+  tenantId: string,
+  newPassword?: string
+): Promise<ResetAdminPasswordResult> {
+  return resetTenantAdminPassword(tenantId, newPassword);
+}
+
+export async function queueTenantDeleteJob(tenantId: string): Promise<Job> {
+  return enqueueTenantDelete(tenantId);
+}
+
+export async function updateTenantPlanDetails(
+  tenantId: string,
+  payload: { plan: string; chosen_app?: string }
+): Promise<OptionalEndpointResult<Tenant>> {
+  return updateTenantWorkspace(tenantId, payload);
 }
 
 export async function loadTenantAuditEvents(tenantId: string, page = 1, limit = 50) {

@@ -10,19 +10,20 @@ import secrets
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from rq import Retry
-from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, func, or_
+from sqlalchemy.orm import Session, joinedload
 
 from app.config import get_settings
 from app.db import get_db
 from app.deps import require_admin, require_admin_or_support
-from app.models import AuditLog, Job, SupportNote, Tenant, User
+from app.models import AuditLog, BillingException, BillingInvoice, Job, SupportNote, Tenant, User
 from app.modules.subscription.models import Plan, Subscription
 from app.modules.subscription.trial_lifecycle import trial_funnel_bucket
 from app.queue.enqueue import get_dlq, get_queue
 from app.rate_limits import authenticated_default_rate_limit
 from app.schemas import (
     AuditLogOut,
+    BillingReconciliationExceptionOut,
     DunningItemOut,
     DeadLetterJobOut,
     ImpersonationLinkCreateRequest,
@@ -30,6 +31,8 @@ from app.schemas import (
     JobOut,
     MessageResponse,
     MetricsSummary,
+    TenantRuntimeConsistencyEntryOut,
+    TenantRuntimeConsistencyReportOut,
     PaginatedAuditLogResponse,
     PaginatedTenantResponse,
     SupportNoteCreateRequest,
@@ -38,9 +41,11 @@ from app.schemas import (
     TenantOut,
 )
 from app.modules.audit.service import record_audit_event
+from app.modules.billing.invoice_sync import sync_platform_invoices_for_tenant
+from app.modules.billing.reconciliation import reconcile_tenant_billing
 from app.modules.notifications.service import notification_service
 from app.modules.support.platform_erp_client import PlatformERPClient
-from app.modules.support.dunning import resolve_dunning_context
+from app.modules.support.dunning import is_billing_dunning_candidate, resolve_dunning_context
 from app.modules.tenant.policy import (
     SUBSCRIPTION_DELINQUENT_STATUSES,
     tenant_billing_status_compat,
@@ -61,6 +66,188 @@ NOT_FOUND_404_RESPONSE = {"description": "Requested admin resource was not found
 CONFLICT_409_RESPONSE = {"description": "Conflict with current tenant state transition."}
 VALIDATION_422_RESPONSE = {"description": "Request validation failed."}
 RATE_LIMIT_429_RESPONSE = {"description": "Too many requests. Retry after the rate-limit window."}
+
+
+RUNTIME_EXPECTED_STATUSES = frozenset({
+    "active",
+    "suspended",
+    "suspended_admin",
+    "suspended_billing",
+    "upgrading",
+    "restoring",
+})
+
+
+def _tenant_requires_runtime(tenant: Tenant) -> bool:
+    return (tenant.status or "").strip().lower() in RUNTIME_EXPECTED_STATUSES
+
+
+def _tenant_has_runtime(tenant: Tenant, platform_client: PlatformERPClient) -> bool:
+    if not _tenant_requires_runtime(tenant):
+        return True
+    runtime_name = (tenant.site_name or tenant.domain or "").strip()
+    return platform_client.runtime_exists(runtime_name)
+
+
+def _partition_runtime_visible_tenants(
+    tenants: list[Tenant],
+    platform_client: PlatformERPClient,
+) -> tuple[list[Tenant], list[Tenant]]:
+    visible: list[Tenant] = []
+    stale: list[Tenant] = []
+    for tenant in tenants:
+        if _tenant_has_runtime(tenant, platform_client):
+            visible.append(tenant)
+        else:
+            stale.append(tenant)
+    return visible, stale
+
+
+def _classify_runtime_consistency(*, tenant: Tenant, runtime_expected: bool, runtime_exists: bool) -> str:
+    status = (tenant.status or "").strip().lower()
+    if runtime_expected and not runtime_exists:
+        return "runtime_expected_missing"
+    if status == "pending_payment" and not runtime_exists:
+        return "pending_payment_without_runtime"
+    if status == "pending" and not runtime_exists:
+        return "pending_without_runtime"
+    if status in {"deleted", "deleting", "pending_deletion"} and runtime_exists:
+        return "deleted_with_runtime"
+    return "consistent"
+
+
+def _build_runtime_consistency_report(db: Session) -> TenantRuntimeConsistencyReportOut:
+    runtime_client = PlatformERPClient()
+    tenants = (
+        db.query(Tenant)
+        .options(joinedload(Tenant.subscription).joinedload(Subscription.plan), joinedload(Tenant.owner))
+        .order_by(Tenant.domain.asc())
+        .all()
+    )
+
+    latest_job_timestamps = (
+        db.query(
+            Job.tenant_id.label("tenant_id"),
+            func.max(Job.created_at).label("latest_created_at"),
+        )
+        .group_by(Job.tenant_id)
+        .subquery()
+    )
+    latest_jobs: dict[str, Job] = {}
+    latest_job_rows = (
+        db.query(Job)
+        .join(
+            latest_job_timestamps,
+            and_(
+                Job.tenant_id == latest_job_timestamps.c.tenant_id,
+                Job.created_at == latest_job_timestamps.c.latest_created_at,
+            ),
+        )
+        .order_by(Job.created_at.desc(), Job.id.desc())
+        .all()
+    )
+    for job in latest_job_rows:
+        latest_jobs.setdefault(job.tenant_id, job)
+
+    runtime_sites = set(runtime_client.list_runtime_sites())
+    platform_site_host = runtime_client.platform_site_host()
+    tenant_runtime_names = {
+        normalized
+        for tenant in tenants
+        for candidate in (tenant.site_name, tenant.domain)
+        for normalized in [runtime_client.normalize_runtime_name(candidate)]
+        if normalized
+    }
+    runtime_only_sites = sorted(
+        site for site in runtime_sites if site != platform_site_host and site not in tenant_runtime_names
+    )
+
+    entries: list[TenantRuntimeConsistencyEntryOut] = []
+    runtime_expected_missing = 0
+    pending_without_runtime = 0
+    pending_payment_without_runtime = 0
+    deleted_with_runtime = 0
+
+    for tenant in tenants:
+        runtime_expected = _tenant_requires_runtime(tenant)
+        runtime_name = runtime_client.normalize_runtime_name(tenant.site_name or tenant.domain)
+        runtime_exists = runtime_name in runtime_sites if runtime_sites else runtime_client.runtime_exists(
+            tenant.site_name or tenant.domain
+        )
+        classification = _classify_runtime_consistency(
+            tenant=tenant,
+            runtime_expected=runtime_expected,
+            runtime_exists=runtime_exists,
+        )
+        if classification == "consistent":
+            continue
+
+        if classification == "runtime_expected_missing":
+            runtime_expected_missing += 1
+        elif classification == "pending_without_runtime":
+            pending_without_runtime += 1
+        elif classification == "pending_payment_without_runtime":
+            pending_payment_without_runtime += 1
+        elif classification == "deleted_with_runtime":
+            deleted_with_runtime += 1
+
+        last_job = latest_jobs.get(tenant.id)
+        entries.append(
+            TenantRuntimeConsistencyEntryOut(
+                tenant_id=tenant.id,
+                subdomain=tenant.subdomain,
+                domain=tenant.domain,
+                status=tenant.status,
+                subscription_status=tenant_subscription_status(tenant),
+                plan=tenant.plan,
+                owner_email=tenant.owner.email if tenant.owner else None,
+                runtime_expected=runtime_expected,
+                runtime_exists=runtime_exists,
+                classification=classification,
+                last_job_type=last_job.type if last_job else None,
+                last_job_status=last_job.status if last_job else None,
+                last_job_at=last_job.created_at if last_job else None,
+            )
+        )
+
+    return TenantRuntimeConsistencyReportOut(
+        generated_at=utcnow(),
+        total_tenants=len(tenants),
+        runtime_expected_missing=runtime_expected_missing,
+        pending_without_runtime=pending_without_runtime,
+        pending_payment_without_runtime=pending_payment_without_runtime,
+        deleted_with_runtime=deleted_with_runtime,
+        runtime_sites_without_db_entry=len(runtime_only_sites),
+        entries=entries,
+        runtime_only_sites=runtime_only_sites,
+    )
+
+
+def _exception_severity(exception_type: str) -> str:
+    normalized = (exception_type or "").strip().lower()
+    if normalized in {"paid_but_not_provisioned", "provisioned_but_unpaid", "erp_mismatch"}:
+        return "high"
+    if normalized in {"provider_reconciliation_mismatch", "manual_finance_review_required", "orphan_invoice"}:
+        return "medium"
+    return "warning"
+
+
+def _exception_summary(entry: BillingException) -> str:
+    normalized = (entry.exception_type or "").strip().lower()
+    if normalized == "paid_but_not_provisioned":
+        return "Payment settled but provisioning did not complete"
+    if normalized == "provisioned_but_unpaid":
+        return "Tenant runtime exists while billing remains unpaid"
+    if normalized == "erp_mismatch":
+        return "ERP invoice remains open while the platform marks payment as settled"
+    if normalized == "provider_reconciliation_mismatch":
+        return "Provider and platform settlement states do not agree"
+    if normalized == "manual_finance_review_required":
+        return "Manual finance review is required to resolve the billing record"
+    if normalized == "orphan_invoice":
+        return "Invoice exists without a valid tenant/subscription linkage"
+    reason = (entry.reason or "").strip()
+    return reason or "Billing reconciliation exception requires review"
 
 
 def _normalize_filter_values(values: list[str] | None) -> list[str]:
@@ -120,16 +307,27 @@ def list_all_tenants(
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin_or_support),
 ) -> list[TenantOut]:
-    tenants = db.query(Tenant).order_by(Tenant.created_at.desc()).all()
+    runtime_client = PlatformERPClient()
+    tenants = (
+        db.query(Tenant)
+        .options(
+            joinedload(Tenant.subscription).joinedload(Subscription.plan),
+            joinedload(Tenant.owner),
+            joinedload(Tenant.organization),
+        )
+        .order_by(Tenant.created_at.desc())
+        .all()
+    )
+    visible_tenants, stale_tenants = _partition_runtime_visible_tenants(tenants, runtime_client)
     record_audit_event(
         db,
         action="admin.view_all_tenants",
         resource="tenants",
         actor=current_admin,
         request=request,
-        metadata={"count": len(tenants)},
+        metadata={"count": len(visible_tenants), "hidden_runtime_missing": len(stale_tenants)},
     )
-    return [TenantOut.model_validate(item) for item in tenants]
+    return [TenantOut.model_validate(item) for item in visible_tenants]
 
 
 @router.get(
@@ -205,20 +403,32 @@ def list_all_tenants_paginated(
                 Plan.slug.ilike(term),
             )
         )
-    total = query.count()
-    tenants = (
-        query.order_by(Tenant.created_at.desc())
-        .offset((page - 1) * limit)
-        .limit(limit)
+    runtime_client = PlatformERPClient()
+    matched_tenants = (
+        query.options(
+            joinedload(Tenant.subscription).joinedload(Subscription.plan),
+            joinedload(Tenant.owner),
+            joinedload(Tenant.organization),
+        )
+        .order_by(Tenant.created_at.desc())
         .all()
     )
+    visible_tenants, stale_tenants = _partition_runtime_visible_tenants(matched_tenants, runtime_client)
+    total = len(visible_tenants)
+    start = (page - 1) * limit
+    tenants = visible_tenants[start : start + limit]
     record_audit_event(
         db,
         action="admin.view_all_tenants",
         resource="tenants",
         actor=current_admin,
         request=request,
-        metadata={"count": len(tenants), "page": page, "limit": limit},
+        metadata={
+            "count": len(tenants),
+            "page": page,
+            "limit": limit,
+            "hidden_runtime_missing": len(stale_tenants),
+        },
     )
     return PaginatedTenantResponse(
         data=[TenantOut.model_validate(item) for item in tenants],
@@ -255,12 +465,14 @@ def list_billing_dunning(
         .order_by(Tenant.updated_at.desc())
         .all()
     )
+    flagged = [tenant for tenant in flagged if is_billing_dunning_candidate(tenant)]
 
     platform_client = PlatformERPClient()
+    visible_flagged, stale_flagged = _partition_runtime_visible_tenants(flagged, platform_client)
     platform_enabled = platform_client.is_configured()
 
     entries: list[DunningItemOut] = []
-    for tenant in flagged:
+    for tenant in visible_flagged:
         context = resolve_dunning_context(tenant, platform_client) if platform_enabled else None
 
         entries.append(
@@ -285,9 +497,139 @@ def list_billing_dunning(
         resource="billing",
         actor=current_admin,
         request=request,
-        metadata={"count": len(flagged)},
+        metadata={"count": len(entries), "hidden_runtime_missing": len(stale_flagged)},
     )
     return entries
+
+
+@router.get(
+    "/billing/queues/reconciliation-exceptions",
+    response_model=list[BillingReconciliationExceptionOut],
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_ADMIN_ONLY_403_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def list_billing_reconciliation_exceptions(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin_or_support),
+) -> list[BillingReconciliationExceptionOut]:
+    items = (
+        db.query(BillingException)
+        .filter(BillingException.status == "open")
+        .order_by(BillingException.created_at.desc())
+        .all()
+    )
+
+    response_items = [
+        BillingReconciliationExceptionOut(
+            tenant_id=item.tenant_id or "unknown",
+            subscription_id=item.subscription_id,
+            invoice_id=item.billing_invoice_id,
+            payment_attempt_id=item.payment_attempt_id,
+            exception_type=item.exception_type,
+            severity=_exception_severity(item.exception_type),
+            status=item.status,
+            summary=_exception_summary(item),
+            detected_at=item.created_at,
+        )
+        for item in items
+    ]
+
+    record_audit_event(
+        db,
+        action="admin.view_billing_reconciliation_exceptions",
+        resource="billing",
+        actor=current_admin,
+        request=request,
+        metadata={"count": len(response_items)},
+    )
+    return response_items
+
+
+@router.post(
+    "/billing/tenants/{tenant_id}/resync-invoice",
+    response_model=MessageResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_ADMIN_ONLY_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def resync_tenant_invoice(
+    tenant_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> MessageResponse:
+    tenant = db.get(Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+
+    platform_client = PlatformERPClient()
+    invoices = sync_platform_invoices_for_tenant(db, tenant=tenant, platform_client=platform_client, limit=20)
+    db.commit()
+
+    record_audit_event(
+        db,
+        action="admin.resync_billing_invoice",
+        resource="tenants",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+        metadata={"tenant_id": tenant.id, "invoice_count": len(invoices)},
+    )
+    return MessageResponse(message="Billing invoices resynced.")
+
+
+@router.post(
+    "/billing/tenants/{tenant_id}/resync-settlement",
+    response_model=MessageResponse,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_ADMIN_ONLY_403_RESPONSE,
+        status.HTTP_404_NOT_FOUND: NOT_FOUND_404_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def resync_tenant_settlement(
+    tenant_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> MessageResponse:
+    tenant = db.get(Tenant, tenant_id)
+    if tenant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+
+    platform_client = PlatformERPClient()
+    summary = reconcile_tenant_billing(db, tenant=tenant, platform_client=platform_client)
+
+    record_audit_event(
+        db,
+        action="admin.resync_billing_settlement",
+        resource="tenants",
+        actor=current_user,
+        resource_id=tenant.id,
+        request=request,
+        metadata={
+            "tenant_id": tenant.id,
+            "inspected_invoice_count": summary.inspected_invoice_count,
+            "reconciled_invoice_count": summary.reconciled_invoice_count,
+            "payment_attempts_updated": summary.payment_attempts_updated,
+            "entitlement_repairs": summary.entitlement_repairs,
+            "provisioning_requeues": summary.provisioning_requeues,
+            "exceptions_opened": summary.exceptions_opened,
+            "exceptions_resolved": summary.exceptions_resolved,
+        },
+    )
+    return MessageResponse(message="Billing settlement reconciled.")
 
 
 @router.post(
@@ -1000,6 +1342,40 @@ def requeue_dead_letter_job(
         metadata={"reason": reason} if reason else None,
     )
     return MessageResponse(message="Dead-letter job requeued")
+
+
+@router.get(
+    "/tenants/runtime-consistency",
+    response_model=TenantRuntimeConsistencyReportOut,
+    dependencies=[Depends(authenticated_default_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_403_FORBIDDEN: FORBIDDEN_403_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def get_tenant_runtime_consistency(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin_or_support),
+) -> TenantRuntimeConsistencyReportOut:
+    report = _build_runtime_consistency_report(db)
+    record_audit_event(
+        db,
+        action="admin.view_tenant_runtime_consistency",
+        resource="tenants",
+        actor=current_admin,
+        request=request,
+        metadata={
+            "entry_count": len(report.entries),
+            "runtime_expected_missing": report.runtime_expected_missing,
+            "pending_without_runtime": report.pending_without_runtime,
+            "pending_payment_without_runtime": report.pending_payment_without_runtime,
+            "deleted_with_runtime": report.deleted_with_runtime,
+            "runtime_sites_without_db_entry": report.runtime_sites_without_db_entry,
+        },
+    )
+    return report
 
 
 @router.get(

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials
@@ -57,7 +58,7 @@ settings = get_settings()
 AUTH_401_RESPONSE = {"description": "Unauthorized: missing, invalid, or revoked credentials/token."}
 RATE_LIMIT_429_RESPONSE = {"description": "Too many requests. Retry after the rate-limit window."}
 VALIDATION_422_RESPONSE = {"description": "Request validation failed."}
-CONFLICT_409_RESPONSE = {"description": "Conflict with existing resource state."}
+LOGOUT_ALL_SESSIONS_TTL_SECONDS = 30 * 24 * 60 * 60
 
 
 def _password_reset_token_key(raw_token: str) -> str:
@@ -75,15 +76,19 @@ def _impersonation_token_key(raw_token: str) -> str:
     return f"impersonation:{digest}"
 
 
+LUA_GETDEL = "local v=redis.call('GET',KEYS[1]); redis.call('DEL',KEYS[1]); return v"
+
+
 def _consume_single_use_token(token_store, token_key: str) -> str | None:
     getdel = getattr(token_store, "getdel", None)
     if callable(getdel):
         return getdel(token_key)
 
-    value = token_store.get(token_key)
-    if value:
-        token_store.delete(token_key)
-    return value
+    evaluator = getattr(token_store, "eval", None)
+    if callable(evaluator):
+        return evaluator(LUA_GETDEL, 1, token_key)
+
+    raise RuntimeError("Token store must support GETDEL or EVAL-based atomic consume")
 
 
 def _queue_email_verification(
@@ -123,13 +128,24 @@ def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(key=settings.refresh_cookie_name, path="/auth")
 
 
+def _generic_signup_response(email: str, phone: str | None = None) -> UserOut:
+    return UserOut(
+        id=str(uuid.uuid4()),
+        email=email,
+        phone=phone,
+        role="user",
+        email_verified=False,
+        email_verified_at=None,
+        created_at=utcnow(),
+    )
+
+
 @router.post(
     "/signup",
     response_model=UserOut,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(signup_rate_limit)],
     responses={
-        status.HTTP_409_CONFLICT: CONFLICT_409_RESPONSE,
         status.HTTP_422_UNPROCESSABLE_ENTITY: VALIDATION_422_RESPONSE,
         status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
     },
@@ -141,10 +157,19 @@ def signup(
     db: Session = Depends(get_db),
     token_store=Depends(get_token_store),
 ) -> UserOut:
-    if db.query(User).filter(User.email == payload.email.lower()).first():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already exists")
+    normalized_email = payload.email.lower()
+    if db.query(User).filter(User.email == normalized_email).first():
+        record_audit_event(
+            db,
+            action="auth.signup_duplicate",
+            resource="users",
+            actor_role="anonymous",
+            request=request,
+            metadata={"email": normalized_email},
+        )
+        return _generic_signup_response(normalized_email, payload.phone)
 
-    user = User(email=payload.email.lower(), phone=payload.phone, password_hash=hash_password(payload.password), role="user")
+    user = User(email=normalized_email, phone=payload.phone, password_hash=hash_password(payload.password), role="user")
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -688,3 +713,36 @@ def logout(
         request=request,
     )
     return MessageResponse(message="Logged out")
+
+
+@router.post(
+    "/logout-all",
+    response_model=MessageResponse,
+    dependencies=[Depends(logout_rate_limit)],
+    responses={
+        status.HTTP_401_UNAUTHORIZED: AUTH_401_RESPONSE,
+        status.HTTP_429_TOO_MANY_REQUESTS: RATE_LIMIT_429_RESPONSE,
+    },
+)
+def logout_all_sessions(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    token_store=Depends(get_token_store),
+) -> MessageResponse:
+    token_store.setex(
+        f"revoked_before:{current_user.id}",
+        LOGOUT_ALL_SESSIONS_TTL_SECONDS,
+        str(utcnow().timestamp()),
+    )
+    _clear_refresh_cookie(response)
+    record_audit_event(
+        db,
+        action="auth.logout_all",
+        resource="users",
+        actor=current_user,
+        resource_id=current_user.id,
+        request=request,
+    )
+    return MessageResponse(message="Logged out all sessions")

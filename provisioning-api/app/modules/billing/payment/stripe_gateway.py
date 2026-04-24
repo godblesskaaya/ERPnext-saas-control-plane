@@ -51,6 +51,10 @@ class StripeGateway(PaymentGateway):
             raise ValueError(f"No Stripe price configured for plan '{plan}'")
         return price_id
 
+    def create_invoice_checkout(self, invoice, tenant, owner, *, return_url: str | None = None, cancel_url: str | None = None, channel_hint: str | None = None) -> CheckoutResult:
+        del invoice, tenant, owner, return_url, cancel_url, channel_hint
+        raise ValueError("Stripe invoice-backed checkout is not supported in the ERP invoice billing flow")
+
     def _price_id_for_tenant(self, tenant) -> str:
         subscription = getattr(tenant, "subscription", None)
         plan = getattr(subscription, "plan", None)

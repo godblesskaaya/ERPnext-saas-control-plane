@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 from app.modules.audit.models import AuditLog
+from app.modules.billing.models import BillingAccount, BillingEvent, BillingException, BillingInvoice, PaymentAttempt
 from app.modules.features.models import FeatureFlag, TenantFeature
 from app.modules.subscription.models import Plan, PlanEntitlement, Subscription
 from app.modules.tenant.models import Tenant
@@ -44,6 +45,7 @@ class User(Base):
     organizations_owned: Mapped[list[Organization]] = relationship(back_populates="owner")
     memberships: Mapped[list[TenantMembership]] = relationship(back_populates="user")
     support_notes_authored: Mapped[list[SupportNote]] = relationship(back_populates="author")
+    billing_accounts: Mapped[list[BillingAccount]] = relationship(back_populates="customer")
 
     @property
     def stripe_customer_id(self) -> str | None:

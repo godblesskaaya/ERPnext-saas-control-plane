@@ -33,6 +33,177 @@ class BillingInvoiceListResponse(BaseModel):
     invoices: list[BillingInvoiceOut]
 
 
+class BillingPlanSummaryOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str | None = None
+    slug: str | None = None
+    display_name: str | None = Field(default=None, serialization_alias="displayName")
+
+
+class BillingStatusSummaryOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    billing_state: str = Field(serialization_alias="billingState")
+    entitlement_state: str = Field(serialization_alias="entitlementState")
+    tenant_operational_state: str = Field(serialization_alias="tenantOperationalState")
+    reason_code: str = Field(serialization_alias="reasonCode")
+    reason_label: str = Field(serialization_alias="reasonLabel")
+    grace_ends_at: datetime | None = Field(default=None, serialization_alias="graceEndsAt")
+    next_action: str | None = Field(default=None, serialization_alias="nextAction")
+    payment_confirmed: bool = Field(serialization_alias="paymentConfirmed")
+    billing_blocked: bool = Field(serialization_alias="billingBlocked")
+    provisioning_allowed: bool = Field(serialization_alias="provisioningAllowed")
+    requires_manual_review: bool = Field(serialization_alias="requiresManualReview")
+    source: str
+    subscription_status: str = Field(serialization_alias="subscriptionStatus")
+    legacy_billing_status: str = Field(serialization_alias="legacyBillingStatus")
+    latest_invoice_id: str | None = Field(default=None, serialization_alias="latestInvoiceId")
+    latest_payment_attempt_id: str | None = Field(default=None, serialization_alias="latestPaymentAttemptId")
+
+
+class BillingBalanceSummaryOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    currency: str
+    amount_due: int = Field(serialization_alias="amountDue")
+    amount_overdue: int = Field(serialization_alias="amountOverdue")
+
+
+class BillingNextEventOut(BaseModel):
+    type: str
+    at: datetime
+
+
+class BillingInvoiceSummaryOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    erp_invoice_id: str | None = Field(default=None, serialization_alias="erpInvoiceId")
+    invoice_number: str | None = Field(default=None, serialization_alias="invoiceNumber")
+    tenant_id: str = Field(serialization_alias="tenantId")
+    subscription_id: str | None = Field(default=None, serialization_alias="subscriptionId")
+    status: str
+    collection_stage: str | None = Field(default=None, serialization_alias="collectionStage")
+    amount_due: int = Field(serialization_alias="amountDue")
+    amount_paid: int = Field(serialization_alias="amountPaid")
+    currency: str | None = None
+    due_date: datetime | None = Field(default=None, serialization_alias="dueDate")
+    issued_at: datetime | None = Field(default=None, serialization_alias="issuedAt")
+    paid_at: datetime | None = Field(default=None, serialization_alias="paidAt")
+    hosted_invoice_url: str | None = Field(default=None, serialization_alias="hostedInvoiceUrl")
+    last_synced_at: datetime | None = Field(default=None, serialization_alias="lastSyncedAt")
+    created_at: datetime | None = Field(default=None, serialization_alias="createdAt")
+    updated_at: datetime | None = Field(default=None, serialization_alias="updatedAt")
+
+
+class PaymentAttemptSummaryOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    invoice_id: str = Field(serialization_alias="invoiceId")
+    provider: str
+    provider_reference: str | None = Field(default=None, serialization_alias="providerReference")
+    status: str
+    amount: int
+    currency: str | None = None
+    checkout_url: str | None = Field(default=None, serialization_alias="checkoutUrl")
+    failure_reason: str | None = Field(default=None, serialization_alias="failureReason")
+    created_at: datetime | None = Field(default=None, serialization_alias="createdAt")
+    updated_at: datetime | None = Field(default=None, serialization_alias="updatedAt")
+
+
+class BillingTimelineEventOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    event_type: str = Field(serialization_alias="type")
+    source: str
+    timestamp: datetime
+    summary: str | None = None
+    invoice_id: str | None = Field(default=None, serialization_alias="invoiceId")
+    payment_attempt_id: str | None = Field(default=None, serialization_alias="paymentAttemptId")
+    severity: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class BillingAccountWorkspaceActionsOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    can_create_payment_attempt: bool = Field(serialization_alias="canCreatePaymentAttempt")
+    can_retry_payment: bool = Field(serialization_alias="canRetryPayment")
+    can_open_invoice: bool = Field(serialization_alias="canOpenInvoice")
+    can_reactivate: bool = Field(serialization_alias="canReactivate")
+
+
+class BillingInvoiceActionsOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    can_pay: bool = Field(serialization_alias="canPay")
+    can_retry_payment: bool = Field(serialization_alias="canRetryPayment")
+    can_open_hosted_invoice: bool = Field(serialization_alias="canOpenHostedInvoice")
+
+
+class BillingAccountWorkspaceOut(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    tenant_id: str = Field(serialization_alias="tenantId")
+    subscription_id: str | None = Field(default=None, serialization_alias="subscriptionId")
+    billing_account_id: str | None = Field(default=None, serialization_alias="billingAccountId")
+    account_status: str = Field(serialization_alias="accountStatus")
+    plan: BillingPlanSummaryOut
+    status: BillingStatusSummaryOut
+    balance: BillingBalanceSummaryOut
+    next_billing_event: BillingNextEventOut | None = Field(default=None, serialization_alias="nextBillingEvent")
+    open_invoices: list[BillingInvoiceSummaryOut] = Field(default_factory=list, serialization_alias="openInvoices")
+    latest_payment_attempt: PaymentAttemptSummaryOut | None = Field(default=None, serialization_alias="latestPaymentAttempt")
+    actions: BillingAccountWorkspaceActionsOut
+
+
+class BillingInvoiceListByTenantResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    tenant_id: str = Field(serialization_alias="tenantId")
+    invoices: list[BillingInvoiceSummaryOut]
+
+
+class BillingInvoiceDetailResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    invoice: BillingInvoiceSummaryOut
+    status: BillingStatusSummaryOut
+    available_actions: BillingInvoiceActionsOut = Field(serialization_alias="availableActions")
+
+
+class PaymentAttemptListResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    tenant_id: str = Field(serialization_alias="tenantId")
+    payment_attempts: list[PaymentAttemptSummaryOut] = Field(serialization_alias="paymentAttempts")
+
+
+class PaymentAttemptCreateRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    provider: str | None = None
+    return_url: str | None = Field(default=None, alias="returnUrl", serialization_alias="returnUrl")
+    cancel_url: str | None = Field(default=None, alias="cancelUrl", serialization_alias="cancelUrl")
+    channel_hint: str | None = Field(default=None, alias="channelHint", serialization_alias="channelHint")
+
+
+class PaymentAttemptCreateResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    payment_attempt: PaymentAttemptSummaryOut = Field(serialization_alias="paymentAttempt")
+
+
+class BillingTimelineResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    tenant_id: str = Field(serialization_alias="tenantId")
+    events: list[BillingTimelineEventOut]
+
+
 class TenantReadinessOut(BaseModel):
     ready: bool
     message: str
@@ -395,6 +566,34 @@ class MetricsSummary(BaseModel):
     support_due_soon_notes: int
 
 
+class TenantRuntimeConsistencyEntryOut(BaseModel):
+    tenant_id: str
+    subdomain: str
+    domain: str
+    status: str
+    subscription_status: str | None = None
+    plan: str | None = None
+    owner_email: EmailStr | None = None
+    runtime_expected: bool
+    runtime_exists: bool
+    classification: str
+    last_job_type: str | None = None
+    last_job_status: str | None = None
+    last_job_at: datetime | None = None
+
+
+class TenantRuntimeConsistencyReportOut(BaseModel):
+    generated_at: datetime
+    total_tenants: int
+    runtime_expected_missing: int
+    pending_without_runtime: int
+    pending_payment_without_runtime: int
+    deleted_with_runtime: int
+    runtime_sites_without_db_entry: int
+    entries: list[TenantRuntimeConsistencyEntryOut]
+    runtime_only_sites: list[str]
+
+
 class TenantSummaryOut(BaseModel):
     tenant_id: str
     last_job: JobOut | None = None
@@ -419,6 +618,18 @@ class DunningItemOut(BaseModel):
     grace_ends_at: datetime | None = None
     last_invoice_id: str | None = None
     last_payment_attempt: datetime | None = None
+
+
+class BillingReconciliationExceptionOut(BaseModel):
+    tenant_id: str
+    subscription_id: str | None = None
+    invoice_id: str | None = None
+    payment_attempt_id: str | None = None
+    exception_type: str
+    severity: str
+    status: str
+    summary: str
+    detected_at: datetime
 
 
 class SupportNoteOut(BaseModel):

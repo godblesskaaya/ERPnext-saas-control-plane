@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import httpx
 import json
+from urllib.parse import urlparse
 
+from app.bench.commands import build_list_sites_command
+from app.bench.runner import BenchCommandError, run_bench_command
 from app.config import get_settings
 from app.schemas import BillingPayload
 
@@ -11,6 +14,18 @@ settings = get_settings()
 
 
 class PlatformERPClient:
+    def normalize_runtime_name(self, value: str | None) -> str:
+        return self._normalize_runtime_name(value)
+
+    def _normalize_runtime_name(self, value: str | None) -> str:
+        candidate = (value or "").strip()
+        if not candidate:
+            return ""
+        parsed = urlparse(candidate)
+        if parsed.scheme and parsed.netloc:
+            return parsed.netloc.strip().lower()
+        return candidate.strip().lower()
+
     def __init__(self) -> None:
         self.base_url = (settings.platform_erp_base_url or "").strip().rstrip("/")
 
@@ -74,6 +89,76 @@ class PlatformERPClient:
             response.raise_for_status()
             result = response.json()
         return result.get("data", [])
+
+
+    def get_invoice(self, invoice_name: str) -> dict:
+        if not self.is_configured():
+            return {}
+
+        headers = self._headers()
+        with httpx.Client(timeout=15.0) as client:
+            response = client.get(f"{self.base_url}/api/resource/Sales Invoice/{invoice_name}", headers=headers)
+            response.raise_for_status()
+            result = response.json()
+        data = result.get("data") or {}
+        if not isinstance(data, dict):
+            return {}
+        return data
+
+
+    def platform_site_host(self) -> str | None:
+        normalized = self._normalize_runtime_name(self.base_url)
+        return normalized or None
+
+    def list_runtime_sites(self) -> list[str]:
+        if settings.environment.lower() == "test":
+            return []
+        if settings.bench_exec_mode == "mock":
+            return []
+        try:
+            bench_result = run_bench_command(build_list_sites_command())
+        except (BenchCommandError, OSError, ValueError):
+            return []
+
+        sites: list[str] = []
+        for line in bench_result.stdout.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.lower().startswith("available sites"):
+                continue
+            normalized = self._normalize_runtime_name(stripped)
+            if normalized:
+                sites.append(normalized)
+        return sorted(dict.fromkeys(sites))
+
+
+    def runtime_exists(self, site_name: str | None) -> bool:
+        if not site_name:
+            return False
+        if settings.environment.lower() == "test":
+            return True
+        if settings.bench_exec_mode == "mock":
+            return True
+
+        candidate = self._normalize_runtime_name(site_name)
+        if not candidate:
+            return False
+
+        available_sites = set(self.list_runtime_sites())
+        if available_sites:
+            return candidate in available_sites
+
+        parsed = urlparse(candidate)
+        if parsed.scheme and parsed.netloc:
+            origin = f"{parsed.scheme}://{parsed.netloc}"
+        else:
+            origin = f"https://{candidate}"
+
+        try:
+            with httpx.Client(timeout=5.0, follow_redirects=True) as client:
+                response = client.get(f"{origin.rstrip('/')}/api/method/ping")
+            return response.status_code < 500
+        except httpx.HTTPError:
+            return False
 
     def invoice_url(self, invoice_name: str) -> str:
         if not self.base_url:

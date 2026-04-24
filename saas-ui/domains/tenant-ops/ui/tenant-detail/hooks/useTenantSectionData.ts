@@ -14,7 +14,16 @@ import {
   loadTenantSummary,
   toTenantDetailErrorMessage,
 } from "../../../application/tenantDetailUseCases";
-import type { AuditLogEntry, Job, Tenant, TenantMember, TenantSubscription, TenantSummary, UserProfile } from "../../../../shared/lib/types";
+import { hasActiveJob } from "../../../../shared/lib/tenantDisplayUtils";
+import type {
+  AuditLogEntry,
+  Job,
+  Tenant,
+  TenantMember,
+  TenantSubscription,
+  TenantSummary,
+  UserProfile,
+} from "../../../../shared/lib/types";
 
 export const tenantDetailQueryKeys = {
   all: ["tenant-detail"] as const,
@@ -25,7 +34,8 @@ export const tenantDetailQueryKeys = {
   recentJobs: (id: string, limit: number, maxItems: number) =>
     ["tenant-detail", "recent-jobs", id, limit, maxItems] as const,
   subscription: (id: string) => ["tenant-detail", "subscription", id] as const,
-  audit: (id: string, page: number, limit: number) => ["tenant-detail", "audit", id, page, limit] as const,
+  audit: (id: string, page: number, limit: number) =>
+    ["tenant-detail", "audit", id, page, limit] as const,
 };
 
 function mapTenantDetailError(error: unknown, fallback: string): string {
@@ -45,7 +55,9 @@ export function useTenantRouteContext(id: string | undefined) {
 
   const loadTenant = useCallback(async () => {
     if (!id) return;
-    await queryClient.invalidateQueries({ queryKey: tenantDetailQueryKeys.tenant(id) });
+    await queryClient.invalidateQueries({
+      queryKey: tenantDetailQueryKeys.tenant(id),
+    });
     await refetch();
   }, [id, queryClient, refetch]);
 
@@ -65,39 +77,60 @@ export function useTenantCurrentUserData() {
   return { currentUser: data ?? null };
 }
 
-export function useTenantRecentJobsData(id: string | undefined, limit = 40, maxItems = 5) {
+export function useTenantRecentJobsData(
+  id: string | undefined,
+  limit = 40,
+  maxItems = 5,
+) {
   const queryClient = useQueryClient();
-  const { data, error, refetch } = useQuery<{ supported: boolean; data: Job[] }>({
-    queryKey: id ? tenantDetailQueryKeys.recentJobs(id, limit, maxItems) : tenantDetailQueryKeys.all,
+  const { data, error, refetch } = useQuery<{
+    supported: boolean;
+    data: Job[];
+  }>({
+    queryKey: id
+      ? tenantDetailQueryKeys.recentJobs(id, limit, maxItems)
+      : tenantDetailQueryKeys.all,
     queryFn: () => loadTenantRecentJobs(id!, limit, maxItems),
     enabled: Boolean(id),
+    refetchInterval: (query) =>
+      hasActiveJob(query.state.data?.data) ? 5_000 : false,
   });
 
   const refresh = useCallback(async () => {
     if (!id) return;
-    await queryClient.invalidateQueries({ queryKey: tenantDetailQueryKeys.recentJobs(id, limit, maxItems) });
+    await queryClient.invalidateQueries({
+      queryKey: tenantDetailQueryKeys.recentJobs(id, limit, maxItems),
+    });
     await refetch();
   }, [id, limit, maxItems, queryClient, refetch]);
 
   return {
     recentJobs: data?.data ?? [],
     recentJobsSupported: data?.supported ?? true,
-    recentJobsError: error ? toTenantDetailErrorMessage(error, "Failed to load recent jobs") : null,
+    recentJobsError: error
+      ? toTenantDetailErrorMessage(error, "Failed to load recent jobs")
+      : null,
     refresh,
   };
 }
 
 export function useTenantSummaryData(id: string | undefined) {
   const { data, error } = useQuery({
-    queryKey: id ? tenantDetailQueryKeys.summary(id) : tenantDetailQueryKeys.all,
+    queryKey: id
+      ? tenantDetailQueryKeys.summary(id)
+      : tenantDetailQueryKeys.all,
     queryFn: () => loadTenantSummary(id!),
     enabled: Boolean(id),
   });
 
-  const tenantSummary: TenantSummary | null = data?.supported ? (data.data ?? null) : null;
+  const tenantSummary: TenantSummary | null = data?.supported
+    ? (data.data ?? null)
+    : null;
   const tenantSummaryError = useMemo(() => {
-    if (error) return toTenantDetailErrorMessage(error, "Failed to load tenant summary");
-    if (data && !data.supported) return "Tenant summary endpoint not available.";
+    if (error)
+      return toTenantDetailErrorMessage(error, "Failed to load tenant summary");
+    if (data && !data.supported)
+      return "Tenant summary endpoint not available.";
     return null;
   }, [data, error]);
 
@@ -107,65 +140,97 @@ export function useTenantSummaryData(id: string | undefined) {
 export function useTenantMembersData(id: string | undefined) {
   const queryClient = useQueryClient();
   const { data, error, isPending, refetch } = useQuery({
-    queryKey: id ? tenantDetailQueryKeys.members(id) : tenantDetailQueryKeys.all,
+    queryKey: id
+      ? tenantDetailQueryKeys.members(id)
+      : tenantDetailQueryKeys.all,
     queryFn: () => loadTenantMembers(id!),
     enabled: Boolean(id),
   });
 
   const refresh = useCallback(async () => {
     if (!id) return;
-    await queryClient.invalidateQueries({ queryKey: tenantDetailQueryKeys.members(id) });
+    await queryClient.invalidateQueries({
+      queryKey: tenantDetailQueryKeys.members(id),
+    });
     await refetch();
   }, [id, queryClient, refetch]);
 
   const members: TenantMember[] = data?.supported ? data.data : [];
   const membersSupported = data?.supported ?? true;
-  const membersError = error ? toTenantDetailErrorMessage(error, "Failed to load team members") : null;
+  const membersError = error
+    ? toTenantDetailErrorMessage(error, "Failed to load team members")
+    : null;
 
-  return { members, membersSupported, membersError, membersLoading: isPending, refresh };
+  return {
+    members,
+    membersSupported,
+    membersError,
+    membersLoading: isPending,
+    refresh,
+  };
 }
 
 export function useTenantSubscriptionData(id: string | undefined) {
   const queryClient = useQueryClient();
   const { data, error, refetch } = useQuery({
-    queryKey: id ? tenantDetailQueryKeys.subscription(id) : tenantDetailQueryKeys.all,
+    queryKey: id
+      ? tenantDetailQueryKeys.subscription(id)
+      : tenantDetailQueryKeys.all,
     queryFn: () => loadTenantSubscription(id!),
     enabled: Boolean(id),
   });
 
   const loadSubscription = useCallback(async () => {
     if (!id) return;
-    await queryClient.invalidateQueries({ queryKey: tenantDetailQueryKeys.subscription(id) });
+    await queryClient.invalidateQueries({
+      queryKey: tenantDetailQueryKeys.subscription(id),
+    });
     await refetch();
   }, [id, queryClient, refetch]);
 
-  const subscription: TenantSubscription | null = data?.supported ? (data.data ?? null) : null;
+  const subscription: TenantSubscription | null = data?.supported
+    ? (data.data ?? null)
+    : null;
   const subscriptionSupported = data?.supported ?? true;
   const subscriptionError = useMemo(() => {
     if (!error) return null;
     return mapTenantDetailError(error, "Failed to load subscription details");
   }, [error]);
 
-  return { subscription, subscriptionSupported, subscriptionError, loadSubscription };
+  return {
+    subscription,
+    subscriptionSupported,
+    subscriptionError,
+    loadSubscription,
+  };
 }
 
-export function useTenantAuditData(id: string | undefined, page: number, limit: number) {
+export function useTenantAuditData(
+  id: string | undefined,
+  page: number,
+  limit: number,
+) {
   const queryClient = useQueryClient();
   const { data, error, refetch } = useQuery({
-    queryKey: id ? tenantDetailQueryKeys.audit(id, page, limit) : tenantDetailQueryKeys.all,
+    queryKey: id
+      ? tenantDetailQueryKeys.audit(id, page, limit)
+      : tenantDetailQueryKeys.all,
     queryFn: () => loadTenantAuditEvents(id!, page, limit),
     enabled: Boolean(id),
   });
 
   const loadAudit = useCallback(async () => {
     if (!id) return;
-    await queryClient.invalidateQueries({ queryKey: tenantDetailQueryKeys.audit(id, page, limit) });
+    await queryClient.invalidateQueries({
+      queryKey: tenantDetailQueryKeys.audit(id, page, limit),
+    });
     await refetch();
   }, [id, limit, page, queryClient, refetch]);
 
   const auditSupported = data?.supported ?? true;
   const auditError = useMemo(() => {
-    if (error) return mapTenantDetailError(error, "Failed to load activity log");
+    if (error)
+      return mapTenantDetailError(error, "Failed to load activity log");
     return null;
   }, [error]);
   const auditLog: AuditLogEntry[] = data?.supported ? data.data.data : [];

@@ -20,6 +20,7 @@ import {
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
+import { FeatureUnavailable, featureUnavailableMessage } from "../../../../../../domains/shared/components/FeatureUnavailable";
 import {
   inviteTenantMember,
   removeTenantMember,
@@ -34,15 +35,10 @@ import {
   useTenantRouteContext,
 } from "../../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { formatTimestamp } from "../../../../../../domains/shared/lib/formatters";
 
 const memberRoles = ["owner", "admin", "billing", "technical"];
 
-function formatTimestamp(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
 
 export default function TenantMembersPage() {
   const params = useParams<{ tenantId: string }>();
@@ -71,7 +67,7 @@ export default function TenantMembersPage() {
     mutationFn: async (payload: { email: string; role: string }) => inviteTenantMember(id!, payload),
     onSuccess: async (result) => {
       if (!result.supported) {
-        setMembersActionError("Team invitation endpoint is not available on this backend.");
+        setMembersActionError(featureUnavailableMessage("Inviting team members"));
         return;
       }
       setInviteEmail("");
@@ -87,7 +83,7 @@ export default function TenantMembersPage() {
       updateTenantMemberRole(id!, payload.memberId, payload.role),
     onSuccess: async (result) => {
       if (!result.supported) {
-        setMembersActionError("Member update endpoint is not available on this backend.");
+        setMembersActionError(featureUnavailableMessage("Updating member roles"));
         return;
       }
       await invalidateMembersAndRoute();
@@ -102,7 +98,7 @@ export default function TenantMembersPage() {
     mutationFn: async (memberId: string) => removeTenantMember(id!, memberId),
     onSuccess: async (result) => {
       if (!result.supported) {
-        setMembersActionError("Member removal endpoint is not available on this backend.");
+        setMembersActionError(featureUnavailableMessage("Removing team members"));
         return;
       }
       await invalidateMembersAndRoute();
@@ -146,7 +142,7 @@ export default function TenantMembersPage() {
         {membersLoading ? (
           <Alert severity="info">Loading team members...</Alert>
         ) : !membersSupported ? (
-          <Alert severity="warning">Team management is not available on this backend yet.</Alert>
+          <FeatureUnavailable feature="Team management" />
         ) : membersError ? (
           <Alert severity="error">{membersError}</Alert>
         ) : (

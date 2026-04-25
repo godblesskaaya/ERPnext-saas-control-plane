@@ -30,6 +30,7 @@ import {
   unsuspendTenantAccess,
 } from "../../../../../../domains/tenant-ops/application/tenantDetailUseCases";
 import { ConfirmActionDialog } from "../../../../../../domains/shared/components/ConfirmActionDialog";
+import { FeatureUnavailable, featureUnavailableMessage } from "../../../../../../domains/shared/components/FeatureUnavailable";
 import { TERMINAL_JOB_STATUSES } from "../../../../../../domains/shared/lib/tenantDisplayUtils";
 import { blockedActionReason } from "../../../../../../domains/tenant-ops/domain/lifecycleGates";
 import { TenantStatusChip } from "../../../../../../domains/shared/components/TenantStatusChip";
@@ -135,7 +136,7 @@ export default function TenantOverviewPage() {
     try {
       const result = await retryTenantProvisioningAction(id);
       if (!result.supported) {
-        setActionError("Retry endpoint is not available on this backend.");
+        setActionError(featureUnavailableMessage("Retrying provisioning"));
         return;
       }
       setActionNotice("Provisioning retry queued.");
@@ -202,7 +203,7 @@ export default function TenantOverviewPage() {
     try {
       const result = await renewTenantCheckout(id);
       if (!result.supported) {
-        setRecoveryError("Checkout renewal is not available on this backend.");
+        setRecoveryError(featureUnavailableMessage("Renewing the payment link"));
         return;
       }
       if (result.data.checkout_url) {
@@ -261,7 +262,7 @@ export default function TenantOverviewPage() {
         actionReason.trim() || undefined,
       );
       if (!result.supported) {
-        setActionError("Suspend action is not enabled on this backend.");
+        setActionError(featureUnavailableMessage("Suspending the workspace"));
         return;
       }
       setActionNotice("Tenant suspended successfully.");
@@ -287,7 +288,7 @@ export default function TenantOverviewPage() {
         actionReason.trim() || undefined,
       );
       if (!result.supported) {
-        setActionError("Unsuspend action is not enabled on this backend.");
+        setActionError(featureUnavailableMessage("Unsuspending the workspace"));
         return;
       }
       setActionNotice("Tenant unsuspended successfully.");
@@ -656,7 +657,7 @@ export default function TenantOverviewPage() {
                       fontWeight: 700,
                     }}
                   >
-                    Open ERPNext billing
+                    Open billing portal
                   </Button>
                   <Button
                     component="a"
@@ -987,9 +988,9 @@ export default function TenantOverviewPage() {
             {recentJobsError}
           </Alert>
         ) : !recentJobsSupported ? (
-          <Alert severity="warning" sx={{ mt: 2 }}>
-            Job history endpoint is not available on this backend.
-          </Alert>
+          <Box sx={{ mt: 2 }}>
+            <FeatureUnavailable feature="Job history" />
+          </Box>
         ) : recentJobs.length ? (
           <Stack spacing={1} sx={{ mt: 2 }}>
             {recentJobs.map((job) => (

@@ -32,15 +32,11 @@ import {
 import { TenantWorkspacePageLayout } from "../../../../../../domains/tenant-ops/ui/tenant-detail/components/TenantWorkspacePageLayout";
 import { useTenantRouteContext } from "../../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
 import { ConfirmActionDialog } from "../../../../../../domains/shared/components/ConfirmActionDialog";
+import { FeatureUnavailable, featureUnavailableMessage } from "../../../../../../domains/shared/components/FeatureUnavailable";
 import { JobStatusWidget } from "../../../../../../domains/shared/components/JobStatusWidget";
 import type { BackupManifestEntry } from "../../../../../../domains/shared/lib/types";
+import { formatTimestamp } from "../../../../../../domains/shared/lib/formatters";
 
-function formatTimestamp(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
 
 function resolveBackupDownload(entry: BackupManifestEntry): string | null {
   const direct = entry.download_url;
@@ -205,9 +201,9 @@ export default function TenantBackupsPage() {
             Loading backup history...
           </Alert>
         ) : !backupsSupported ? (
-          <Alert severity="warning" sx={{ mt: 2 }}>
-            Backup history endpoint is not available on this backend yet.
-          </Alert>
+          <Box sx={{ mt: 2 }}>
+            <FeatureUnavailable feature="Backups" />
+          </Box>
         ) : backupsError ? (
           <Alert severity="error" sx={{ mt: 2 }}>
             {/* Contract marker: <Alert severity="error" sx={{ mt: 2 }}>{backupsError}</Alert> */}
@@ -325,9 +321,7 @@ export default function TenantBackupsPage() {
                       restoreTarget.id,
                     );
                     if (!result.supported) {
-                      setRestoreError(
-                        "Restore endpoint is not available on this backend.",
-                      );
+                      setRestoreError(featureUnavailableMessage("Restoring backups"));
                       return;
                     }
                     setRestoreNotice("Restore job queued successfully.");

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
 import {
   Alert,
   Box,
@@ -22,25 +21,24 @@ import {
 } from "@mui/material";
 
 import { loadBillingWorkspaceSnapshot, toBillingErrorMessage } from "../../../../../domains/billing/application/billingUseCases";
+import { FeatureUnavailable } from "../../../../../domains/shared/components/FeatureUnavailable";
+import { formatMoney as formatCurrency, formatTimestamp } from "../../../../../domains/shared/lib/formatters";
+import { EmptyState, PageHeader } from "../../../../../domains/shell/components";
 import type { BillingInvoice } from "../../../../../domains/shared/lib/types";
 
-function formatCurrency(amount?: number | null, currency?: string | null): string {
-  if (amount === null || amount === undefined) return "—";
-  const normalized = currency ? currency.toUpperCase() : "USD";
-  return new Intl.NumberFormat(undefined, { style: "currency", currency: normalized }).format(amount / 100);
-}
-
-function formatTimestamp(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
 
 function invoiceAction(invoice: BillingInvoice): { label: string; href: string } | null {
   if (invoice.hosted_invoice_url) return { label: "Resume payment", href: invoice.hosted_invoice_url };
   if (invoice.invoice_pdf) return { label: "Download", href: invoice.invoice_pdf };
   return null;
+}
+
+function statusChipColor(status?: string | null): "default" | "success" | "warning" | "error" {
+  const value = (status ?? "").toLowerCase();
+  if (value === "paid" || value === "settled" || value === "closed") return "success";
+  if (value === "past_due" || value === "overdue" || value === "failed" || value === "uncollectible") return "error";
+  if (value === "open" || value === "unpaid" || value === "draft") return "warning";
+  return "default";
 }
 
 export default function BillingPage() {
@@ -50,9 +48,11 @@ export default function BillingPage() {
   const [portalUrl, setPortalUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    const load = async () => {
+    let active = true;
+    void (async () => {
       try {
         const snapshot = await loadBillingWorkspaceSnapshot();
+        if (!active) return;
         setPortalUrl(snapshot.portalUrl);
         if (!snapshot.invoicesSupported) {
           setSupported(false);
@@ -62,78 +62,89 @@ export default function BillingPage() {
         setSupported(true);
         setInvoices(snapshot.invoices);
       } catch (err) {
+        if (!active) return;
         setError(toBillingErrorMessage(err, "Failed to load invoices"));
       }
+    })();
+    return () => {
+      active = false;
     };
-
-    void load();
   }, []);
 
   return (
-    <Stack spacing={2.5}>
-      <Paper variant="outlined" sx={{ borderRadius: 4, p: 3, borderColor: "warning.light" }}>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "flex-start", sm: "center" }} justifyContent="space-between">
-          <Box>
-            <Typography variant="overline" sx={{ color: "warning.dark", fontWeight: 700, letterSpacing: 0.8 }}>
-              ERPNext billing
-            </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 700 }}>
-              Billing & invoices
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              Review ERPNext invoice history and continue payment follow-up.
-            </Typography>
-          </Box>
-          {portalUrl ? (
-            <Button variant="contained" href={portalUrl} target="_blank" rel="noreferrer" sx={{ borderRadius: 999 }}>
-              Open ERPNext invoices
+    <Stack spacing={3}>
+      <PageHeader
+        overline="Billing"
+        title="Invoices"
+        subtitle="Review your invoice history and follow up on outstanding payments."
+        actions={
+          portalUrl ? (
+            <Button
+              variant="contained"
+              href={portalUrl}
+              target="_blank"
+              rel="noreferrer"
+              sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+            >
+              Open invoice portal
             </Button>
-          ) : null}
-        </Stack>
-      </Paper>
+          ) : null
+        }
+      />
 
       {!supported ? (
-        <Alert severity="warning" sx={{ borderRadius: 3 }}>
-          ERPNext billing workspace is currently unavailable. Use support if this persists.
-        </Alert>
+        <FeatureUnavailable feature="Invoices" detail="Contact support if this persists." />
       ) : error ? (
-        <Alert severity="error" sx={{ borderRadius: 3 }}>
-          {error}
-        </Alert>
-      ) : invoices.length ? (
+        <Alert severity="error">{error}</Alert>
+      ) : invoices.length === 0 ? (
+        <EmptyState title="No invoices yet" description="Invoices will appear here once your workspace is billed." />
+      ) : (
         <>
+          {/* Mobile: card list */}
           <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" } }}>
             {invoices.map((invoice) => {
               const action = invoiceAction(invoice);
               return (
-                <Card key={invoice.id} variant="outlined" sx={{ borderRadius: 3, borderColor: "warning.light" }}>
+                <Card key={invoice.id} variant="outlined" sx={{ borderRadius: 3 }}>
                   <CardContent sx={{ p: 2 }}>
                     <Stack spacing={1}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                        {invoice.metadata?.company_name ?? invoice.metadata?.tenant_domain ?? "—"}
-                      </Typography>
-                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                        <Chip size="small" label={invoice.status ?? "—"} />
-                        <Chip size="small" variant="outlined" label={formatCurrency(invoice.amount_due ?? undefined, invoice.currency)} />
-                      </Box>
+                      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                          {invoice.metadata?.company_name ?? invoice.metadata?.tenant_domain ?? "Workspace"}
+                        </Typography>
+                        <Chip
+                          size="small"
+                          label={invoice.status ?? "—"}
+                          color={statusChipColor(invoice.status)}
+                          variant="outlined"
+                        />
+                      </Stack>
+                      <Stack direction="row" spacing={3}>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Amount due
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                            {formatCurrency(invoice.amount_due ?? undefined, invoice.currency)}
+                          </Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Paid
+                          </Typography>
+                          <Typography variant="body2">
+                            {formatCurrency(invoice.amount_paid ?? undefined, invoice.currency)}
+                          </Typography>
+                        </Box>
+                      </Stack>
                       <Typography variant="caption" color="text.secondary">
-                        Invoice: <Box component="span" sx={{ color: "text.primary", fontFamily: "monospace" }}>{invoice.id}</Box>
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Paid: <Box component="span" sx={{ color: "text.primary" }}>{formatCurrency(invoice.amount_paid ?? undefined, invoice.currency)}</Box>
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Created: <Box component="span" sx={{ color: "text.primary" }}>{formatTimestamp(invoice.created_at)}</Box>
+                        {formatTimestamp(invoice.created_at)}
                       </Typography>
                       {action ? (
-                        <Link href={action.href} target="_blank" rel="noreferrer" underline="hover">
+                        <Link href={action.href} target="_blank" rel="noreferrer" underline="hover" sx={{ fontWeight: 600 }}>
                           {action.label}
                         </Link>
-                      ) : (
-                        <Typography variant="caption" color="text.secondary">
-                          Link: —
-                        </Typography>
-                      )}
+                      ) : null}
                     </Stack>
                   </CardContent>
                 </Card>
@@ -141,17 +152,17 @@ export default function BillingPage() {
             })}
           </Stack>
 
-          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 3, borderColor: "warning.light", display: { xs: "none", md: "block" } }}>
+          {/* Desktop: table */}
+          <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 3, display: { xs: "none", md: "block" } }}>
             <Table size="small">
-              <TableHead>
-                <TableRow sx={{ bgcolor: "rgba(245,158,11,0.08)" }}>
+              <TableHead sx={{ bgcolor: "grey.50" }}>
+                <TableRow>
                   <TableCell>Workspace</TableCell>
-                  <TableCell>Invoice</TableCell>
                   <TableCell>Status</TableCell>
-                  <TableCell>Amount due</TableCell>
-                  <TableCell>Amount paid</TableCell>
+                  <TableCell align="right">Amount due</TableCell>
+                  <TableCell align="right">Amount paid</TableCell>
                   <TableCell>Created</TableCell>
-                  <TableCell>Link</TableCell>
+                  <TableCell align="right">Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -159,17 +170,34 @@ export default function BillingPage() {
                   const action = invoiceAction(invoice);
                   return (
                     <TableRow key={invoice.id} hover>
-                      <TableCell sx={{ whiteSpace: "nowrap" }}>
-                        {invoice.metadata?.company_name ?? invoice.metadata?.tenant_domain ?? "—"}
-                      </TableCell>
-                      <TableCell sx={{ fontFamily: "monospace", fontSize: 12 }}>{invoice.id}</TableCell>
-                      <TableCell>{invoice.status ?? "—"}</TableCell>
-                      <TableCell>{formatCurrency(invoice.amount_due ?? undefined, invoice.currency)}</TableCell>
-                      <TableCell>{formatCurrency(invoice.amount_paid ?? undefined, invoice.currency)}</TableCell>
-                      <TableCell>{formatTimestamp(invoice.created_at)}</TableCell>
                       <TableCell>
+                        <Stack spacing={0.25}>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {invoice.metadata?.company_name ?? invoice.metadata?.tenant_domain ?? "Workspace"}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "monospace" }}>
+                            {invoice.id}
+                          </Typography>
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={invoice.status ?? "—"}
+                          color={statusChipColor(invoice.status)}
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 600 }}>
+                        {formatCurrency(invoice.amount_due ?? undefined, invoice.currency)}
+                      </TableCell>
+                      <TableCell align="right">
+                        {formatCurrency(invoice.amount_paid ?? undefined, invoice.currency)}
+                      </TableCell>
+                      <TableCell>{formatTimestamp(invoice.created_at)}</TableCell>
+                      <TableCell align="right">
                         {action ? (
-                          <Link href={action.href} target="_blank" rel="noreferrer" underline="hover">
+                          <Link href={action.href} target="_blank" rel="noreferrer" underline="hover" sx={{ fontWeight: 600 }}>
                             {action.label}
                           </Link>
                         ) : (
@@ -183,10 +211,6 @@ export default function BillingPage() {
             </Table>
           </TableContainer>
         </>
-      ) : (
-        <Alert severity="info" sx={{ borderRadius: 3 }}>
-          No invoices found yet.
-        </Alert>
       )}
     </Stack>
   );

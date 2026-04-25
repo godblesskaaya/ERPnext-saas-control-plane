@@ -2,7 +2,7 @@
 
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
-import { Button, Paper, Stack } from "@mui/material";
+import { Box, Button, Paper } from "@mui/material";
 
 import { isExactOrChildPath, isTenantOverviewPath } from "../routeCompatibility";
 
@@ -45,23 +45,53 @@ export function TenantSectionLinks({ tenantId }: TenantSectionLinksProps) {
   const navItems = buildTenantSectionNavItems(pathname, tenantId);
 
   return (
-    <Paper variant="outlined" sx={{ p: 2, borderRadius: 4, borderColor: "warning.light", backgroundColor: "background.paper" }}>
-      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 1,
+        borderRadius: 3,
+        borderColor: "divider",
+        backgroundColor: "background.paper",
+      }}
+    >
+      <Box
+        role="tablist"
+        sx={{
+          display: "flex",
+          gap: 1,
+          overflowX: "auto",
+          overflowY: "hidden",
+          flexWrap: "nowrap",
+          // Hide scrollbar visuals while keeping scroll behaviour
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
+          "&::-webkit-scrollbar": { display: "none" },
+        }}
+      >
         {navItems.map(({ href, label, active }) => (
           <Button
             key={label}
             component={NextLink}
             href={href}
-            variant={active ? "contained" : "outlined"}
-            color={active ? "warning" : "inherit"}
+            variant={active ? "contained" : "text"}
+            color={active ? "primary" : "inherit"}
             aria-current={active ? "page" : undefined}
+            role="tab"
             size="small"
-            sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700, minWidth: 0 }}
+            sx={{
+              borderRadius: 99,
+              textTransform: "none",
+              fontWeight: active ? 700 : 600,
+              minWidth: 0,
+              flexShrink: 0,
+              whiteSpace: "nowrap",
+              px: 2,
+            }}
           >
             {label}
           </Button>
         ))}
-      </Stack>
+      </Box>
     </Paper>
   );
 }

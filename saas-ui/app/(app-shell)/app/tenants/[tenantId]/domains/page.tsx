@@ -21,6 +21,7 @@ import {
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { FeatureUnavailable, featureUnavailableMessage } from "../../../../../../domains/shared/components/FeatureUnavailable";
 import {
   createTenantDomain,
   deleteTenantDomain,
@@ -32,13 +33,8 @@ import { blockedActionReason, isTenantBillingBlocked } from "../../../../../../d
 import { TenantWorkspacePageLayout } from "../../../../../../domains/tenant-ops/ui/tenant-detail/components/TenantWorkspacePageLayout";
 import { useTenantRouteContext } from "../../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
 import type { DomainMapping } from "../../../../../../domains/shared/lib/types";
+import { formatTimestamp } from "../../../../../../domains/shared/lib/formatters";
 
-function formatTimestamp(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
 
 export default function TenantDomainsPage() {
   const params = useParams<{ tenantId: string }>();
@@ -120,7 +116,7 @@ export default function TenantDomainsPage() {
         {domainsLoading ? (
           <Alert severity="info">Loading custom domains...</Alert>
         ) : !domainsSupported ? (
-          <Alert severity="warning">Custom domain management is not available on this backend yet.</Alert>
+          <FeatureUnavailable feature="Custom domains" />
         ) : domainsError ? (
           <Alert severity="error">{domainsError}</Alert>
         ) : (
@@ -149,7 +145,7 @@ export default function TenantDomainsPage() {
                       try {
                         const result = await createTenantDomain(id, domainInput.trim());
                         if (!result.supported) {
-                          setDomainsError("Custom domain endpoint is not available on this backend.");
+                          setDomainsError(featureUnavailableMessage("Adding custom domains"));
                           return;
                         }
                         setDomainInput("");
@@ -213,7 +209,7 @@ export default function TenantDomainsPage() {
                                 try {
                                   const result = await verifyTenantDomain(id, domain.id, domain.verification_token);
                                   if (!result.supported) {
-                                    setDomainsError("Domain verification endpoint is not available on this backend.");
+                                    setDomainsError(featureUnavailableMessage("Domain verification"));
                                     return;
                                   }
                                   await loadDomainsData();
@@ -239,7 +235,7 @@ export default function TenantDomainsPage() {
                                 try {
                                   const result = await deleteTenantDomain(id, domain.id);
                                   if (!result.supported) {
-                                    setDomainsError("Domain removal endpoint is not available on this backend.");
+                                    setDomainsError(featureUnavailableMessage("Removing custom domains"));
                                     return;
                                   }
                                   await loadDomainsData();

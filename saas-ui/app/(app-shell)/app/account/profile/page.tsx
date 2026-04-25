@@ -2,18 +2,20 @@
 
 import NextLink from "next/link";
 import { useEffect, useMemo, useState } from "react";
-
 import {
   Alert,
+  Box,
   Button,
   Card,
   CardContent,
-  Grid,
+  Chip,
   Link,
   Paper,
   Stack,
   Typography,
 } from "@mui/material";
+import VerifiedOutlinedIcon from "@mui/icons-material/VerifiedOutlined";
+import ErrorOutlineOutlinedIcon from "@mui/icons-material/ErrorOutlineOutlined";
 
 import {
   loadAccountBillingInvoices,
@@ -22,24 +24,23 @@ import {
   pickLatestInvoice,
   toAccountErrorMessage,
 } from "../../../../../domains/account/application/accountUseCases";
+import { FeatureUnavailable } from "../../../../../domains/shared/components/FeatureUnavailable";
+import { formatMoney, formatTimestamp } from "../../../../../domains/shared/lib/formatters";
+import { PageHeader } from "../../../../../domains/shell/components";
 import type { BillingInvoice, UserProfile } from "../../../../../domains/shared/lib/types";
 
-function formatMoney(amount?: number | null, currency?: string | null): string {
-  if (amount === null || amount === undefined) return "—";
-  const code = (currency || "usd").toUpperCase();
-  const value = amount / 100;
-  try {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency: code }).format(value);
-  } catch {
-    return `${value.toFixed(2)} ${code}`;
-  }
-}
 
-function formatTimestamp(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+function DetailItem({ label, value }: { label: string; value: string }) {
+  return (
+    <Box>
+      <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 700 }}>
+        {label}
+      </Typography>
+      <Typography variant="body1" sx={{ mt: 0.25, fontWeight: 600 }}>
+        {value}
+      </Typography>
+    </Box>
+  );
 }
 
 export default function DashboardAccountPage() {
@@ -108,153 +109,161 @@ export default function DashboardAccountPage() {
   }, []);
 
   const latestInvoice = useMemo(() => pickLatestInvoice(invoices), [invoices]);
+  const verified = profile?.email_verified ?? false;
 
   return (
     <Stack spacing={3}>
-      <Paper variant="outlined" sx={{ borderColor: "divider", p: 3, borderRadius: 4 }}>
-        <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 700, letterSpacing: 0.8 }}>
-          Account workspace
-        </Typography>
-        <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 700 }}>
-          Account summary
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          Identity, billing, and readiness details for your control-plane account.
-        </Typography>
-      </Paper>
-
-      <Alert severity="info" variant="outlined" sx={{ borderRadius: 3 }}>
-        You are in Dashboard → Account. Review identity and billing state first, then continue to settings or billing follow-up actions.
-      </Alert>
-
-      <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4 }}>
-        <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 700, letterSpacing: 0.8 }}>
-          What to do next
-        </Typography>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 1 }}>
-          <Button component={NextLink} href="/app/account/settings" variant="contained" size="small">
-            Update contact settings
+      <PageHeader
+        overline="Account"
+        title="Profile"
+        subtitle="Your identity, contact details, and billing snapshot."
+        actions={
+          <Button
+            component={NextLink}
+            href="/app/account/settings"
+            variant="contained"
+            sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+          >
+            Update settings
           </Button>
-          <Button component={NextLink} href="/billing" variant="outlined" color="inherit" size="small">
-            Open ERPNext invoices
-          </Button>
+        }
+      />
+
+      {profileError ? <Alert severity="error">{profileError}</Alert> : null}
+
+      <Paper variant="outlined" sx={{ borderRadius: 3, p: 3 }}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={3}
+          divider={<Box sx={{ borderRight: { md: "1px solid" }, borderColor: { md: "divider" } }} />}
+        >
+          <DetailItem label="Email" value={profile?.email ?? "—"} />
+          <DetailItem label="Role" value={profile?.role ?? "—"} />
+          <DetailItem label="Phone" value={profile?.phone || "Not set"} />
+          <Box>
+            <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 700 }}>
+              Email verification
+            </Typography>
+            <Stack direction="row" spacing={0.75} alignItems="center" sx={{ mt: 0.25 }}>
+              {verified ? (
+                <Chip
+                  size="small"
+                  color="success"
+                  variant="outlined"
+                  icon={<VerifiedOutlinedIcon sx={{ fontSize: 16 }} />}
+                  label="Verified"
+                />
+              ) : (
+                <Chip
+                  size="small"
+                  color="warning"
+                  variant="outlined"
+                  icon={<ErrorOutlineOutlinedIcon sx={{ fontSize: 16 }} />}
+                  label="Pending"
+                />
+              )}
+              {!verified ? (
+                <Button component={NextLink} href="/verify-email" size="small" sx={{ textTransform: "none" }}>
+                  Verify now
+                </Button>
+              ) : null}
+            </Stack>
+          </Box>
         </Stack>
       </Paper>
 
-      {profileError ? <Alert severity="error" variant="outlined">{profileError}</Alert> : null}
-
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
-          <Card variant="outlined" sx={{ height: "100%", borderRadius: 3 }}>
-            <CardContent>
-              <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.7 }}>
-                Email
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
+        }}
+      >
+        <Card variant="outlined" sx={{ borderRadius: 3 }}>
+          <CardContent sx={{ display: "grid", gap: 1.5 }}>
+            <Box>
+              <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 0.6 }}>
+                Billing portal
               </Typography>
-              <Typography variant="subtitle1" sx={{ mt: 0.5, fontWeight: 700 }}>{profile?.email ?? "—"}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
-          <Card variant="outlined" sx={{ height: "100%", borderRadius: 3 }}>
-            <CardContent>
-              <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.7 }}>
-                Role
+              <Typography variant="h6" sx={{ fontWeight: 700, mt: 0.25 }}>
+                Manage invoices &amp; payments
               </Typography>
-              <Typography variant="subtitle1" sx={{ mt: 0.5, fontWeight: 700 }}>{profile?.role ?? "—"}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
-          <Card variant="outlined" sx={{ height: "100%", borderRadius: 3 }}>
-            <CardContent>
-              <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.7 }}>
-                Phone (SMS)
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Open the billing portal to review invoices, update payment methods, and follow up on collections.
               </Typography>
-              <Typography variant="subtitle1" sx={{ mt: 0.5, fontWeight: 700 }}>{profile?.phone || "Not set"}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, md: 6, lg: 3 }}>
-          <Card variant="outlined" sx={{ height: "100%", borderRadius: 3 }}>
-            <CardContent>
-              <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.7 }}>
-                Email verification
-              </Typography>
-              <Typography variant="subtitle1" sx={{ mt: 0.5, fontWeight: 700 }}>
-                {profile?.email_verified ? "Verified" : "Pending"}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4, height: "100%" }}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Billing workspace
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-              Continue collections and invoice follow-up from the ERPNext billing workspace.
-            </Typography>
-            <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+            </Box>
+            <Stack direction="row" spacing={1}>
               {portalUrl ? (
-                <Button component="a" href={portalUrl} target="_blank" rel="noreferrer" variant="contained" color="primary" size="small">
-                  Open ERPNext invoices
+                <Button
+                  component="a"
+                  href={portalUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  variant="contained"
+                  sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+                >
+                  Open invoice portal
                 </Button>
               ) : (
-                <Button component={NextLink} href="/billing" variant="outlined" color="warning" size="small">
-                  Open ERPNext billing
+                <Button
+                  component={NextLink}
+                  href="/app/billing/invoices"
+                  variant="outlined"
+                  sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+                >
+                  View invoices
                 </Button>
               )}
             </Stack>
             {portalError ? (
-              <Typography variant="caption" color="error" sx={{ display: "block", mt: 1.25 }}>
+              <Alert severity="warning" variant="outlined" sx={{ borderRadius: 2 }}>
                 {portalError}
-              </Typography>
+              </Alert>
             ) : null}
-          </Paper>
-        </Grid>
+          </CardContent>
+        </Card>
 
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4, height: "100%" }}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Latest invoice snapshot
+        <Card variant="outlined" sx={{ borderRadius: 3 }}>
+          <CardContent sx={{ display: "grid", gap: 1.5 }}>
+            <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 0.6 }}>
+              Latest invoice
             </Typography>
             {!invoicesSupported ? (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                ERPNext invoice data is not configured on this backend deployment.
-              </Typography>
+              <FeatureUnavailable feature="Invoice history" />
             ) : latestInvoice ? (
-              <Stack spacing={0.5} sx={{ mt: 1.25 }}>
-                <Typography variant="body2">
-                  Amount due: <strong>{formatMoney(latestInvoice.amount_due, latestInvoice.currency)}</strong>
+              <Stack spacing={1}>
+                <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                  {formatMoney(latestInvoice.amount_due, latestInvoice.currency)}
                 </Typography>
-                <Typography variant="body2">
-                  Status: <strong>{latestInvoice.status ?? "unknown"}</strong>
-                </Typography>
-                <Typography variant="body2">
-                  Created: <strong>{formatTimestamp(latestInvoice.created_at ?? null)}</strong>
-                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip size="small" label={latestInvoice.status ?? "unknown"} variant="outlined" />
+                  <Chip size="small" label={formatTimestamp(latestInvoice.created_at ?? null)} variant="outlined" />
+                </Stack>
                 {latestInvoice.hosted_invoice_url ? (
-                  <Link href={latestInvoice.hosted_invoice_url} target="_blank" rel="noreferrer" underline="hover" sx={{ mt: 0.75 }}>
-                    View invoice
+                  <Link
+                    href={latestInvoice.hosted_invoice_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    underline="hover"
+                    sx={{ fontWeight: 600, mt: 0.5 }}
+                  >
+                    View invoice →
                   </Link>
                 ) : null}
               </Stack>
             ) : (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                No invoice data available yet.
+              <Typography variant="body2" color="text.secondary">
+                No invoices billed yet.
               </Typography>
             )}
             {invoiceError ? (
-              <Typography variant="caption" color="error" sx={{ display: "block", mt: 1.25 }}>
+              <Alert severity="warning" variant="outlined" sx={{ borderRadius: 2 }}>
                 {invoiceError}
-              </Typography>
+              </Alert>
             ) : null}
-          </Paper>
-        </Grid>
-      </Grid>
+          </CardContent>
+        </Card>
+      </Box>
     </Stack>
   );
 }

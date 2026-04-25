@@ -2,6 +2,7 @@
 
 import { Alert, Button, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@mui/material";
 
+import { FeatureUnavailable } from "../../../../shared/components/FeatureUnavailable";
 import type { AuditLogEntry } from "../../../../shared/lib/types";
 
 type TenantActivitySectionProps = {
@@ -50,9 +51,7 @@ export function TenantActivitySection({
       </Stack>
 
       {!auditSupported ? (
-        <Alert severity="warning">
-          Activity log endpoint is not available on this backend yet.
-        </Alert>
+        <FeatureUnavailable feature="Activity log" />
       ) : auditError ? (
         <Alert severity="error">{auditError}</Alert>
       ) : auditLog.length ? (

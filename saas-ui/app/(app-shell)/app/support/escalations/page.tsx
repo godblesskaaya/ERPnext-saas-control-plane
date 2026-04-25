@@ -1,259 +1,145 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import NextLink from "next/link";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 
-import { Alert, Box, Button, Card, CardContent, Chip, Grid, Link, Paper, Stack, Typography } from "@mui/material";
+import { PageHeader } from "../../../../../domains/shell/components";
 
-import { loadAuthHealthSnapshot, type ServiceHealth } from "../../../../../domains/auth/application/authUseCases";
+const ESCALATION_TRIGGERS = [
+  "Login still fails after verifying your email and resetting your password.",
+  "A payment succeeded but your workspace is still restricted or suspended.",
+  "The same error affects multiple users, branches, or workspaces.",
+  "Data looks incorrect, missing, or unexpectedly changed.",
+];
 
-function toneForStatus(status: ServiceHealth["status"]): "success" | "warning" | "error" | "default" {
-  if (status === "ok") return "success";
-  if (status === "unsupported") return "warning";
-  if (status === "unavailable") return "error";
-  return "default";
-}
-
-function healthLabel(health: ServiceHealth): string {
-  return health.status === "ok" ? health.message || "ok" : health.status;
-}
-
-function SupportCard({
-  title,
-  eyebrow,
-  body,
-  actions,
-}: {
-  title: string;
-  eyebrow: string;
-  body: string;
-  actions?: Array<{ label: string; href: string; variant?: "contained" | "outlined" }>;
-}) {
-  return (
-    <Card variant="outlined" sx={{ borderRadius: 3, borderColor: "divider", height: "100%" }}>
-      <CardContent>
-        <Typography variant="overline" sx={{ color: "primary.main", letterSpacing: 0.8, fontWeight: 700 }}>
-          {eyebrow}
-        </Typography>
-        <Typography variant="h6" sx={{ fontWeight: 700, mt: 0.25 }}>
-          {title}
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          {body}
-        </Typography>
-        {actions ? (
-          <Stack spacing={1} sx={{ mt: 2 }}>
-            {actions.map((action) => (
-              <Button key={action.label} href={action.href} variant={action.variant ?? "outlined"} color="inherit" sx={{ borderRadius: 999 }}>
-                {action.label}
-              </Button>
-            ))}
-          </Stack>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
+const REQUEST_CHECKLIST = [
+  "Workspace name and subdomain.",
+  "When the problem started, in your local time.",
+  "The user account affected.",
+  "Steps you took before the error.",
+  "A screenshot if possible.",
+];
 
 export default function SupportOverviewPage() {
-  const [authHealth, setAuthHealth] = useState<ServiceHealth>({ status: "checking", message: "checking" });
-  const [billingHealth, setBillingHealth] = useState<ServiceHealth>({ status: "checking", message: "checking" });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const snapshot = await loadAuthHealthSnapshot();
-      setAuthHealth(snapshot.auth);
-      setBillingHealth(snapshot.billing);
-    } catch {
-      setError("Unable to refresh support overview right now.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void load();
-  }, []);
-
-  const serviceSummary = useMemo(() => {
-    if (authHealth.status === "ok" && billingHealth.status === "ok") {
-      return "Account access and billing checks are currently responding.";
-    }
-    if (authHealth.status === "unavailable" || billingHealth.status === "unavailable") {
-      return "At least one support-related check is unavailable right now.";
-    }
-    return "Some support-related checks are not exposed on this deployment.";
-  }, [authHealth.status, billingHealth.status]);
-
   return (
     <Stack spacing={3}>
-      <Paper variant="outlined" sx={{ borderRadius: 4, p: 3, borderColor: "divider" }}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
-          alignItems={{ xs: "flex-start", sm: "center" }}
-          justifyContent="space-between"
-        >
-          <Box>
-            <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 700, letterSpacing: 0.8 }}>
-              Support overview
-            </Typography>
-            <Typography variant="h4" sx={{ fontWeight: 700, mt: 0.5 }}>
-              How to get help
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-              Choose the right channel, set expectations early, and include the details that help us resolve issues faster.
-            </Typography>
-          </Box>
-          <Button variant="outlined" color="warning" onClick={() => void load()} disabled={loading} sx={{ borderRadius: 999 }}>
-            {loading ? "Refreshing..." : "Refresh guidance"}
-          </Button>
-        </Stack>
-      </Paper>
+      <PageHeader
+        overline="Support"
+        title="Get help"
+        subtitle="Choose the right channel and include the details that speed up resolution."
+      />
 
-      {error ? (
-        <Alert severity="error" variant="outlined" sx={{ borderRadius: 3 }}>
-          {error}
-        </Alert>
-      ) : null}
-
-      <Alert severity="info" variant="outlined" sx={{ borderRadius: 3 }}>
-        {serviceSummary}
-      </Alert>
-
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Paper variant="outlined" sx={{ borderRadius: 3, p: 2.5, borderColor: "divider", height: "100%" }}>
-            <Typography variant="overline" sx={{ color: "primary.main", letterSpacing: 0.8, fontWeight: 700 }}>
-              Where you are
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+        }}
+      >
+        <Card variant="outlined" sx={{ borderRadius: 3 }}>
+          <CardContent sx={{ display: "grid", gap: 1.5, p: 3 }}>
+            <Typography variant="overline" color="primary.main" sx={{ fontWeight: 700, letterSpacing: 0.6 }}>
+              Where to start
             </Typography>
-            <Typography variant="subtitle1" sx={{ mt: 0.25, fontWeight: 700 }}>
-              Dashboard support guidance workspace
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Open the support queue
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-              Use this page to choose the right support route before opening detailed queue workflows.
+            <Typography variant="body2" color="text.secondary">
+              For most questions, the support queue is the fastest path. Urgent issues, payment blockers, and broken
+              sign-ins are prioritised first.
             </Typography>
-          </Paper>
-        </Grid>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Paper variant="outlined" sx={{ borderRadius: 3, p: 2.5, borderColor: "divider", height: "100%" }}>
-            <Typography variant="overline" sx={{ color: "primary.main", letterSpacing: 0.8, fontWeight: 700 }}>
-              What to do next
-            </Typography>
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 1 }}>
-              <Button href="/app/support/queue" variant="contained" sx={{ borderRadius: 999 }}>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Button
+                component={NextLink}
+                href="/app/support/queue"
+                variant="contained"
+                sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+              >
                 Open support queue
               </Button>
-              <Button href="/app/platform/incidents" variant="outlined" color="inherit" sx={{ borderRadius: 999 }}>
-                Review incidents
+              <Button
+                component={NextLink}
+                href="/app/account/settings"
+                variant="outlined"
+                sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+              >
+                Update contact details
               </Button>
             </Stack>
-          </Paper>
-        </Grid>
-      </Grid>
+          </CardContent>
+        </Card>
 
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, md: 4 }}>
-          <SupportCard
-            eyebrow="Support channels"
-            title="Use the channel that matches your issue"
-            body="Email and in-app support are best for most requests. Use billing tools for payment issues, and keep contact settings current so urgent replies reach you."
-            actions={[
-              { label: "Open support queue", href: "/app/support/queue", variant: "contained" },
-              { label: "Review billing", href: "/billing" },
-              { label: "Update contact settings", href: "/app/account/settings" },
-            ]}
-          />
-        </Grid>
+        <Card variant="outlined" sx={{ borderRadius: 3 }}>
+          <CardContent sx={{ display: "grid", gap: 1.5, p: 3 }}>
+            <Typography variant="overline" color="primary.main" sx={{ fontWeight: 700, letterSpacing: 0.6 }}>
+              What to include
+            </Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Help us help you faster
+            </Typography>
+            <List dense disablePadding>
+              {REQUEST_CHECKLIST.map((item) => (
+                <ListItem key={item} disableGutters sx={{ alignItems: "flex-start", py: 0.25 }}>
+                  <ListItemIcon sx={{ minWidth: 28, mt: 0.25 }}>
+                    <CheckCircleOutlineIcon fontSize="small" color="success" />
+                  </ListItemIcon>
+                  <ListItemText primaryTypographyProps={{ variant: "body2" }} primary={item} />
+                </ListItem>
+              ))}
+            </List>
+          </CardContent>
+        </Card>
+      </Box>
 
-        <Grid size={{ xs: 12, md: 4 }}>
-          <SupportCard
-            eyebrow="Response expectations"
-            title="Typical support flow"
-            body="Urgent outages and blocked sign-in issues are prioritized first. Billing questions and general how-to requests are handled after active incidents, usually during EAT business hours."
-          />
-        </Grid>
-
-        <Grid size={{ xs: 12, md: 4 }}>
-          <SupportCard
-            eyebrow="Before you reach out"
-            title="Add the details that speed resolution"
-            body="Include your workspace name, the time the problem started, the user affected, and a screenshot if possible. That reduces back-and-forth and helps us escalate correctly."
-          />
-        </Grid>
-      </Grid>
-
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, lg: 7 }}>
-          <Paper variant="outlined" sx={{ borderRadius: 4, p: 3, borderColor: "divider", height: "100%" }}>
+      <Paper variant="outlined" sx={{ borderRadius: 3, p: 3 }}>
+        <Stack spacing={1.5}>
+          <Box>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
               When to escalate
             </Typography>
-            <Stack spacing={1.25} sx={{ mt: 2 }}>
-              {[
-                "Login still fails after you verify your email and retry your password.",
-                "A payment succeeded but your account still looks restricted or suspended.",
-                "The same error affects many users, branches, or workspaces at once.",
-                "You see data that looks incorrect, missing, or unexpectedly changed.",
-              ].map((item) => (
-                <Alert key={item} severity="warning" variant="outlined" sx={{ borderRadius: 2 }}>
-                  {item}
-                </Alert>
-              ))}
-            </Stack>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-              If you need to follow up, share the ticket reference or screenshot in the same thread so we can keep the history together.
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              If any of these apply, mark the request as urgent so we can prioritise it.
             </Typography>
-          </Paper>
-        </Grid>
+          </Box>
+          <List disablePadding>
+            {ESCALATION_TRIGGERS.map((trigger) => (
+              <ListItem key={trigger} disableGutters sx={{ alignItems: "flex-start", py: 0.5 }}>
+                <ListItemIcon sx={{ minWidth: 28, mt: 0.25 }}>
+                  <WarningAmberOutlinedIcon fontSize="small" color="warning" />
+                </ListItemIcon>
+                <ListItemText primaryTypographyProps={{ variant: "body2" }} primary={trigger} />
+              </ListItem>
+            ))}
+          </List>
+        </Stack>
+      </Paper>
 
-        <Grid size={{ xs: 12, lg: 5 }}>
-          <Paper variant="outlined" sx={{ borderRadius: 4, p: 3, borderColor: "divider", height: "100%" }}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Current support-related checks
-            </Typography>
-            <Stack spacing={1.5} sx={{ mt: 2 }}>
-              {[
-                { label: "Sign-in", health: authHealth },
-                { label: "Billing", health: billingHealth },
-              ].map((item) => (
-                <Card key={item.label} variant="outlined" sx={{ borderRadius: 2.5 }}>
-                  <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
-                    <Stack direction="row" justifyContent="space-between" spacing={2} alignItems="center">
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.8 }}>
-                          {item.label}
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                          {healthLabel(item.health)}
-                        </Typography>
-                      </Box>
-                      <Chip label={item.health.status} size="small" color={toneForStatus(item.health.status)} />
-                    </Stack>
-                  </CardContent>
-                </Card>
-              ))}
-            </Stack>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-              Use these signals as a quick hint, then choose the matching support path above.
-            </Typography>
-            <Stack direction="row" spacing={1} sx={{ mt: 2, flexWrap: "wrap" }} useFlexGap>
-              <Link href="/verify-email" underline="hover">
-                Verify email
-              </Link>
-              <Link href="/app/account/settings" underline="hover">
-                Contact settings
-              </Link>
-              <Link href="/app/support/queue" underline="hover">
-                Support queue
-              </Link>
-            </Stack>
-          </Paper>
-        </Grid>
-      </Grid>
+      <Alert severity="info" variant="outlined" sx={{ borderRadius: 2 }}>
+        For payment problems, the billing portal often resolves things directly — try{" "}
+        <Box
+          component={NextLink}
+          href="/app/billing/invoices"
+          sx={{ color: "primary.main", fontWeight: 600, textDecoration: "none" }}
+        >
+          Billing → Invoices
+        </Box>{" "}
+        first.
+      </Alert>
     </Stack>
   );
 }

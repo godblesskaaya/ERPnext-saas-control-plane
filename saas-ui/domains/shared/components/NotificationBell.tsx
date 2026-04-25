@@ -3,12 +3,7 @@
 import { useState } from "react";
 
 import { useNotifications } from "./NotificationsProvider";
-
-function formatTimestamp(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
+import { formatTimestamp } from "../lib/formatters";
 
 export function NotificationBell() {
   const { notifications, unreadCount, markRead, markAllRead, clearAll } = useNotifications();

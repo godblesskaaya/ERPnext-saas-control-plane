@@ -1,4 +1,5 @@
 export * from "./ActionBar";
+export * from "./AppFooter";
 export * from "./AppFrame";
 export * from "./AppTopHeader";
 export * from "./Breadcrumbs";

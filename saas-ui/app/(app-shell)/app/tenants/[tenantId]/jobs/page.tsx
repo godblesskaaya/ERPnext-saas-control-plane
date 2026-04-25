@@ -18,20 +18,16 @@ import {
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { FeatureUnavailable } from "../../../../../../domains/shared/components/FeatureUnavailable";
 import { JobLogPanel } from "../../../../../../domains/shared/components/JobLogPanel";
 import { loadTenantRecentJobs, toTenantDetailErrorMessage } from "../../../../../../domains/tenant-ops/application/tenantDetailUseCases";
 import { TenantWorkspacePageLayout } from "../../../../../../domains/tenant-ops/ui/tenant-detail/components/TenantWorkspacePageLayout";
 import { useTenantRouteContext } from "../../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
 import type { Job } from "../../../../../../domains/shared/lib/types";
+import { formatTimestamp } from "../../../../../../domains/shared/lib/formatters";
 
 const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed", "deleted", "canceled", "cancelled"]);
 
-function formatTimestamp(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
 
 export default function TenantJobsPage() {
   const params = useParams<{ tenantId: string }>();
@@ -107,7 +103,7 @@ export default function TenantJobsPage() {
         {jobsLoading ? (
           <Alert severity="info">Loading jobs...</Alert>
         ) : !recentJobsSupported ? (
-          <Alert severity="warning">Job history endpoint is not available on this backend yet.</Alert>
+          <FeatureUnavailable feature="Job history" />
         ) : recentJobsError ? (
           <Alert severity="error">{recentJobsError}</Alert>
         ) : recentJobs.length ? (

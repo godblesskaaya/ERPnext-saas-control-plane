@@ -107,7 +107,7 @@ test("runPlatformMaintenanceAction dispatches actions and returns stable message
   assert.deepEqual(tls, { supported: true, message: "tls sync queued" });
   assert.deepEqual(tlsPrime, {
     supported: false,
-    message: "Maintenance endpoint is not enabled on this backend.",
+    message: "Maintenance actions aren’t available on this deployment.",
   });
 
   const errorMessage = getPlatformOpsErrorMessage(new Error("boom"), "fallback");

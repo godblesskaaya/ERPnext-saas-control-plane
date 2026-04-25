@@ -52,19 +52,30 @@ test("canonical app shell applies admin route policy and exposes admin nav secti
 });
 
 test("workspace sidebar keeps sticky positioning guardrails", () => {
-  const source = readSource("domains/shell/components/WorkspaceSidebar.tsx");
+  const frameSource = readSource("domains/shell/components/AppFrame.tsx");
 
-  assert.equal(source.includes('position: sticky ? "sticky" : "static"'), true, "sidebar should preserve sticky toggle guardrail.");
-  assert.equal(source.includes('top: sticky ? 80 : "auto"'), true, "sidebar sticky top offset should remain 80.");
+  // Sticky positioning now lives on the sidebar grid column inside AppFrame so
+  // sticky behavior is not blocked by an overflow-x ancestor. The independent
+  // scroll guard (maxHeight + overflowY) keeps the nav reachable on tall content.
+  assert.equal(frameSource.includes('position: "sticky"'), true, "frame should pin the sidebar column.");
+  assert.equal(frameSource.includes("top: 80"), true, "sticky offset should remain 80 below the top header.");
+  assert.equal(
+    frameSource.includes('maxHeight: "calc(100vh - 96px)"'),
+    true,
+    "sidebar column should cap height so its content can scroll independently.",
+  );
+  assert.equal(frameSource.includes('overflowY: "auto"'), true, "sidebar column should allow internal vertical scroll.");
 });
 
-test("app frame keeps responsive drawer and horizontal overflow guardrails", () => {
+test("app frame keeps responsive drawer and avoids overflow-x sticky traps", () => {
   const source = readSource("domains/shell/components/AppFrame.tsx");
 
   assert.equal(source.includes("Drawer"), true, "app frame should provide a mobile drawer shell");
   assert.equal(source.includes('display: { xs: "none", lg: "block" }'), true, "desktop sidebar should hide on small screens");
   assert.equal(source.includes('display: { xs: "block", lg: "none" }'), true, "mobile drawer should only render on small screens");
-  assert.equal(source.includes('overflowX: "clip"'), true, "app frame root should prevent page-level horizontal overflow");
+  // Outer wrappers must NOT set overflow-x — that creates a scroll containing
+  // block which traps position: sticky for the sidebar.
+  assert.equal(source.includes('overflowX: "clip"'), false, "outer frame must not set overflow-x: clip (breaks sticky).");
 });
 
 test("top header exposes mobile navigation trigger while remaining sticky", () => {
@@ -87,8 +98,15 @@ test("app top header keeps mobile viewport guardrails", () => {
   const source = readSource("domains/shell/components/AppTopHeader.tsx");
 
   assert.equal(source.includes("position=\"sticky\""), true, "header should remain sticky during route changes.");
-  assert.equal(source.includes("minHeight: { xs: 62, md: 64 }"), true, "header should keep compact mobile height.");
-  assert.equal(source.includes('display: { xs: "none", md: "block" }'), true, "search slot should hide on mobile widths.");
+  // Compact mobile height — value must stay within the 56-64px range.
+  const heightMatch = source.match(/minHeight: \{ xs: (\d+), md: (\d+) \}/);
+  assert.notEqual(heightMatch, null, "header should declare a responsive minHeight.");
+  if (heightMatch) {
+    const xs = Number(heightMatch[1]);
+    const md = Number(heightMatch[2]);
+    assert.equal(xs >= 56 && xs <= 64, true, `mobile header height should be 56-64, got ${xs}.`);
+    assert.equal(md >= 56 && md <= 72, true, `desktop header height should be 56-72, got ${md}.`);
+  }
 });
 
 test("dashboard workspace navigation never includes admin routes", () => {

@@ -2,6 +2,7 @@
 
 import { Alert, Box, Button, Card, CardContent, Chip, Paper, Stack, Typography } from "@mui/material";
 
+import { FeatureUnavailable } from "../../../../shared/components/FeatureUnavailable";
 import type { TenantSubscription } from "../../../../shared/lib/types";
 
 type TenantSubscriptionSectionProps = {
@@ -38,9 +39,9 @@ export function TenantSubscriptionSection({
       {subscriptionError ? <Alert severity="error" sx={{ mt: 2 }}>{subscriptionError}</Alert> : null}
 
       {!subscriptionSupported ? (
-        <Alert severity="warning" sx={{ mt: 2 }}>
-          Subscription endpoint is not available on this backend deployment yet.
-        </Alert>
+        <Box sx={{ mt: 2 }}>
+          <FeatureUnavailable feature="Subscription details" />
+        </Box>
       ) : subscription ? (
         <Box sx={{ mt: 2, display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0,1fr))", lg: "repeat(3, minmax(0,1fr))" } }}>
           <Card variant="outlined" sx={{ borderRadius: 3 }}>

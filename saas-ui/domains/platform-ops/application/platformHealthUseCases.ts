@@ -61,7 +61,7 @@ export async function runPlatformMaintenanceAction(action: MaintenanceAction): P
   if (!result.supported) {
     return {
       supported: false,
-      message: "Maintenance endpoint is not enabled on this backend.",
+      message: "Maintenance actions aren’t available on this deployment.",
     };
   }
 

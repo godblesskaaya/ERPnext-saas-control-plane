@@ -9,6 +9,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { TenantCreateForm } from "./TenantCreateForm";
 import { TenantTable } from "./TenantTable";
 import { useNotifications } from "../../shared/components/NotificationsProvider";
+import { featureUnavailableMessage } from "../../shared/components/FeatureUnavailable";
 import { ErrorState, LoadingState, PageHeader } from "../../shell/components";
 import { api } from "../../shared/lib/api";
 import type { Job, TenantCreateResponse } from "../../shared/lib/types";
@@ -244,7 +245,7 @@ export function WorkspaceQueuePage({
     : { label: "Dashboard", href: "/app/overview" };
   const headerCrumbs = [rootCrumb, { label: title }];
   const billingFollowUpHref = isAdminScope ? "/app/admin/billing-ops" : "/app/billing/invoices";
-  const billingFollowUpLabel = isAdminScope ? "Go to billing follow-ups" : "Open ERPNext billing";
+  const billingFollowUpLabel = isAdminScope ? "Go to billing follow-ups" : "Open billing portal";
   const statusOptions = isAdminScope
     ? [
         ["all", "All statuses"],
@@ -317,7 +318,7 @@ export function WorkspaceQueuePage({
         href: "/app/billing/invoices",
         eyebrow: "Payments",
         value: pendingPaymentTenants,
-        description: "Review ERPNext invoices and complete payment follow-up.",
+        description: "Review invoices and complete payment follow-up.",
         valueColor: "warning.dark",
         cardBgColor: "#fff7ed",
       },
@@ -381,7 +382,7 @@ export function WorkspaceQueuePage({
     mutationFn: retryWorkspaceProvisioning,
     onSuccess: async (result, tenantId) => {
       if (!result.supported) {
-        setBillingPortalError("Retry endpoint is not available on this backend.");
+        setBillingPortalError(featureUnavailableMessage("Retrying provisioning"));
         return;
       }
       setTenantJob(tenantId, result.data);
@@ -401,7 +402,7 @@ export function WorkspaceQueuePage({
     mutationFn: (tenantId: string) => api.renewCheckout(tenantId),
     onSuccess: async (resumed) => {
       if (!resumed.supported) {
-        setBillingPortalError("Checkout resume is not available on this backend.");
+        setBillingPortalError(featureUnavailableMessage("Resuming checkout"));
         return;
       }
       const checkoutUrl = resumed.data.checkout_url;
@@ -428,7 +429,7 @@ export function WorkspaceQueuePage({
     try {
       const result = await loadWorkspaceBillingPortal();
       if (!result.supported) {
-        setBillingPortalError("ERPNext billing workspace is temporarily unavailable.");
+        setBillingPortalError("The billing portal is temporarily unavailable.");
         return;
       }
       setBillingPortalUrl(result.data.url);
@@ -438,7 +439,7 @@ export function WorkspaceQueuePage({
         body: "A billing workspace link is ready to open in a new tab.",
       });
     } catch (err) {
-      setBillingPortalError(toWorkspaceQueueErrorMessage(err, "Unable to open ERPNext billing."));
+      setBillingPortalError(toWorkspaceQueueErrorMessage(err, "Unable to open the billing portal."));
     }
   };
 
@@ -704,11 +705,11 @@ export function WorkspaceQueuePage({
               {billingFollowUpLabel}
             </Button>
             <Button variant="outlined" color="error" size="small" sx={{ borderRadius: 999 }} onClick={() => void loadBillingPortal()}>
-              Open ERPNext billing workspace
+              Open billing portal
             </Button>
             {billingPortalUrl ? (
               <Button component="a" href={billingPortalUrl} target="_blank" rel="noreferrer" variant="contained" color="error" size="small" sx={{ borderRadius: 999 }}>
-                Continue in ERPNext
+                Continue in billing portal
               </Button>
             ) : null}
           </Stack>

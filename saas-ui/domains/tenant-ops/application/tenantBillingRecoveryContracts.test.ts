@@ -16,7 +16,7 @@ test("tenant overview payment recovery keeps billing gate markers", () => {
     "PAYMENT_RECOVERY_SUBSCRIPTION_STATUSES",
     "Payment recovery",
     "Resume checkout",
-    "Open ERPNext billing",
+    "Open billing portal",
     "Open tenant billing",
     '["pending", "pending_payment"].includes(tenantStatus)',
     "renewTenantCheckout",
@@ -57,7 +57,7 @@ test("tenant overview unsuspend control keeps explicit unsuspend contract marker
     "unsuspendTenantAccess",
     "Unsuspend tenant",
     "Tenant unsuspended successfully.",
-    "Unsuspend action is not enabled on this backend.",
+    'featureUnavailableMessage("Unsuspending the workspace")',
   ]) {
     assert.equal(source.includes(marker), true, `missing tenant unsuspend contract marker: ${marker}`);
   }
@@ -72,7 +72,7 @@ test("admin billing ops keeps resume-checkout guard rails", () => {
     'tenant.status !== "pending_payment"',
     "!canRunAdminOnlyActions",
     "Only admin role can resume checkout links.",
-    "Checkout renewal endpoint is not enabled on this backend.",
+    'featureUnavailableMessage("Renewing checkout")',
     "Billing provider did not return a checkout URL.",
     "href={`/app/tenants/${tenant.tenant_id}/billing`}",
   ]) {

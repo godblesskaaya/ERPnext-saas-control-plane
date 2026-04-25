@@ -2,6 +2,23 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from "@mui/material";
 
 import { getSessionRole } from "../../../../../domains/auth/auth";
 import {
@@ -10,30 +27,63 @@ import {
   renewTenantCheckout,
   toAdminErrorMessage,
 } from "../../../../../domains/admin-ops/application/adminUseCases";
+import { ConfirmActionDialog } from "../../../../../domains/shared/components/ConfirmActionDialog";
+import { FeatureUnavailable, featureUnavailableMessage } from "../../../../../domains/shared/components/FeatureUnavailable";
+import { TenantStatusChip } from "../../../../../domains/shared/components/TenantStatusChip";
+import { formatTimestamp } from "../../../../../domains/shared/lib/formatters";
+import { PageHeader } from "../../../../../domains/shell/components";
 import type { DunningItem } from "../../../../../domains/shared/lib/types";
 
-function statusTone(status: string): string {
-  const normalized = status.toLowerCase();
-  if (normalized.includes("suspended")) return "bg-red-100 text-red-700";
-  if (normalized.includes("pending")) return "bg-slate-100 text-slate-800";
-  return "bg-slate-100 text-slate-600";
-}
+type CycleAction = "run" | "dry";
 
-function formatDateTime(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+function MetricCard({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: number;
+  hint: string;
+  tone: "neutral" | "warning" | "error";
+}) {
+  const palette =
+    tone === "error"
+      ? { color: "error.main", bg: "error.light", border: "error.light" }
+      : tone === "warning"
+        ? { color: "warning.dark", bg: "warning.light", border: "warning.light" }
+        : { color: "text.primary", bg: "background.paper", border: "divider" };
+
+  return (
+    <Card variant="outlined" sx={{ borderRadius: 3, borderColor: palette.border, bgcolor: palette.bg }}>
+      <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+        <Typography
+          variant="caption"
+          sx={{ textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 700, color: palette.color }}
+        >
+          {label}
+        </Typography>
+        <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 700, color: palette.color }}>
+          {value}
+        </Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
+          {hint}
+        </Typography>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function BillingOpsPage() {
   const [operatorRole, setOperatorRole] = useState("user");
   const [tenants, setTenants] = useState<DunningItem[]>([]);
+  const [supported, setSupported] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [runningCycle, setRunningCycle] = useState(false);
   const [cycleNotice, setCycleNotice] = useState<string | null>(null);
   const [cycleError, setCycleError] = useState<string | null>(null);
+  const [confirmCycle, setConfirmCycle] = useState<CycleAction | null>(null);
   const [resumeBusyTenantId, setResumeBusyTenantId] = useState<string | null>(null);
   const [resumeNotice, setResumeNotice] = useState<string | null>(null);
   const [resumeError, setResumeError] = useState<string | null>(null);
@@ -51,8 +101,10 @@ export default function BillingOpsPage() {
       const result = await loadBillingDunningQueue();
       if (result.supported) {
         setTenants(result.data);
+        setSupported(true);
       } else {
-        setError("Billing dunning endpoint is not enabled on this backend.");
+        setSupported(false);
+        setTenants([]);
       }
     } catch (err) {
       setError(toAdminErrorMessage(err, "Failed to load billing operations."));
@@ -78,7 +130,7 @@ export default function BillingOpsPage() {
     try {
       const result = await renewTenantCheckout(tenantId);
       if (!result.supported) {
-        setResumeError("Checkout renewal endpoint is not enabled on this backend.");
+        setResumeError(featureUnavailableMessage("Renewing checkout"));
         return;
       }
 
@@ -100,7 +152,7 @@ export default function BillingOpsPage() {
     }
   };
 
-  const runCycle = async (dryRun = false) => {
+  const runCycle = async (action: CycleAction) => {
     if (!canRunAdminOnlyActions) {
       setCycleError("Only admin role can run billing dunning cycles.");
       return;
@@ -109,12 +161,13 @@ export default function BillingOpsPage() {
     setCycleNotice(null);
     setCycleError(null);
     try {
-      const result = await queueBillingDunningCycle(dryRun);
+      const result = await queueBillingDunningCycle(action === "dry");
       if (!result.supported) {
-        setCycleError("Dunning cycle endpoint is not enabled on this backend.");
+        setCycleError(featureUnavailableMessage("Running the dunning cycle"));
         return;
       }
       setCycleNotice(result.message || "Dunning cycle queued.");
+      setConfirmCycle(null);
       await load();
     } catch (err) {
       setCycleError(toAdminErrorMessage(err, "Failed to queue dunning cycle."));
@@ -125,180 +178,248 @@ export default function BillingOpsPage() {
 
   const pendingCount = useMemo(
     () => tenants.filter((tenant) => tenant.status === "pending_payment").length,
-    [tenants]
+    [tenants],
   );
   const suspendedCount = useMemo(
     () => tenants.filter((tenant) => tenant.status === "suspended_billing").length,
-    [tenants]
+    [tenants],
   );
   const pastDueCount = useMemo(
     () =>
       tenants.filter((tenant) =>
-        ["failed", "past_due", "unpaid", "cancelled"].includes(tenant.billing_status?.toLowerCase() ?? "")
+        ["failed", "past_due", "unpaid", "cancelled"].includes(tenant.billing_status?.toLowerCase() ?? ""),
       ).length,
-    [tenants]
+    [tenants],
+  );
+
+  const headerActions = (
+    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+      <Button
+        variant="outlined"
+        size="small"
+        onClick={() => void load()}
+        disabled={loading}
+        sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+      >
+        {loading ? "Refreshing…" : "Refresh"}
+      </Button>
+      {canRunAdminOnlyActions ? (
+        <>
+          <Button
+            variant="contained"
+            size="small"
+            onClick={() => setConfirmCycle("run")}
+            disabled={runningCycle}
+            sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+          >
+            Run dunning cycle
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={() => setConfirmCycle("dry")}
+            disabled={runningCycle}
+            sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+          >
+            Dry run
+          </Button>
+        </>
+      ) : (
+        <Chip size="small" variant="outlined" label="Read-only (support scope)" />
+      )}
+    </Stack>
   );
 
   return (
-    <section className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm">
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Billing operations</p>
-          <h1 className="text-3xl font-semibold text-slate-900">Dunning queue</h1>
-          <p className="text-sm text-slate-600">
-            Track overdue subscriptions, pending payment confirmations, and billing suspensions.
-          </p>
-        </div>
-        <button
-          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
-          onClick={() => void load()}
-          disabled={loading}
+    <Stack spacing={3}>
+      <PageHeader
+        overline="Billing operations"
+        title="Dunning queue"
+        subtitle="Track overdue subscriptions, pending payment confirmations, and billing suspensions."
+        actions={headerActions}
+      />
+
+      {!supported ? <FeatureUnavailable feature="Billing dunning queue" /> : null}
+
+      {supported ? (
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" },
+          }}
         >
-          {loading ? "Refreshing..." : "Refresh data"}
-        </button>
-        {canRunAdminOnlyActions ? (
-          <>
-            <button
-              className="rounded-full border border-slate-300 bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-              onClick={() => {
-                void runCycle(false);
-              }}
-              disabled={runningCycle}
-            >
-              {runningCycle ? "Queuing..." : "Run dunning cycle"}
-            </button>
-            <button
-              className="rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 disabled:opacity-60"
-              onClick={() => {
-                void runCycle(true);
-              }}
-              disabled={runningCycle}
-            >
-              Dry run
-            </button>
-          </>
-        ) : (
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500">
-            Read-only billing queue (support scope)
-          </span>
-        )}
-      </div>
+          <MetricCard label="Pending payment" value={pendingCount} hint="Waiting for checkout confirmation" tone="neutral" />
+          <MetricCard label="Suspended (billing)" value={suspendedCount} hint="Service paused for non-payment" tone="error" />
+          <MetricCard label="Past due" value={pastDueCount} hint="Failed or overdue invoices" tone="warning" />
+        </Box>
+      ) : null}
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-900">
-          <p className="text-xs uppercase tracking-wide opacity-80">Pending payment</p>
-          <p className="mt-1 text-2xl font-semibold">{pendingCount}</p>
-          <p className="mt-1 text-xs opacity-80">Waiting for checkout confirmation</p>
-        </article>
-        <article className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800">
-          <p className="text-xs uppercase tracking-wide opacity-80">Suspended (billing)</p>
-          <p className="mt-1 text-2xl font-semibold">{suspendedCount}</p>
-          <p className="mt-1 text-xs opacity-80">Service paused for non-payment</p>
-        </article>
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Past due</p>
-          <p className="mt-1 text-2xl font-semibold">{pastDueCount}</p>
-          <p className="mt-1 text-xs text-slate-500">Failed or overdue invoices</p>
-        </article>
-      </div>
+      <Stack spacing={1}>
+        {error ? <Alert severity="error">{error}</Alert> : null}
+        {cycleNotice ? <Alert severity="success">{cycleNotice}</Alert> : null}
+        {cycleError ? <Alert severity="error">{cycleError}</Alert> : null}
+        {resumeNotice ? <Alert severity="success">{resumeNotice}</Alert> : null}
+        {resumeError ? <Alert severity="error">{resumeError}</Alert> : null}
+      </Stack>
 
-      <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Billing follow-up list</p>
-            <p className="text-xs text-slate-500">Use tenant detail to contact, retry, or update billing.</p>
-          </div>
-        </div>
+      {supported ? (
+        <Paper variant="outlined" sx={{ borderRadius: 3, borderColor: "divider" }}>
+          <Stack spacing={0.5} sx={{ px: 3, py: 2, borderBottom: "1px solid", borderColor: "divider" }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              Billing follow-up list
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Use tenant detail to contact, retry, or update billing.
+            </Typography>
+          </Stack>
 
-        {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
-        {cycleNotice ? <p className="mt-3 text-sm text-emerald-700">{cycleNotice}</p> : null}
-        {cycleError ? <p className="mt-3 text-sm text-red-600">{cycleError}</p> : null}
-        {resumeNotice ? <p className="mt-3 text-sm text-emerald-700">{resumeNotice}</p> : null}
-        {resumeError ? <p className="mt-3 text-sm text-red-600">{resumeError}</p> : null}
+          <TableContainer>
+            <Table size="small">
+              <TableHead sx={{ bgcolor: "grey.50" }}>
+                <TableRow>
+                  <TableCell>Tenant</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Billing</TableCell>
+                  <TableCell>Channel</TableCell>
+                  <TableCell>Last invoice</TableCell>
+                  <TableCell>Last attempt</TableCell>
+                  <TableCell>Next retry</TableCell>
+                  <TableCell>Grace ends</TableCell>
+                  <TableCell align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {tenants.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9}>
+                      <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                        {loading ? "Loading billing queue…" : "No billing escalations right now."}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  tenants.map((tenant) => (
+                    <TableRow key={tenant.tenant_id} hover>
+                      <TableCell>
+                        <Stack spacing={0.25}>
+                          <Typography
+                            component={Link}
+                            href={`/app/tenants/${tenant.tenant_id}/overview`}
+                            variant="body2"
+                            sx={{ fontWeight: 700, color: "primary.main", textDecoration: "none" }}
+                          >
+                            {tenant.tenant_name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {tenant.domain}
+                          </Typography>
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <TenantStatusChip status={tenant.status} />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {tenant.billing_status ?? "—"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {tenant.payment_channel ?? "—"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {tenant.last_invoice_id ?? "—"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {formatTimestamp(tenant.last_payment_attempt)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {formatTimestamp(tenant.next_retry_at)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">
+                          {formatTimestamp(tenant.grace_ends_at)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap justifyContent="flex-end">
+                          <Button
+                            variant="contained"
+                            size="small"
+                            disabled={
+                              tenant.status !== "pending_payment" ||
+                              !canRunAdminOnlyActions ||
+                              resumeBusyTenantId === tenant.tenant_id
+                            }
+                            onClick={() => {
+                              void resumeCheckout(tenant.tenant_id);
+                            }}
+                            sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700, whiteSpace: "nowrap" }}
+                          >
+                            {resumeBusyTenantId === tenant.tenant_id ? "Generating..." : "Resume checkout"}
+                          </Button>
+                          <Button
+                            component={Link}
+                            href={`/app/tenants/${tenant.tenant_id}/billing`}
+                            variant="outlined"
+                            size="small"
+                            sx={{ borderRadius: 99, textTransform: "none", whiteSpace: "nowrap" }}
+                          >
+                            Billing
+                          </Button>
+                          <Button
+                            component={Link}
+                            href={`/app/tenants/${tenant.tenant_id}/support`}
+                            variant="outlined"
+                            size="small"
+                            sx={{ borderRadius: 99, textTransform: "none", whiteSpace: "nowrap" }}
+                          >
+                            Add note
+                          </Button>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
 
-        <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600">
-              <tr>
-                <th className="p-2 text-left">Tenant</th>
-                <th className="p-2 text-left">Status</th>
-                <th className="p-2 text-left">Billing status</th>
-                <th className="p-2 text-left">Payment channel</th>
-                <th className="p-2 text-left">Last invoice</th>
-                <th className="p-2 text-left">Last attempt</th>
-                <th className="p-2 text-left">Next retry</th>
-                <th className="p-2 text-left">Grace ends</th>
-                <th className="p-2 text-left">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tenants.length === 0 ? (
-                <tr>
-                  <td className="p-3 text-sm text-slate-500" colSpan={9}>
-                    {loading ? "Loading billing queue..." : "No billing escalations right now."}
-                  </td>
-                </tr>
-              ) : (
-                tenants.map((tenant) => (
-                  <tr key={tenant.tenant_id} className="border-t border-slate-200">
-                    <td className="p-2 text-xs text-slate-700">
-                      <Link href={`/app/tenants/${tenant.tenant_id}/overview`} className="font-semibold text-[#0d6a6a] hover:text-[#0b5a5a]">
-                        {tenant.tenant_name}
-                      </Link>
-                      <p className="text-[11px] text-slate-500">{tenant.domain}</p>
-                    </td>
-                    <td className="p-2 text-xs">
-                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusTone(tenant.status)}`}>
-                        {tenant.status.replace(/_/g, " ")}
-                      </span>
-                    </td>
-                    <td className="p-2 text-xs text-slate-600">{tenant.billing_status ?? "—"}</td>
-                    <td className="p-2 text-xs text-slate-600">{tenant.payment_channel ?? "—"}</td>
-                    <td className="p-2 text-xs text-slate-600">{tenant.last_invoice_id ?? "—"}</td>
-                    <td className="p-2 text-xs text-slate-600">{formatDateTime(tenant.last_payment_attempt)}</td>
-                    <td className="p-2 text-xs text-slate-600">{formatDateTime(tenant.next_retry_at)}</td>
-                    <td className="p-2 text-xs text-slate-600">{formatDateTime(tenant.grace_ends_at)}</td>
-                    <td className="p-2 text-xs">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          className="rounded-full border border-slate-300 bg-slate-900 px-3 py-1 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-                          disabled={
-                            tenant.status !== "pending_payment" ||
-                            !canRunAdminOnlyActions ||
-                            resumeBusyTenantId === tenant.tenant_id
-                          }
-                          onClick={() => {
-                            void resumeCheckout(tenant.tenant_id);
-                          }}
-                        >
-                          {resumeBusyTenantId === tenant.tenant_id ? "Generating..." : "Resume checkout"}
-                        </button>
-                        <Link
-                          href={`/app/tenants/${tenant.tenant_id}/billing`}
-                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-200 hover:bg-slate-50"
-                        >
-                          Billing
-                        </Link>
-                        <Link
-                          href={`/app/tenants/${tenant.tenant_id}/support`}
-                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-200 hover:bg-slate-50"
-                        >
-                          Add note
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+          <Box sx={{ px: 3, py: 1.5, borderTop: "1px solid", borderColor: "divider" }}>
+            <Typography variant="caption" color="text.secondary">
+              Automated cycle is active. Use dry run before major billing state interventions.
+            </Typography>
+          </Box>
+        </Paper>
+      ) : null}
 
-        <p className="mt-4 text-xs text-slate-500">
-          Automated cycle is active. Use dry run before major billing state interventions.
-        </p>
-      </div>
-    </section>
+      <ConfirmActionDialog
+        open={confirmCycle === "run"}
+        title="Run dunning cycle?"
+        body="This will trigger automated payment retries and reminder notifications across the queue."
+        confirmLabel="Run cycle"
+        confirmColor="primary"
+        busy={runningCycle}
+        onConfirm={() => void runCycle("run")}
+        onCancel={() => setConfirmCycle(null)}
+      />
+      <ConfirmActionDialog
+        open={confirmCycle === "dry"}
+        title="Run dunning dry-run?"
+        body="No billing actions will be taken. The result will preview what a real cycle would do."
+        confirmLabel="Run dry run"
+        busy={runningCycle}
+        onConfirm={() => void runCycle("dry")}
+        onCancel={() => setConfirmCycle(null)}
+      />
+    </Stack>
   );
 }

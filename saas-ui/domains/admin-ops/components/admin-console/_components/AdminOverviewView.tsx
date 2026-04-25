@@ -15,6 +15,7 @@ import {
 } from "@mui/material";
 
 import { ConfirmActionDialog } from "../../../../shared/components/ConfirmActionDialog";
+import { FeatureUnavailable, featureUnavailableMessage } from "../../../../shared/components/FeatureUnavailable";
 import { api, getApiErrorMessage } from "../../../../shared/lib/api";
 import type { MetricsSummary } from "../../../../shared/lib/types";
 import type { AdminControlLaneLink } from "./adminConsoleTypes";
@@ -110,7 +111,7 @@ export function AdminOverviewView({
               ? await api.rebuildPlatformAssets()
               : await api.syncTenantTLS(false);
       if (!result.supported) {
-        setOpsError("This admin operation is not available on this backend.");
+        setOpsError(featureUnavailableMessage("This admin operation"));
         return;
       }
       setOpsMessage(
@@ -206,9 +207,7 @@ export function AdminOverviewView({
         </Stack>
 
         {!metricsSupported ? (
-          <Typography variant="body2" color="text.secondary">
-            Metrics endpoint is not available on this backend.
-          </Typography>
+          <FeatureUnavailable feature="Platform metrics" />
         ) : metricsError ? (
           <Typography variant="body2" color="error.main">
             {metricsError}

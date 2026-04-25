@@ -77,43 +77,53 @@ test("support route preserves admin-only access gating", () => {
 });
 
 test("tenant operational pages keep loading/unsupported/error state markers", () => {
-  const directPageExpectations: Record<Extract<TenantPageKey, "jobs" | "backups" | "members" | "domains" | "support">, string[]> = {
-    jobs: [
-      "Loading jobs...",
-      "Job history endpoint is not available on this backend yet.",
-      '<Alert severity="error">{recentJobsError}</Alert>',
-    ],
-    backups: [
-      "Loading backup history...",
-      "Backup history endpoint is not available on this backend yet.",
-      '<Alert severity="error" sx={{ mt: 2 }}>{backupsError}</Alert>',
-    ],
-    members: [
-      "Loading team members...",
-      "Team management is not available on this backend yet.",
-      '<Alert severity="error">{membersError}</Alert>',
-    ],
-    domains: [
-      "Loading custom domains...",
-      "Custom domain management is not available on this backend yet.",
-      '<Alert severity="error">{domainsError}</Alert>',
-    ],
-    support: [
-      "Loading support notes...",
-      "Support notes are not available on this backend yet.",
-      '<Alert severity="error">{supportNotesError}</Alert>',
-    ],
+  // Each tenant page must show three states: loading, unsupported (via FeatureUnavailable),
+  // and error. The unsupported state copy now flows through the shared FeatureUnavailable
+  // component instead of bespoke per-page strings.
+  const directPageExpectations: Record<
+    Extract<TenantPageKey, "jobs" | "backups" | "members" | "domains" | "support">,
+    { loading: string; featureUnavailable: string; errorAlert: string }
+  > = {
+    jobs: {
+      loading: "Loading jobs...",
+      featureUnavailable: '<FeatureUnavailable feature="Job history"',
+      errorAlert: '<Alert severity="error">{recentJobsError}</Alert>',
+    },
+    backups: {
+      loading: "Loading backup history...",
+      featureUnavailable: '<FeatureUnavailable feature="Backups"',
+      errorAlert: '<Alert severity="error" sx={{ mt: 2 }}>{backupsError}</Alert>',
+    },
+    members: {
+      loading: "Loading team members...",
+      featureUnavailable: '<FeatureUnavailable feature="Team management"',
+      errorAlert: '<Alert severity="error">{membersError}</Alert>',
+    },
+    domains: {
+      loading: "Loading custom domains...",
+      featureUnavailable: '<FeatureUnavailable feature="Custom domains"',
+      errorAlert: '<Alert severity="error">{domainsError}</Alert>',
+    },
+    support: {
+      loading: "Loading support notes...",
+      featureUnavailable: '<FeatureUnavailable feature="Support notes"',
+      errorAlert: '<Alert severity="error">{supportNotesError}</Alert>',
+    },
   };
 
   for (const [pageKey, markers] of Object.entries(directPageExpectations) as Array<[
     keyof typeof directPageExpectations,
-    string[],
+    { loading: string; featureUnavailable: string; errorAlert: string },
   ]>) {
     const source = readSource(pagePaths[pageKey]);
 
-    for (const marker of markers) {
-      assert.equal(source.includes(marker), true, `${pageKey} page should keep state marker: ${marker}`);
-    }
+    assert.equal(source.includes(markers.loading), true, `${pageKey} page should keep loading marker: ${markers.loading}`);
+    assert.equal(
+      source.includes(markers.featureUnavailable),
+      true,
+      `${pageKey} page should keep feature-unavailable marker: ${markers.featureUnavailable}`,
+    );
+    assert.equal(source.includes(markers.errorAlert), true, `${pageKey} page should keep error alert marker: ${markers.errorAlert}`);
   }
 
   const billingSource = readSource(pagePaths.billing);
@@ -126,7 +136,7 @@ test("tenant operational pages keep loading/unsupported/error state markers", ()
   const subscriptionSectionSource = readSource(subscriptionSectionPath);
   for (const marker of [
     "Loading subscription details...",
-    "Subscription endpoint is not available on this backend deployment yet.",
+    '<FeatureUnavailable feature="Subscription details"',
     "{subscriptionError ? <Alert severity=\"error\" sx={{ mt: 2 }}>{subscriptionError}</Alert> : null}",
   ]) {
     assert.equal(
@@ -146,7 +156,7 @@ test("tenant operational pages keep loading/unsupported/error state markers", ()
   const activitySectionSource = readSource(activitySectionPath);
   for (const marker of [
     "No activity recorded yet.",
-    "Activity log endpoint is not available on this backend yet.",
+    '<FeatureUnavailable feature="Activity log"',
     '<Alert severity="error">{auditError}</Alert>',
   ]) {
     assert.equal(activitySectionSource.includes(marker), true, `Activity section should keep state marker: ${marker}`);

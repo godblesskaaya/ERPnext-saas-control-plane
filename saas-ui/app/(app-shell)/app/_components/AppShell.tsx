@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Alert, Box } from "@mui/material";
 
+import { AppFooter } from "../../../../domains/shell/components/AppFooter";
 import { AppFrame } from "../../../../domains/shell/components/AppFrame";
+import { StatusStrip } from "../../../../domains/shell/components/StatusStrip";
 import { WorkspaceSidebar } from "../../../../domains/shell/components/WorkspaceSidebar";
 import { clearToken, getToken, saveToken } from "../../../../domains/auth/auth";
 import { refreshAuthSession } from "../../../../domains/auth/application/authUseCases";
@@ -113,24 +115,29 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <AppFrame
-      sidebar={<WorkspaceSidebar overline="Biashara Cloud" title="App shell" caption="Canonical `/app/*` navigation." sections={sections} pathname={pathname} tone="light" />}
+      sidebar={
+        <WorkspaceSidebar
+          overline="Biashara Cloud"
+          title="Navigation"
+          sections={sections}
+          pathname={pathname}
+          tone="light"
+        />
+      }
       mobileSidebar={
         <WorkspaceSidebar
           overline="Biashara Cloud"
           title="Navigation"
-          caption="Canonical `/app/*` navigation."
           sections={sections}
           pathname={pathname}
           tone="light"
           compact
-          sticky={false}
         />
       }
+      footer={canSeeAdmin ? <StatusStrip /> : <AppFooter />}
     >
       {children}
     </AppFrame>
   );
 }
 
-// AGENT-NOTE: This shell lands the canonical `/app/*` entrypoint without touching the legacy dashboard/admin route tree.
-// Detailed content de-duplication from legacy pages is intentionally deferred to the next refactor phase.

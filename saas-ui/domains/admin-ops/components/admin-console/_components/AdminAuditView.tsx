@@ -13,6 +13,7 @@ import {
   Typography,
 } from "@mui/material";
 
+import { FeatureUnavailable } from "../../../../shared/components/FeatureUnavailable";
 import type { AuditLogEntry } from "../../../../shared/lib/types";
 import { formatDate } from "./adminConsoleFormatters";
 
@@ -67,9 +68,7 @@ export function AdminAuditView({
       ) : null}
 
       {!auditSupported ? (
-        <Typography variant="body2" color="text.secondary">
-          Audit log endpoint is not available on this backend.
-        </Typography>
+        <FeatureUnavailable feature="Audit log" />
       ) : auditError ? (
         <Typography variant="body2" color="error.main">
           {auditError}

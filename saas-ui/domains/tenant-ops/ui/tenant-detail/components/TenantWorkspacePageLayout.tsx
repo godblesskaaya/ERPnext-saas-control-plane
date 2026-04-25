@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Alert, Box, Stack, Typography } from "@mui/material";
 
+import { Breadcrumbs } from "../../../../shell/components/Breadcrumbs";
 import { TenantSectionLinks } from "../sections";
 
 type TenantWorkspacePageLayoutProps = {
@@ -22,8 +23,16 @@ export function TenantWorkspacePageLayout({
 }: TenantWorkspacePageLayoutProps) {
   return (
     <Box sx={{ display: "grid", gap: 3, pb: 4 }}>
+      <Breadcrumbs
+        items={[
+          { label: "Workspaces", href: "/app/tenants" },
+          { label: tenantContext.split(" (")[0] || "Workspace", href: `/app/tenants/${tenantId}/overview` },
+          { label: title },
+        ]}
+      />
+
       <Stack spacing={0.5}>
-        <Typography component="h1" variant="h5" sx={{ fontWeight: 800 }}>
+        <Typography component="h1" variant="h4" sx={{ fontWeight: 700 }}>
           {title}
         </Typography>
         <Typography variant="body2" color="text.secondary">

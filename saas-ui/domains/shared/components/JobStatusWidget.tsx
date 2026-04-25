@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Alert, Button, Paper, Stack, Typography } from "@mui/material";
 
 import { api, getApiErrorMessage } from "../lib/api";
+import { formatTimestamp } from "../lib/formatters";
 import { isTerminalJobStatus } from "../lib/tenantDisplayUtils";
 import type { Job } from "../lib/types";
 
@@ -11,13 +12,6 @@ type JobStatusWidgetProps = {
   jobId: string;
   title?: string;
 };
-
-function formatTimestamp(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
 
 export function JobStatusWidget({
   jobId,

@@ -18,6 +18,7 @@ import {
 } from "@mui/material";
 
 import { ConfirmActionDialog } from "../../../../shared/components/ConfirmActionDialog";
+import { featureUnavailableMessage } from "../../../../shared/components/FeatureUnavailable";
 import { api, getApiErrorMessage } from "../../../../shared/lib/api";
 import type { Tenant } from "../../../../shared/lib/types";
 import { TenantStatusChip } from "../../../../shared/components/TenantStatusChip";
@@ -87,9 +88,7 @@ export function AdminTenantsView({
         `Support troubleshooting for tenant ${impersonationTenant.id}`,
       );
       if (!result.supported) {
-        setImpersonationError(
-          "Impersonation endpoint is not available on this backend.",
-        );
+        setImpersonationError(featureUnavailableMessage("Issuing impersonation links"));
         return;
       }
       window.open(result.data.url, "_blank", "noopener,noreferrer");

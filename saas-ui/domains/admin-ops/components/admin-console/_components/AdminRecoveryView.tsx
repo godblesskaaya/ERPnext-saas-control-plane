@@ -13,6 +13,7 @@ import {
   Typography,
 } from "@mui/material";
 
+import { FeatureUnavailable } from "../../../../shared/components/FeatureUnavailable";
 import type { DeadLetterJob } from "../../../../shared/lib/types";
 import { formatDate } from "./adminConsoleFormatters";
 
@@ -47,9 +48,7 @@ export function AdminRecoveryView({
       </Box>
 
       {!deadLetterSupported ? (
-        <Typography variant="body2" color="text.secondary">
-          Dead-letter endpoint is not available on this backend.
-        </Typography>
+        <FeatureUnavailable feature="Failed-job recovery" />
       ) : deadLetterError ? (
         <Typography variant="body2" color="error.main">
           {deadLetterError}

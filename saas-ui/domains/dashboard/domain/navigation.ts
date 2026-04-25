@@ -63,8 +63,8 @@ export const dashboardNavSections: DashboardNavSection[] = [
         label: "Billing recovery",
         hint: "Payment follow-ups and invoice recovery",
       },
-      { href: "/app/billing/invoices", label: "Invoice analytics", hint: "ERPNext invoice and status breakdown" },
-      { href: "/app/billing/invoices", label: "ERPNext billing", hint: "Review ERPNext invoices and follow-up actions" },
+      { href: "/app/billing/invoices", label: "Invoice analytics", hint: "Invoice and status breakdown" },
+      { href: "/app/billing/invoices", label: "Invoices", hint: "Review invoices and follow-up actions" },
     ],
   },
   {

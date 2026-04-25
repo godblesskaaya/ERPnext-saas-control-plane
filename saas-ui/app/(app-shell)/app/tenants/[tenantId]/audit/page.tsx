@@ -11,13 +11,8 @@ import {
   useTenantAuditData,
   useTenantRouteContext,
 } from "../../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
+import { formatTimestamp } from "../../../../../../domains/shared/lib/formatters";
 
-function formatTimestamp(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
 
 export default function TenantAuditPage() {
   const params = useParams<{ tenantId: string }>();

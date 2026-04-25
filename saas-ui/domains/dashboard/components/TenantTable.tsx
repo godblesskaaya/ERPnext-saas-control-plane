@@ -61,7 +61,7 @@ function TenantTableComponent({
   onResumeCheckout,
   resumingCheckoutTenantId,
   paymentCenterHref = "/app/billing/invoices",
-  paymentCenterLabel = "Open ERPNext billing",
+  paymentCenterLabel = "Open billing portal",
   onRetryProvisioning,
   retryingTenantId,
   emptyStateTitle,

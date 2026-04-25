@@ -9,8 +9,8 @@ import {
   Card,
   CardContent,
   Checkbox,
+  Chip,
   FormControlLabel,
-  Grid,
   Paper,
   Stack,
   TextField,
@@ -28,15 +28,15 @@ import {
   DEFAULT_PREFERENCES,
   type NotificationPreferences,
 } from "../../../../../domains/account/domain/settingsPreferences";
-import { EmptyState, ErrorState, LoadingState } from "../../../../../domains/shell/components";
+import { EmptyState, ErrorState, LoadingState, PageHeader } from "../../../../../domains/shell/components";
 import type { UserProfile } from "../../../../../domains/shared/lib/types";
 
-const preferenceOptions: Array<{ key: keyof NotificationPreferences; label: string }> = [
-  { key: "emailAlerts", label: "General email alerts" },
-  { key: "smsAlerts", label: "SMS alerts" },
-  { key: "billingAlerts", label: "Billing alerts" },
-  { key: "provisioningAlerts", label: "Provisioning alerts" },
-  { key: "supportAlerts", label: "Support alerts" },
+const preferenceOptions: Array<{ key: keyof NotificationPreferences; label: string; description: string }> = [
+  { key: "emailAlerts", label: "General email", description: "Account-level updates and announcements." },
+  { key: "smsAlerts", label: "SMS alerts", description: "Urgent payment and provisioning issues." },
+  { key: "billingAlerts", label: "Billing", description: "Invoices, payment retries, and trial status." },
+  { key: "provisioningAlerts", label: "Provisioning", description: "Workspace setup, backups, and restores." },
+  { key: "supportAlerts", label: "Support", description: "Replies and updates on support requests." },
 ];
 
 export default function DashboardSettingsPage() {
@@ -47,7 +47,6 @@ export default function DashboardSettingsPage() {
   const [phoneNotice, setPhoneNotice] = useState<string | null>(null);
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [preferences, setPreferences] = useState<NotificationPreferences>(DEFAULT_PREFERENCES);
-  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [preferencesBusy, setPreferencesBusy] = useState(false);
   const [preferencesNotice, setPreferencesNotice] = useState<string | null>(null);
   const [preferencesError, setPreferencesError] = useState<string | null>(null);
@@ -79,7 +78,6 @@ export default function DashboardSettingsPage() {
         const result = await loadAccountNotificationPreferences();
         if (!active || !result.supported) return;
         setPreferences(result.preferences);
-        setPreferencesLoaded(true);
       } catch (err) {
         if (!active) return;
         setPreferencesError(toAccountErrorMessage(err, "Failed to load notification preferences."));
@@ -90,7 +88,6 @@ export default function DashboardSettingsPage() {
     };
   }, []);
 
-
   const savePhone = async () => {
     setPhoneBusy(true);
     setPhoneNotice(null);
@@ -99,7 +96,7 @@ export default function DashboardSettingsPage() {
       const updated = await saveAccountPhone(phoneInput);
       setProfile(updated);
       setPhoneInput(updated.phone ?? "");
-      setPhoneNotice("Phone contact updated.");
+      setPhoneNotice("Phone number saved.");
     } catch (err) {
       setPhoneError(toAccountErrorMessage(err, "Unable to update phone number."));
     } finally {
@@ -116,10 +113,10 @@ export default function DashboardSettingsPage() {
       setPreferences(result.preferences);
       setPreferencesNotice(
         result.supported
-          ? "Notification preferences saved to your account."
-          : "Notification preferences endpoint is not available on this backend."
+          ? "Notification preferences saved."
+          : "Notification preferences aren’t available on your workspace yet.",
       );
-      window.setTimeout(() => setPreferencesNotice(null), 1800);
+      window.setTimeout(() => setPreferencesNotice(null), 2400);
     } catch (err) {
       setPreferencesError(toAccountErrorMessage(err, "Unable to save notification preferences."));
     } finally {
@@ -127,25 +124,17 @@ export default function DashboardSettingsPage() {
     }
   };
 
+  const verified = profile?.email_verified ?? false;
+
   return (
     <Stack spacing={3}>
-      <Paper variant="outlined" sx={{ borderColor: "divider", p: 3, borderRadius: 4 }}>
-        <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 700, letterSpacing: 0.8 }}>
-          Settings
-        </Typography>
-        <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 700 }}>
-          Notification and contact readiness
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          Keep your contact channels ready so billing and provisioning alerts reach your team quickly.
-        </Typography>
-      </Paper>
+      <PageHeader
+        overline="Account"
+        title="Settings"
+        subtitle="Keep your contact channels current and choose which notifications you receive."
+      />
 
-      <Alert severity="info" variant="outlined" sx={{ borderRadius: 3 }}>
-        You are in Dashboard → Settings. Keep contact channels current first, then confirm notification preferences for billing, provisioning, and support.
-      </Alert>
-
-      {profileLoading ? <LoadingState label="Loading account settings..." /> : null}
+      {profileLoading ? <LoadingState label="Loading account settings…" /> : null}
 
       {!profileLoading && error && !profile ? (
         <ErrorState
@@ -171,125 +160,161 @@ export default function DashboardSettingsPage() {
       ) : null}
 
       {!profileLoading && profile ? (
-        <>
-
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4, height: "100%" }}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              Email alerts
-            </Typography>
-            <Typography variant="body2" sx={{ mt: 1 }}>
-              Primary email: <strong>{profile?.email ?? "—"}</strong>
-            </Typography>
-            <Typography variant="body2" sx={{ mt: 0.5 }}>
-              Verification status:{" "}
-              <Box component="span" sx={{ fontWeight: 700, color: profile?.email_verified ? "success.main" : "warning.main" }}>
-                {profile?.email_verified ? "Verified" : "Pending verification"}
+        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" } }}>
+          <Paper variant="outlined" sx={{ borderRadius: 3, p: 3 }}>
+            <Stack spacing={1.5}>
+              <Box>
+                <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 0.6 }}>
+                  Email
+                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700, mt: 0.25 }}>
+                  {profile.email}
+                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                  <Chip
+                    size="small"
+                    label={verified ? "Verified" : "Pending verification"}
+                    color={verified ? "success" : "warning"}
+                    variant="outlined"
+                  />
+                  {!verified ? (
+                    <Button component={NextLink} href="/verify-email" size="small" sx={{ textTransform: "none" }}>
+                      Verify now
+                    </Button>
+                  ) : null}
+                </Stack>
               </Box>
-            </Typography>
-            {!profile?.email_verified ? (
-              <Button component={NextLink} href="/verify-email" variant="outlined" color="warning" size="small" sx={{ mt: 2 }}>
-                Verify email now
-              </Button>
-            ) : null}
+            </Stack>
           </Paper>
-        </Grid>
 
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4, height: "100%" }}>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              SMS contact management
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-              SMS is used for urgent provisioning and billing follow-up notifications.
-            </Typography>
-
-            <Stack spacing={1.5} sx={{ mt: 2 }}>
+          <Paper variant="outlined" sx={{ borderRadius: 3, p: 3 }}>
+            <Stack spacing={1.5}>
+              <Box>
+                <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: 0.6 }}>
+                  Phone (SMS)
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                  Used for urgent payment and provisioning alerts only.
+                </Typography>
+              </Box>
               <TextField
-                label="Phone number (E.164 recommended)"
+                label="Phone number"
                 size="small"
                 value={phoneInput}
                 onChange={(event) => setPhoneInput(event.target.value)}
                 placeholder="+255700000000"
+                helperText="Use international format (E.164)."
               />
               <Stack direction="row" spacing={1}>
-                <Button variant="contained" size="small" disabled={phoneBusy} onClick={() => void savePhone()}>
-                  {phoneBusy ? "Saving..." : "Save phone"}
+                <Button
+                  variant="contained"
+                  size="small"
+                  disabled={phoneBusy}
+                  onClick={() => void savePhone()}
+                  sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+                >
+                  {phoneBusy ? "Saving…" : "Save phone"}
                 </Button>
-                <Button variant="outlined" color="inherit" size="small" disabled={phoneBusy} onClick={() => setPhoneInput("")}>
+                <Button
+                  variant="text"
+                  size="small"
+                  disabled={phoneBusy}
+                  onClick={() => setPhoneInput("")}
+                  sx={{ textTransform: "none" }}
+                >
                   Clear
                 </Button>
               </Stack>
-              {phoneNotice ? <Typography variant="caption" color="success.main">{phoneNotice}</Typography> : null}
-              {phoneError ? <Typography variant="caption" color="error.main">{phoneError}</Typography> : null}
+              {phoneNotice ? (
+                <Alert severity="success" variant="outlined" sx={{ borderRadius: 2 }}>
+                  {phoneNotice}
+                </Alert>
+              ) : null}
+              {phoneError ? (
+                <Alert severity="error" variant="outlined" sx={{ borderRadius: 2 }}>
+                  {phoneError}
+                </Alert>
+              ) : null}
             </Stack>
           </Paper>
-        </Grid>
-      </Grid>
+        </Box>
+      ) : null}
 
-      <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>
-          Notification preferences
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-          Choose which alert categories should be saved to your account across devices.
-        </Typography>
+      {!profileLoading && profile ? (
+        <Paper variant="outlined" sx={{ borderRadius: 3, p: 3 }}>
+          <Stack spacing={1.5}>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                Notification preferences
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Choose which categories of alerts to receive. Settings are saved to your account and apply across devices.
+              </Typography>
+            </Box>
 
-        <Grid container spacing={1.5} sx={{ mt: 1.25 }}>
-          {preferenceOptions.map((option) => (
-            <Grid key={option.key} size={{ xs: 12, md: 6 }}>
-              <Card variant="outlined" sx={{ borderRadius: 2.5 }}>
-                <CardContent sx={{ py: 1, "&:last-child": { pb: 1 } }}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={Boolean(preferences[option.key])}
-                        onChange={(event) =>
-                          setPreferences((current) => ({
-                            ...current,
-                            [option.key]: event.target.checked,
-                          }))
-                        }
-                      />
-                    }
-                    label={option.label}
-                  />
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1.5,
+                gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" },
+              }}
+            >
+              {preferenceOptions.map((option) => (
+                <Card key={option.key} variant="outlined" sx={{ borderRadius: 2 }}>
+                  <CardContent sx={{ py: 1.25, "&:last-child": { pb: 1.25 } }}>
+                    <FormControlLabel
+                      sx={{ alignItems: "flex-start", m: 0 }}
+                      control={
+                        <Checkbox
+                          sx={{ mt: -0.5 }}
+                          checked={Boolean(preferences[option.key])}
+                          onChange={(event) =>
+                            setPreferences((current) => ({
+                              ...current,
+                              [option.key]: event.target.checked,
+                            }))
+                          }
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {option.label}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {option.description}
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                  </CardContent>
+                </Card>
+              ))}
+            </Box>
 
-        <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-          <Button variant="outlined" size="small" disabled={preferencesBusy} onClick={() => void savePreferences()}>
-            {preferencesBusy ? "Saving..." : "Save preferences"}
-          </Button>
-          {preferencesNotice ? <Typography variant="caption" color="success.main">{preferencesNotice}</Typography> : null}
-          {preferencesError ? <Typography variant="caption" color="error.main">{preferencesError}</Typography> : null}
-        </Stack>
-      </Paper>
-
-      <Paper variant="outlined" sx={{ borderColor: "divider", p: 2.5, borderRadius: 4 }}>
-        <Typography variant="h6" sx={{ fontWeight: 700 }}>
-          What to do next
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-          After saving settings, continue with the workflow queue that needs attention.
-        </Typography>
-        <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: "wrap" }}>
-          <Button component={NextLink} href="/billing" variant="outlined" size="small">
-            ERPNext billing
-          </Button>
-          <Button component={NextLink} href="/onboarding" variant="outlined" size="small">
-            Setup progress
-          </Button>
-          <Button component={NextLink} href="/app/tenants" variant="outlined" size="small">
-            Workspace registry
-          </Button>
-        </Stack>
-      </Paper>
-        </>
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 1 }}>
+              <Button
+                variant="contained"
+                size="small"
+                disabled={preferencesBusy}
+                onClick={() => void savePreferences()}
+                sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+              >
+                {preferencesBusy ? "Saving…" : "Save preferences"}
+              </Button>
+              {preferencesNotice ? (
+                <Typography variant="caption" color="success.main">
+                  {preferencesNotice}
+                </Typography>
+              ) : null}
+              {preferencesError ? (
+                <Typography variant="caption" color="error.main">
+                  {preferencesError}
+                </Typography>
+              ) : null}
+            </Stack>
+          </Stack>
+        </Paper>
       ) : null}
     </Stack>
   );

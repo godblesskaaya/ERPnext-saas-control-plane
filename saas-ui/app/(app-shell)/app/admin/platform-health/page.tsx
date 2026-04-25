@@ -1,6 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
 
 import { getSessionRole } from "../../../../../domains/auth/auth";
 import {
@@ -9,12 +20,36 @@ import {
   runPlatformMaintenanceAction,
   type MaintenanceAction,
 } from "../../../../../domains/platform-ops/application/platformHealthUseCases";
+import { ConfirmActionDialog } from "../../../../../domains/shared/components/ConfirmActionDialog";
+import { FeatureUnavailable } from "../../../../../domains/shared/components/FeatureUnavailable";
+import { formatTimestamp } from "../../../../../domains/shared/lib/formatters";
+import { PageHeader } from "../../../../../domains/shell/components";
 import type { Job, Tenant, TenantRuntimeConsistencyReport } from "../../../../../domains/shared/lib/types";
 
 type ApiHealth = {
   status?: string;
   service?: string;
   checks?: Record<string, string>;
+};
+
+const MAINTENANCE_LABELS: Record<MaintenanceAction, { title: string; subtitle: string; confirmBody: string }> = {
+  assets: {
+    title: "Rebuild ERP assets",
+    subtitle: "Recompiles bundled assets when customers report 404s on workspace UI.",
+    confirmBody:
+      "This will rebuild ERP assets across the platform. Customer workspaces may briefly show stale assets until the rebuild completes.",
+  },
+  tls: {
+    title: "Sync tenant TLS routes",
+    subtitle: "Refreshes proxy/TLS routing for all tenant subdomains.",
+    confirmBody: "This refreshes TLS routing across all tenant subdomains. Routing changes are usually instant.",
+  },
+  "tls-prime": {
+    title: "Prime tenant certificates",
+    subtitle: "Pre-warms TLS certificates for tenant subdomains to avoid first-hit delays.",
+    confirmBody:
+      "This pre-warms TLS certificates for tenant subdomains. It is safe to run anytime but may take several minutes.",
+  },
 };
 
 function runtimeClassificationLabel(classification: string): string {
@@ -32,15 +67,45 @@ function runtimeClassificationLabel(classification: string): string {
   }
 }
 
-function formatDate(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZoneName: "short",
-  });
+function MetricCard({
+  label,
+  value,
+  hint,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+  tone?: "neutral" | "warning" | "error" | "success";
+}) {
+  const palette =
+    tone === "error"
+      ? { color: "error.main", bg: "error.light" }
+      : tone === "warning"
+        ? { color: "warning.dark", bg: "warning.light" }
+        : tone === "success"
+          ? { color: "success.dark", bg: "success.light" }
+          : { color: "text.primary", bg: "background.paper" };
+  return (
+    <Card variant="outlined" sx={{ borderRadius: 3, bgcolor: palette.bg }}>
+      <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+        <Typography
+          variant="caption"
+          sx={{ textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 700, color: palette.color }}
+        >
+          {label}
+        </Typography>
+        <Typography variant="h5" sx={{ mt: 0.5, fontWeight: 700, color: palette.color }}>
+          {value}
+        </Typography>
+        {hint ? (
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>
+            {hint}
+          </Typography>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function PlatformHealthPage() {
@@ -55,6 +120,7 @@ export default function PlatformHealthPage() {
   const [maintenanceMessage, setMaintenanceMessage] = useState<string | null>(null);
   const [maintenanceError, setMaintenanceError] = useState<string | null>(null);
   const [maintenanceBusy, setMaintenanceBusy] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<MaintenanceAction | null>(null);
   const [tenantRuntimeConsistency, setTenantRuntimeConsistency] = useState<TenantRuntimeConsistencyReport | null>(null);
   const canRunAdminOnlyActions = operatorRole === "admin";
 
@@ -75,7 +141,7 @@ export default function PlatformHealthPage() {
       setBillingHealth(snapshot.billingHealth);
       setTenantRuntimeConsistency(snapshot.tenantRuntimeConsistency);
       if (!snapshot.healthAvailable) {
-        setHealthError("API health endpoint is not available.");
+        setHealthError("API health checks aren’t responding right now.");
       }
     } catch (err) {
       setHealthError(getPlatformOpsErrorMessage(err, "Failed to load platform health."));
@@ -103,6 +169,7 @@ export default function PlatformHealthPage() {
       } else {
         setMaintenanceError(result.message);
       }
+      setConfirmAction(null);
     } catch (err) {
       setMaintenanceError(getPlatformOpsErrorMessage(err, "Maintenance action failed."));
     } finally {
@@ -115,7 +182,7 @@ export default function PlatformHealthPage() {
   const queuedJobs = useMemo(() => jobs.filter((job) => job.status.toLowerCase() === "queued"), [jobs]);
   const suspendedTenants = useMemo(
     () => tenants.filter((tenant) => tenant.status.toLowerCase().includes("suspended")).length,
-    [tenants]
+    [tenants],
   );
   const runtimeGapCount = useMemo(() => {
     if (!tenantRuntimeConsistency) return 0;
@@ -123,240 +190,279 @@ export default function PlatformHealthPage() {
   }, [tenantRuntimeConsistency]);
 
   return (
-    <section className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-slate-200/70 bg-white/80 p-6 shadow-sm">
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Platform health</p>
-          <h1 className="text-3xl font-semibold text-slate-900">Infrastructure readiness</h1>
-          <p className="text-sm text-slate-600">Operational status for core services, queues, and tenant load.</p>
-        </div>
-        <button
-          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
-          onClick={() => void load()}
-          disabled={loading}
-        >
-          {loading ? "Refreshing..." : "Refresh health"}
-        </button>
-      </div>
+    <Stack spacing={3}>
+      <PageHeader
+        overline="Admin"
+        title="Platform health"
+        subtitle="Service status, queue health, and reconciliation signals across the platform."
+        actions={
+          <Button
+            variant="outlined"
+            onClick={() => void load()}
+            disabled={loading}
+            sx={{ borderRadius: 99, textTransform: "none", fontWeight: 700 }}
+          >
+            {loading ? "Refreshing…" : "Refresh"}
+          </Button>
+        }
+      />
 
-      {healthError ? <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{healthError}</p> : null}
+      {healthError ? <Alert severity="error">{healthError}</Alert> : null}
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <article className="rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="text-xs uppercase tracking-wide text-slate-500">API status</p>
-          <p className="mt-1 text-2xl font-semibold text-slate-900">{health?.status ?? "unknown"}</p>
-          <p className="mt-1 text-xs text-slate-500">{health?.service ?? "Control plane API"}</p>
-        </article>
-        <article className="rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Auth health</p>
-          <p className="mt-1 text-2xl font-semibold text-slate-900">{authHealth}</p>
-          <p className="mt-1 text-xs text-slate-500">/api/auth/health</p>
-        </article>
-        <article className="rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Billing health</p>
-          <p className="mt-1 text-2xl font-semibold text-slate-900">{billingHealth}</p>
-          <p className="mt-1 text-xs text-slate-500">/api/billing/health</p>
-        </article>
-        <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-900">
-          <p className="text-xs uppercase tracking-wide opacity-80">Suspended tenants</p>
-          <p className="mt-1 text-2xl font-semibold">{suspendedTenants}</p>
-          <p className="mt-1 text-xs opacity-80">Billing/Admin suspensions</p>
-        </article>
-      </div>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" },
+        }}
+      >
+        <MetricCard label="API status" value={health?.status ?? "unknown"} hint={health?.service ?? "Control plane API"} />
+        <MetricCard label="Auth health" value={authHealth} hint="/api/auth/health" />
+        <MetricCard label="Billing health" value={billingHealth} hint="/api/billing/health" />
+        <MetricCard label="Suspended tenants" value={suspendedTenants} hint="Billing or admin suspensions" tone="warning" />
+      </Box>
 
+      <Paper variant="outlined" sx={{ borderRadius: 3, p: 3 }}>
+        <Stack direction={{ xs: "column", md: "row" }} spacing={2} justifyContent="space-between" alignItems={{ md: "center" }}>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Tenant runtime consistency
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Tenant rows that don’t reconcile with actual ERP runtimes — clean these up before they leak into billing or support
+              workflows.
+            </Typography>
+          </Box>
+          <Chip
+            label={`${runtimeGapCount} reconciliation signal${runtimeGapCount === 1 ? "" : "s"}`}
+            color={runtimeGapCount > 0 ? "warning" : "success"}
+            variant="outlined"
+          />
+        </Stack>
 
-<div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">
-  <div className="flex flex-wrap items-center justify-between gap-3">
-    <div>
-      <h2 className="text-lg font-semibold text-slate-900">Tenant runtime consistency</h2>
-      <p className="mt-1 text-sm text-slate-600">
-        Highlights tenant rows that do not reconcile with actual ERP runtimes so operators can clean stale state before it leaks into billing or support workflows.
-      </p>
-    </div>
-    <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700">
-      {runtimeGapCount} open reconciliation signal(s)
-    </div>
-  </div>
+        {tenantRuntimeConsistency ? (
+          <>
+            <Box
+              sx={{
+                mt: 2,
+                display: "grid",
+                gap: 1.5,
+                gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(5, 1fr)" },
+              }}
+            >
+              <MetricCard label="Expected missing" value={tenantRuntimeConsistency.runtime_expected_missing} tone="warning" />
+              <MetricCard label="Pending no runtime" value={tenantRuntimeConsistency.pending_without_runtime} />
+              <MetricCard label="Pending payment" value={tenantRuntimeConsistency.pending_payment_without_runtime} />
+              <MetricCard label="Deleted w/ runtime" value={tenantRuntimeConsistency.deleted_with_runtime} tone="error" />
+              <MetricCard label="Runtime-only" value={tenantRuntimeConsistency.runtime_sites_without_db_entry} />
+            </Box>
 
-  {tenantRuntimeConsistency ? (
-    <>
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <article className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
-          <p className="text-xs uppercase tracking-wide opacity-80">Expected runtime missing</p>
-          <p className="mt-1 text-2xl font-semibold">{tenantRuntimeConsistency.runtime_expected_missing}</p>
-        </article>
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900">
-          <p className="text-xs uppercase tracking-wide opacity-80">Pending without runtime</p>
-          <p className="mt-1 text-2xl font-semibold">{tenantRuntimeConsistency.pending_without_runtime}</p>
-        </article>
-        <article className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900">
-          <p className="text-xs uppercase tracking-wide opacity-80">Pending payment without runtime</p>
-          <p className="mt-1 text-2xl font-semibold">{tenantRuntimeConsistency.pending_payment_without_runtime}</p>
-        </article>
-        <article className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800">
-          <p className="text-xs uppercase tracking-wide opacity-80">Deleted with runtime</p>
-          <p className="mt-1 text-2xl font-semibold">{tenantRuntimeConsistency.deleted_with_runtime}</p>
-        </article>
-        <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-900">
-          <p className="text-xs uppercase tracking-wide opacity-80">Runtime-only sites</p>
-          <p className="mt-1 text-2xl font-semibold">{tenantRuntimeConsistency.runtime_sites_without_db_entry}</p>
-        </article>
-      </div>
+            {tenantRuntimeConsistency.entries.length ? (
+              <Stack spacing={1.5} sx={{ mt: 2 }}>
+                {tenantRuntimeConsistency.entries.map((entry) => (
+                  <Card key={entry.tenant_id} variant="outlined" sx={{ borderRadius: 2 }}>
+                    <CardContent sx={{ p: 2 }}>
+                      <Stack direction={{ xs: "column", md: "row" }} spacing={1} justifyContent="space-between">
+                        <Box>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                            {entry.domain}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>
+                            {runtimeClassificationLabel(entry.classification)} · status={entry.status} · subscription=
+                            {entry.subscription_status ?? "n/a"} · plan={entry.plan ?? "n/a"}
+                          </Typography>
+                        </Box>
+                        <Chip
+                          size="small"
+                          label={entry.runtime_exists ? "runtime found" : "runtime missing"}
+                          variant="outlined"
+                          color={entry.runtime_exists ? "default" : "warning"}
+                        />
+                      </Stack>
+                      <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mt: 1 }}>
+                        <Typography variant="caption" color="text.secondary">
+                          Owner: <strong>{entry.owner_email ?? "—"}</strong>
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Last job: <strong>{entry.last_job_type ?? "—"}{entry.last_job_status ? ` (${entry.last_job_status})` : ""}</strong>
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Last job at: <strong>{formatTimestamp(entry.last_job_at)}</strong>
+                        </Typography>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Stack>
+            ) : (
+              <Alert severity="success" variant="outlined" sx={{ mt: 2, borderRadius: 2 }}>
+                No tenant-runtime mismatches detected right now.
+              </Alert>
+            )}
 
-      {tenantRuntimeConsistency.entries.length ? (
-        <div className="mt-4 space-y-3">
-          {tenantRuntimeConsistency.entries.map((entry) => (
-            <div key={entry.tenant_id} className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">{entry.domain}</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {runtimeClassificationLabel(entry.classification)} · status={entry.status} · subscription={entry.subscription_status ?? "n/a"} · plan={entry.plan ?? "n/a"}
-                  </p>
-                </div>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
-                  {entry.runtime_exists ? "runtime found" : "runtime missing"}
-                </span>
-              </div>
-              <div className="mt-3 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
-                <p>Owner: <span className="font-medium text-slate-900">{entry.owner_email ?? "—"}</span></p>
-                <p>Last job: <span className="font-medium text-slate-900">{entry.last_job_type ?? "—"} {entry.last_job_status ? `(${entry.last_job_status})` : ""}</span></p>
-                <p>Last job at: <span className="font-medium text-slate-900">{formatDate(entry.last_job_at)}</span></p>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-          No tenant-runtime mismatches detected right now.
-        </p>
-      )}
+            {tenantRuntimeConsistency.runtime_only_sites.length ? (
+              <Box sx={{ mt: 2 }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 700, display: "block", mb: 1 }}
+                >
+                  Runtime sites without DB rows
+                </Typography>
+                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                  {tenantRuntimeConsistency.runtime_only_sites.map((site) => (
+                    <Chip key={site} label={site} size="small" variant="outlined" />
+                  ))}
+                </Stack>
+              </Box>
+            ) : null}
+          </>
+        ) : (
+          <Box sx={{ mt: 2 }}>
+            <FeatureUnavailable feature="Tenant runtime consistency report" />
+          </Box>
+        )}
+      </Paper>
 
-      {tenantRuntimeConsistency.runtime_only_sites.length ? (
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Runtime sites without DB rows</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {tenantRuntimeConsistency.runtime_only_sites.map((site) => (
-              <span key={site} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700">
-                {site}
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </>
-  ) : (
-    <p className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-      Tenant runtime consistency report is not available on this backend deployment.
-    </p>
-  )}
-</div>
-
-      <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-        <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">
-          <h2 className="text-lg font-semibold text-slate-900">Queue health</h2>
-          <p className="mt-1 text-sm text-slate-600">Job backlog and failure signal across the platform.</p>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-900">
-              <p className="text-xs uppercase tracking-wide opacity-80">Queued jobs</p>
-              <p className="mt-1 text-2xl font-semibold">{queuedJobs.length}</p>
-            </article>
-            <article className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900">
-              <p className="text-xs uppercase tracking-wide opacity-80">Running jobs</p>
-              <p className="mt-1 text-2xl font-semibold">{runningJobs.length}</p>
-            </article>
-            <article className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800">
-              <p className="text-xs uppercase tracking-wide opacity-80">Failed jobs</p>
-              <p className="mt-1 text-2xl font-semibold">{failedJobs.length}</p>
-            </article>
-          </div>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: { xs: "1fr", lg: "1.2fr 1fr" },
+        }}
+      >
+        <Paper variant="outlined" sx={{ borderRadius: 3, p: 3 }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Queue health
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            Job backlog and failure signal across the platform.
+          </Typography>
+          <Box sx={{ mt: 2, display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" } }}>
+            <MetricCard label="Queued" value={queuedJobs.length} />
+            <MetricCard label="Running" value={runningJobs.length} />
+            <MetricCard label="Failed" value={failedJobs.length} tone={failedJobs.length > 0 ? "error" : "success"} />
+          </Box>
 
           {failedJobs.length ? (
-            <div className="mt-4 space-y-3 text-sm text-slate-700">
+            <Stack spacing={1.25} sx={{ mt: 2 }}>
               {failedJobs.slice(0, 5).map((job) => (
-                <div key={job.id} className="rounded-2xl border border-red-200 bg-red-50 p-4">
-                  <p className="text-xs uppercase tracking-wide text-red-500">{formatDate(job.created_at)}</p>
-                  <p className="mt-1 text-sm font-semibold text-red-800">{job.type}</p>
-                  <p className="mt-1 text-xs text-red-700">{job.error ?? "Failed job"}</p>
-                </div>
+                <Card key={job.id} variant="outlined" sx={{ borderRadius: 2, bgcolor: "error.light" }}>
+                  <CardContent sx={{ p: 2 }}>
+                    <Typography variant="caption" color="error.dark" sx={{ textTransform: "uppercase", letterSpacing: 0.6 }}>
+                      {formatTimestamp(job.created_at)}
+                    </Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, mt: 0.25, color: "error.dark" }}>
+                      {job.type}
+                    </Typography>
+                    <Typography variant="caption" color="error.dark">
+                      {job.error ?? "Failed job"}
+                    </Typography>
+                  </CardContent>
+                </Card>
               ))}
-            </div>
+            </Stack>
           ) : (
-            <p className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+            <Alert severity="success" variant="outlined" sx={{ mt: 2, borderRadius: 2 }}>
               No failed jobs in the last 80 operations.
-            </p>
+            </Alert>
           )}
-        </div>
+        </Paper>
 
-        <div className="space-y-4">
-          <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">
-            <h2 className="text-lg font-semibold text-slate-900">Core service checks</h2>
-            <p className="mt-1 text-sm text-slate-600">Postgres and Redis health from the API node.</p>
-            <div className="mt-4 space-y-2 text-sm text-slate-700">
+        <Stack spacing={2}>
+          <Paper variant="outlined" sx={{ borderRadius: 3, p: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Core service checks
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Postgres and Redis health from the API node.
+            </Typography>
+            <Stack spacing={1} sx={{ mt: 2 }}>
               {health?.checks ? (
                 Object.entries(health.checks).map(([service, status]) => (
-                  <div key={service} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                    <span className="text-xs uppercase tracking-wide text-slate-500">{service}</span>
-                    <span className="text-sm font-semibold text-slate-900">{status}</span>
-                  </div>
+                  <Stack
+                    key={service}
+                    direction="row"
+                    justifyContent="space-between"
+                    alignItems="center"
+                    sx={{ px: 1.5, py: 1, borderRadius: 2, border: "1px solid", borderColor: "divider" }}
+                  >
+                    <Typography variant="caption" color="text.secondary" sx={{ textTransform: "uppercase", letterSpacing: 0.6 }}>
+                      {service}
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {status}
+                    </Typography>
+                  </Stack>
                 ))
               ) : (
-                <div className="rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
+                <Typography variant="body2" color="text.secondary">
                   No infrastructure checks returned.
-                </div>
+                </Typography>
               )}
-            </div>
-          </div>
+            </Stack>
+          </Paper>
 
-          <div className="rounded-3xl border border-slate-200/70 bg-white/80 p-6">
-            <h2 className="text-lg font-semibold text-slate-900">Maintenance actions</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Run platform fixes for tenant TLS certificates and ERP assets when customers report 404s.
-            </p>
-            <div className="mt-4 space-y-2">
-              {canRunAdminOnlyActions ? (
-                <>
-                  <button
-                    className="w-full rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
-                    onClick={() => void runMaintenance("assets")}
-                    disabled={maintenanceBusy}
-                  >
-                    Rebuild ERP assets
-                  </button>
-                  <button
-                    className="w-full rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-60"
-                    onClick={() => void runMaintenance("tls")}
-                    disabled={maintenanceBusy}
-                  >
-                    Sync tenant TLS routes
-                  </button>
-                  <button
-                    className="w-full rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-800 hover:border-slate-300 disabled:opacity-60"
-                    onClick={() => void runMaintenance("tls-prime")}
-                    disabled={maintenanceBusy}
-                  >
-                    Prime tenant certificates
-                  </button>
-                </>
-              ) : (
-                <p className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
-                  Read-only maintenance view for support role. Ask an admin to execute maintenance actions.
-                </p>
-              )}
-            </div>
+          <Paper variant="outlined" sx={{ borderRadius: 3, p: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Maintenance actions
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Platform fixes for tenant TLS certificates and ERP assets.
+            </Typography>
+            {canRunAdminOnlyActions ? (
+              <Stack spacing={1} sx={{ mt: 2 }}>
+                {(Object.keys(MAINTENANCE_LABELS) as MaintenanceAction[]).map((action) => {
+                  const label = MAINTENANCE_LABELS[action];
+                  return (
+                    <Button
+                      key={action}
+                      variant="outlined"
+                      size="small"
+                      disabled={maintenanceBusy}
+                      onClick={() => setConfirmAction(action)}
+                      sx={{ justifyContent: "flex-start", textTransform: "none", fontWeight: 600, borderRadius: 2, py: 1 }}
+                    >
+                      <Box sx={{ textAlign: "left" }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                          {label.title}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {label.subtitle}
+                        </Typography>
+                      </Box>
+                    </Button>
+                  );
+                })}
+              </Stack>
+            ) : (
+              <Alert severity="info" variant="outlined" sx={{ mt: 2, borderRadius: 2 }}>
+                Read-only maintenance view for support role.
+              </Alert>
+            )}
             {maintenanceMessage ? (
-              <p className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+              <Alert severity="success" variant="outlined" sx={{ mt: 2, borderRadius: 2 }}>
                 {maintenanceMessage}
-              </p>
+              </Alert>
             ) : null}
             {maintenanceError ? (
-              <p className="mt-3 rounded-2xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+              <Alert severity="error" variant="outlined" sx={{ mt: 2, borderRadius: 2 }}>
                 {maintenanceError}
-              </p>
+              </Alert>
             ) : null}
-          </div>
-        </div>
-      </div>
-    </section>
+          </Paper>
+        </Stack>
+      </Box>
+
+      <ConfirmActionDialog
+        open={confirmAction !== null}
+        title={confirmAction ? MAINTENANCE_LABELS[confirmAction].title : ""}
+        body={confirmAction ? MAINTENANCE_LABELS[confirmAction].confirmBody : ""}
+        confirmLabel={confirmAction ? MAINTENANCE_LABELS[confirmAction].title : ""}
+        busy={maintenanceBusy}
+        onConfirm={() => confirmAction && void runMaintenance(confirmAction)}
+        onCancel={() => setConfirmAction(null)}
+      />
+    </Stack>
   );
 }

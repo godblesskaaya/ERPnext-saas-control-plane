@@ -22,6 +22,7 @@ type WorkspaceSidebarProps = {
   pathname: string;
   tone?: WorkspaceSidebarTone;
   compact?: boolean;
+  /** @deprecated sticky positioning now owned by the parent frame. */
   sticky?: boolean;
 };
 
@@ -100,7 +101,7 @@ function toneStyles(tone: WorkspaceSidebarTone) {
   };
 }
 
-export function WorkspaceSidebar({ overline, title, caption, sections, pathname, tone = "light", compact = false, sticky = true }: WorkspaceSidebarProps) {
+export function WorkspaceSidebar({ overline, title, caption, sections, pathname, tone = "light", compact = false }: WorkspaceSidebarProps) {
   const styles = toneStyles(tone);
 
   return (
@@ -108,9 +109,6 @@ export function WorkspaceSidebar({ overline, title, caption, sections, pathname,
       component="aside"
       elevation={1}
       sx={{
-        position: sticky ? "sticky" : "static",
-        top: sticky ? 80 : "auto",
-        alignSelf: "flex-start",
         width: "100%",
         p: compact ? 1.5 : 2,
         border: "1px solid",

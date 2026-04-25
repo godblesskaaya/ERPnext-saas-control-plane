@@ -14,6 +14,7 @@ import {
   Typography,
 } from "@mui/material";
 
+import { FeatureUnavailable } from "../../../../shared/components/FeatureUnavailable";
 import { JobLogPanel } from "../../../../shared/components/JobLogPanel";
 import type { Job } from "../../../../shared/lib/types";
 import { formatDate } from "./adminConsoleFormatters";
@@ -49,9 +50,7 @@ export function AdminJobsView({
       </Stack>
 
       {!jobsSupported ? (
-        <Typography variant="body2" color="text.secondary">
-          Admin jobs endpoint is not available on this backend.
-        </Typography>
+        <FeatureUnavailable feature="Job history" />
       ) : jobsError ? (
         <Typography variant="body2" color="error.main">
           {jobsError}

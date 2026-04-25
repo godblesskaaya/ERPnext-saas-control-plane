@@ -86,13 +86,17 @@ test("list shell uses EmptyState primitive for empty wrapper", () => {
 test("settings route adopts LoadingState/ErrorState/EmptyState wrappers", () => {
   const settingsSource = readSource(routePaths.settings);
 
+  // Settings page imports the shared shell primitives (and may add PageHeader alongside them).
   assert.equal(
-    settingsSource.includes('import { EmptyState, ErrorState, LoadingState } from "../../../../../domains/shell/components";'),
+    /import \{[^}]*EmptyState[^}]*ErrorState[^}]*LoadingState[^}]*\} from "\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/domains\/shell\/components";/.test(
+      settingsSource,
+    ),
     true,
+    "settings should import EmptyState, ErrorState, and LoadingState from the shared shell components.",
   );
 
   assert.equal(settingsSource.includes("const [profileLoading, setProfileLoading] = useState(true);"), true);
-  assert.equal(settingsSource.includes('{profileLoading ? <LoadingState label="Loading account settings..." /> : null}'), true);
+  assert.equal(/<LoadingState label="Loading account settings[…\.]+"/.test(settingsSource), true);
   assert.equal(settingsSource.includes("<ErrorState") && settingsSource.includes("message={error}"), true);
   assert.equal(settingsSource.includes("<EmptyState") && settingsSource.includes('title="Account profile unavailable"'), true);
 });

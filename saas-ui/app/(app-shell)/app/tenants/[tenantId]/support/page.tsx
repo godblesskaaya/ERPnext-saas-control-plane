@@ -15,6 +15,7 @@ import {
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { FeatureUnavailable, featureUnavailableMessage } from "../../../../../../domains/shared/components/FeatureUnavailable";
 import {
   createTenantSupportNote,
   loadTenantCurrentUser,
@@ -25,13 +26,8 @@ import {
 import { TenantWorkspacePageLayout } from "../../../../../../domains/tenant-ops/ui/tenant-detail/components/TenantWorkspacePageLayout";
 import { useTenantRouteContext } from "../../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
 import type { SupportNote, UserProfile } from "../../../../../../domains/shared/lib/types";
+import { formatTimestamp } from "../../../../../../domains/shared/lib/formatters";
 
-function formatTimestamp(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
 
 export default function TenantSupportPage() {
   const params = useParams<{ tenantId: string }>();
@@ -190,7 +186,7 @@ export default function TenantSupportPage() {
           {supportLoading ? (
             <Alert severity="info">Loading support notes...</Alert>
           ) : !supportNotesSupported ? (
-            <Alert severity="warning">Support notes are not available on this backend yet.</Alert>
+            <FeatureUnavailable feature="Support notes" />
           ) : supportNotesError ? (
             <Alert severity="error">{supportNotesError}</Alert>
           ) : (
@@ -259,7 +255,7 @@ export default function TenantSupportPage() {
                               buildSupportNoteExtras()
                             );
                             if (!result.supported) {
-                              setSupportNotesError("Support note endpoint is not available on this backend.");
+                              setSupportNotesError(featureUnavailableMessage("Support notes"));
                               return;
                             }
                             setSupportNoteText("");

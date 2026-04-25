@@ -26,7 +26,6 @@ export function AppFrame({ sidebar, mobileSidebar, children, contextRail, header
       sx={{
         minHeight: "100vh",
         width: "100%",
-        overflowX: "clip",
         bgcolor: "background.default",
         color: "text.primary",
         display: "grid",
@@ -34,7 +33,7 @@ export function AppFrame({ sidebar, mobileSidebar, children, contextRail, header
       }}
     >
       {header ?? <AppTopHeader onOpenMobileNav={openMobileNav} />}
-      <Container maxWidth="xl" sx={{ py: { xs: 2, md: 3 }, width: "100%", overflowX: "hidden" }}>
+      <Container maxWidth="xl" sx={{ py: { xs: 2, md: 3 }, width: "100%" }}>
         <Box
           sx={{
             display: "grid",
@@ -43,10 +42,33 @@ export function AppFrame({ sidebar, mobileSidebar, children, contextRail, header
             alignItems: "start",
           }}
         >
-          <Box sx={{ display: { xs: "none", lg: "block" }, minWidth: 0 }}>{sidebar}</Box>
+          <Box
+            sx={{
+              display: { xs: "none", lg: "block" },
+              minWidth: 0,
+              position: "sticky",
+              top: 80,
+              alignSelf: "start",
+              maxHeight: "calc(100vh - 96px)",
+              overflowY: "auto",
+              overflowX: "hidden",
+            }}
+          >
+            {sidebar}
+          </Box>
           <Box sx={{ display: "grid", gap: 2.5, minWidth: 0, overflowX: "hidden" }}>{children}</Box>
           {contextRail ? (
-            <Box sx={{ minWidth: 0, overflowX: "hidden" }}>
+            <Box
+              sx={{
+                minWidth: 0,
+                overflowX: "hidden",
+                position: "sticky",
+                top: 80,
+                alignSelf: "start",
+                maxHeight: "calc(100vh - 96px)",
+                overflowY: "auto",
+              }}
+            >
               {contextRail}
             </Box>
           ) : null}
@@ -67,7 +89,14 @@ export function AppFrame({ sidebar, mobileSidebar, children, contextRail, header
           },
         }}
       >
-        <Box role="presentation" onClick={closeMobileNav} sx={{ minWidth: 0 }}>
+        <Box
+          role="presentation"
+          sx={{ minWidth: 0 }}
+          onClick={(event) => {
+            const target = event.target as HTMLElement | null;
+            if (target?.closest("a")) closeMobileNav();
+          }}
+        >
           {mobileSidebar ?? sidebar}
         </Box>
       </Drawer>

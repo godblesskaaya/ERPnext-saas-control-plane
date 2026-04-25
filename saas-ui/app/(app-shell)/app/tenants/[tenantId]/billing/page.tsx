@@ -23,6 +23,7 @@ import {
   type PlanCatalogItem,
 } from "../../../../../../domains/subscription/domain/planCatalog";
 import { ConfirmActionDialog } from "../../../../../../domains/shared/components/ConfirmActionDialog";
+import { featureUnavailableMessage } from "../../../../../../domains/shared/components/FeatureUnavailable";
 import {
   renewTenantCheckout,
   toTenantDetailErrorMessage,
@@ -34,13 +35,8 @@ import {
   useTenantRouteContext,
   useTenantSubscriptionData,
 } from "../../../../../../domains/tenant-ops/ui/tenant-detail/hooks/useTenantSectionData";
+import { formatTimestamp } from "../../../../../../domains/shared/lib/formatters";
 
-function formatTimestamp(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
 
 export default function TenantBillingPage() {
   const params = useParams<{ tenantId: string }>();
@@ -121,7 +117,7 @@ export default function TenantBillingPage() {
           : { plan: planChoice };
       const result = await updateTenantPlanDetails(tenant.id, payload);
       if (!result.supported) {
-        setPlanError("Plan update endpoint is not available on this backend.");
+        setPlanError(featureUnavailableMessage("Changing your plan"));
         return;
       }
       setPlanNotice("Tenant plan updated successfully.");
@@ -144,7 +140,7 @@ export default function TenantBillingPage() {
     try {
       const result = await renewTenantCheckout(tenant.id);
       if (!result.supported) {
-        setRetryError("Checkout renewal is not available on this backend.");
+        setRetryError(featureUnavailableMessage("Renewing the payment link"));
         return;
       }
       if (result.data.checkout_url) {

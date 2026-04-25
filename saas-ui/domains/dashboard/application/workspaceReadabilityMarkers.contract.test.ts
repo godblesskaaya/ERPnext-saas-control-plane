@@ -80,29 +80,34 @@ test("workspace billing aliases keep stable route entry points", () => {
   const billingRecoveryRoute = readSource("app/(app-shell)/app/billing/recovery/page.tsx");
   const billingRecoveryComponent = readSource("domains/dashboard/components/workspace-pages/BillingRecoveryWorkspacePage.tsx");
 
-  assert.equal(billingSource.includes("Billing & invoices"), true);
+  // Page now uses PageHeader with title="Invoices" and overline="Billing".
+  assert.equal(billingSource.includes('title="Invoices"') && billingSource.includes('overline="Billing"'), true);
   assert.equal(billingRecoveryRoute.includes("BillingRecoveryWorkspacePage"), true);
   assert.equal(billingRecoveryComponent.includes("<WorkspaceQueuePage"), true);
 });
 
 test("support/platform/account/settings routes include explicit readability cues", () => {
+  // Each page should clearly say what it is (overline + title) and what to do (action button or CTA).
   const supportOverviewSource = readSource("app/(app-shell)/app/support/escalations/page.tsx");
-  assert.equal(supportOverviewSource.includes("Support overview"), true);
-  assert.equal(supportOverviewSource.includes("How to get help"), true);
-  assert.equal(supportOverviewSource.includes("Use the channel that matches your issue"), true);
+  assert.equal(supportOverviewSource.includes('overline="Support"') && supportOverviewSource.includes('title="Get help"'), true);
+  assert.equal(supportOverviewSource.includes("Open support queue"), true, "support page should expose the primary CTA");
 
   const platformHealthSource = readSource("app/(app-shell)/app/platform/health/page.tsx");
-  assert.equal(platformHealthSource.includes("Platform health"), true);
-  assert.equal(platformHealthSource.includes("Customer-safe service status"), true);
-  assert.equal(platformHealthSource.includes("What customers should do next"), true);
+  assert.equal(
+    platformHealthSource.includes('overline="Platform"') && platformHealthSource.includes('title="Service status"'),
+    true,
+  );
+  assert.equal(platformHealthSource.includes("Contact support"), true, "platform health should offer a follow-up action");
 
   const accountSource = readSource("app/(app-shell)/app/account/profile/page.tsx");
-  assert.equal(accountSource.includes("Account workspace"), true);
-  assert.equal(accountSource.includes("Account summary"), true);
-  assert.equal(accountSource.includes("Open ERPNext invoices") || accountSource.includes("Open ERPNext billing"), true);
+  assert.equal(accountSource.includes('overline="Account"') && accountSource.includes('title="Profile"'), true);
+  assert.equal(
+    accountSource.includes("Open invoice portal") || accountSource.includes("View invoices"),
+    true,
+    "account profile should link to billing follow-up",
+  );
 
   const settingsSource = readSource("app/(app-shell)/app/account/settings/page.tsx");
-  assert.equal(settingsSource.includes("Settings"), true);
-  assert.equal(settingsSource.includes("Notification and contact readiness"), true);
+  assert.equal(settingsSource.includes('overline="Account"') && settingsSource.includes('title="Settings"'), true);
   assert.equal(settingsSource.includes("Save preferences"), true);
 });

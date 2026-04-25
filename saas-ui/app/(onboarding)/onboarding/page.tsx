@@ -490,7 +490,7 @@ export default function OnboardingPage() {
     try {
       const result = await renewCheckoutLinkUseCase(tenant.id);
       if (!result.supported) {
-        setRenewError("Checkout renewal is not available on this backend.");
+        setRenewError("Renewing the payment link isn’t available right now. Please contact support.");
         return;
       }
       setTenant(result.data.tenant as TenantRecord);
@@ -523,7 +523,7 @@ export default function OnboardingPage() {
     try {
       const result = await retryTenantProvisioningUseCase(tenant.id);
       if (!result.supported) {
-        setRetryError("Retry endpoint is not available on this backend.");
+        setRetryError("Retrying provisioning isn’t available right now. Please contact support.");
         return;
       }
       setProvisioningJobId(result.data.id);

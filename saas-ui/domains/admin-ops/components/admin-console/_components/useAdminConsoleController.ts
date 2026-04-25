@@ -23,6 +23,7 @@ import {
   deriveAdminTenantCounts,
 } from "../../../domain/adminDashboard";
 import { useNotifications } from "../../../../shared/components/NotificationsProvider";
+import { featureUnavailableMessage } from "../../../../shared/components/FeatureUnavailable";
 import type { AuditLogEntry, DeadLetterJob, Job, MetricsSummary, Tenant } from "../../../../shared/lib/types";
 import type { AdminControlLaneLink, TenantAdminAction } from "./adminConsoleTypes";
 import {
@@ -290,7 +291,7 @@ export function useAdminConsoleController({ forcedView }: UseAdminConsoleControl
       try {
         const result = await requeueDeadLetterById(jobId);
         if (!result.supported) {
-          setDeadLetterError("Requeue endpoint is not available on this backend.");
+          setDeadLetterError(featureUnavailableMessage("Requeueing failed jobs"));
           return;
         }
         await loadDeadLetters();
@@ -323,9 +324,9 @@ export function useAdminConsoleController({ forcedView }: UseAdminConsoleControl
       const result = await executeTenantLifecycleAction(tenantAction.type, tenantAction.tenant.id, reason);
       if (!result.supported) {
         setTenantsError(
-          tenantAction.type === "suspend"
-            ? "Suspend endpoint is not available on this backend."
-            : "Unsuspend endpoint is not available on this backend."
+          featureUnavailableMessage(
+            tenantAction.type === "suspend" ? "Suspending workspaces" : "Unsuspending workspaces"
+          )
         );
         return;
       }
@@ -376,7 +377,7 @@ export function useAdminConsoleController({ forcedView }: UseAdminConsoleControl
     try {
       const result = await issueSupportImpersonationLink(email, reason);
       if (!result.supported) {
-        setImpersonationError("Impersonation endpoint is not available on this backend.");
+        setImpersonationError(featureUnavailableMessage("Issuing impersonation links"));
         return;
       }
       if (!result.link) {
